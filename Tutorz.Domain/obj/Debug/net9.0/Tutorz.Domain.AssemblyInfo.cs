@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Tutorz.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a031dee13a4da767a02047cde8c9932609314234")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+15188c03c6b8d17845caaee25fa1f02d65495c43")]
 [assembly: System.Reflection.AssemblyProductAttribute("Tutorz.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Tutorz.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
