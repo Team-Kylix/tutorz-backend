@@ -1,4 +1,18 @@
+
+using Microsoft.EntityFrameworkCore;
+using Tutorz.Infrastructure;
+using Tutorz.Infrastructure.Persistence;
+
 var builder = WebApplication.CreateBuilder(args);
+// 1. Get the connection string
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// 2. Register the DbContext
+builder.Services.AddDbContext<TutorzDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// Add services to the container.
+builder.Services.AddControllers();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
