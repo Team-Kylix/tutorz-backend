@@ -3,6 +3,58 @@
   "WorkspaceRootPath": "D:\\Tutorz\\tutorz-backend\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\tutorz.api.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\tutorz.api.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|d:\\tutorz\\tutorz-backend\\tutorz.application\\features\\auth\\dtos\\authresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|solutionrelative:tutorz.application\\features\\auth\\dtos\\authresponse.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|d:\\tutorz\\tutorz-backend\\tutorz.application\\features\\auth\\dtos\\loginrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|solutionrelative:tutorz.application\\features\\auth\\dtos\\loginrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|d:\\tutorz\\tutorz-backend\\tutorz.application\\features\\auth\\dtos\\registerrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1E5282F4-0D5D-4485-AADB-EDEE254C0426}|Tutorz.Application\\Tutorz.Application.csproj|solutionrelative:tutorz.application\\features\\auth\\dtos\\registerrequest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\migrations\\20251013092513_initialcreate.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\migrations\\20251013092513_initialcreate.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\migrations\\tutorzdbcontextmodelsnapshot.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\migrations\\tutorzdbcontextmodelsnapshot.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\migrations\\20251016104619_adduserprofiletables1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\migrations\\20251016104619_adduserprofiletables1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\migrations\\20251016103842_adduserprofiletables.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\migrations\\20251016103842_adduserprofiletables.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\persistence\\tutorzdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\persistence\\tutorzdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|d:\\tutorz\\tutorz-backend\\tutorz.domain\\entities\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|solutionrelative:tutorz.domain\\entities\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|d:\\tutorz\\tutorz-backend\\tutorz.domain\\entities\\institute.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|solutionrelative:tutorz.domain\\entities\\institute.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -19,22 +71,6 @@
       "RelativeMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|solutionrelative:tutorz.domain\\entities\\user.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|d:\\tutorz\\tutorz-backend\\tutorz.domain\\entities\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{E897E3A9-0565-4296-AF49-41DF24D447E7}|Tutorz.Domain\\Tutorz.Domain.csproj|solutionrelative:tutorz.domain\\entities\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|d:\\tutorz\\tutorz-backend\\tutorz.infrastructure\\persistence\\tutorzdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D69F51AD-9ECE-4F57-B09A-5B63D29C96DE}|Tutorz.Infrastructure\\Tutorz.Infrastructure.csproj|solutionrelative:tutorz.infrastructure\\persistence\\tutorzdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|d:\\tutorz\\tutorz-backend\\tutorz.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{0729B2E9-E696-4A49-9C16-7732E4D0C2F3}|Tutorz.Api\\Tutorz.Api.csproj|solutionrelative:tutorz.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     }
@@ -46,15 +82,132 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 17,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "AuthController.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Controllers\\AuthController.cs",
+              "RelativeDocumentMoniker": "Tutorz.Api\\Controllers\\AuthController.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Controllers\\AuthController.cs",
+              "RelativeToolTip": "Tutorz.Api\\Controllers\\AuthController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:56:03.894Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Tutorz.Api",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Tutorz.Api.csproj",
+              "RelativeDocumentMoniker": "Tutorz.Api\\Tutorz.Api.csproj",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Tutorz.Api.csproj",
+              "RelativeToolTip": "Tutorz.Api\\Tutorz.Api.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-16T10:54:37.411Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 4,
+              "Title": "AuthResponse.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\AuthResponse.cs",
+              "RelativeDocumentMoniker": "Tutorz.Application\\Features\\Auth\\Dtos\\AuthResponse.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\AuthResponse.cs",
+              "RelativeToolTip": "Tutorz.Application\\Features\\Auth\\Dtos\\AuthResponse.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:53:22.567Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "LoginRequest.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\LoginRequest.cs",
+              "RelativeDocumentMoniker": "Tutorz.Application\\Features\\Auth\\Dtos\\LoginRequest.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\LoginRequest.cs",
+              "RelativeToolTip": "Tutorz.Application\\Features\\Auth\\Dtos\\LoginRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:52:41.167Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "RegisterRequest.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\RegisterRequest.cs",
+              "RelativeDocumentMoniker": "Tutorz.Application\\Features\\Auth\\Dtos\\RegisterRequest.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Application\\Features\\Auth\\Dtos\\RegisterRequest.cs",
+              "RelativeToolTip": "Tutorz.Application\\Features\\Auth\\Dtos\\RegisterRequest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:51:51.191Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "20251016104619_AddUserProfileTables1.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251016104619_AddUserProfileTables1.cs",
+              "RelativeDocumentMoniker": "Tutorz.Infrastructure\\Migrations\\20251016104619_AddUserProfileTables1.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251016104619_AddUserProfileTables1.cs",
+              "RelativeToolTip": "Tutorz.Infrastructure\\Migrations\\20251016104619_AddUserProfileTables1.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:47:53.707Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "20251016103842_AddUserProfileTables.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251016103842_AddUserProfileTables.cs",
+              "RelativeDocumentMoniker": "Tutorz.Infrastructure\\Migrations\\20251016103842_AddUserProfileTables.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251016103842_AddUserProfileTables.cs",
+              "RelativeToolTip": "Tutorz.Infrastructure\\Migrations\\20251016103842_AddUserProfileTables.cs",
+              "ViewState": "AgIAAA0AAAAAAAAAAAAQwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:42:35.762Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "20251013092513_InitialCreate.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251013092513_InitialCreate.cs",
+              "RelativeDocumentMoniker": "Tutorz.Infrastructure\\Migrations\\20251013092513_InitialCreate.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\20251013092513_InitialCreate.cs",
+              "RelativeToolTip": "Tutorz.Infrastructure\\Migrations\\20251013092513_InitialCreate.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:42:34.307Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "TutorzDbContextModelSnapshot.cs",
+              "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\TutorzDbContextModelSnapshot.cs",
+              "RelativeDocumentMoniker": "Tutorz.Infrastructure\\Migrations\\TutorzDbContextModelSnapshot.cs",
+              "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Migrations\\TutorzDbContextModelSnapshot.cs",
+              "RelativeToolTip": "Tutorz.Infrastructure\\Migrations\\TutorzDbContextModelSnapshot.cs",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-16T10:42:12.559Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
               "Title": "Institute.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Domain\\Entities\\Institute.cs",
               "RelativeDocumentMoniker": "Tutorz.Domain\\Entities\\Institute.cs",
@@ -67,7 +220,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 14,
               "Title": "Student.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Domain\\Entities\\Student.cs",
               "RelativeDocumentMoniker": "Tutorz.Domain\\Entities\\Student.cs",
@@ -75,12 +228,11 @@
               "RelativeToolTip": "Tutorz.Domain\\Entities\\Student.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAgAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-16T10:22:20.082Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-16T10:22:20.082Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 15,
               "Title": "Tutor.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Domain\\Entities\\Tutor.cs",
               "RelativeDocumentMoniker": "Tutorz.Domain\\Entities\\Tutor.cs",
@@ -88,25 +240,24 @@
               "RelativeToolTip": "Tutorz.Domain\\Entities\\Tutor.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-16T10:07:59.31Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-16T10:07:59.31Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 1,
               "Title": "Program.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Program.cs",
               "RelativeDocumentMoniker": "Tutorz.Api\\Program.cs",
               "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\Program.cs",
               "RelativeToolTip": "Tutorz.Api\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAhAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-10-13T08:58:58.635Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 16,
               "Title": "User.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Domain\\Entities\\User.cs",
               "RelativeDocumentMoniker": "Tutorz.Domain\\Entities\\User.cs",
@@ -114,12 +265,11 @@
               "RelativeToolTip": "Tutorz.Domain\\Entities\\User.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAoAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-13T09:03:48.778Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-13T09:03:48.778Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 12,
               "Title": "Role.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Domain\\Entities\\Role.cs",
               "RelativeDocumentMoniker": "Tutorz.Domain\\Entities\\Role.cs",
@@ -132,7 +282,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 11,
               "Title": "TutorzDbContext.cs",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Infrastructure\\Persistence\\TutorzDbContext.cs",
               "RelativeDocumentMoniker": "Tutorz.Infrastructure\\Persistence\\TutorzDbContext.cs",
@@ -145,19 +295,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 0,
               "Title": "appsettings.Development.json",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\appsettings.Development.json",
               "RelativeDocumentMoniker": "Tutorz.Api\\appsettings.Development.json",
               "ToolTip": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\appsettings.Development.json",
               "RelativeToolTip": "Tutorz.Api\\appsettings.Development.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-10-13T08:59:00.966Z"
+              "WhenOpened": "2025-10-13T08:59:00.966Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 17,
               "Title": "appsettings.json",
               "DocumentMoniker": "D:\\Tutorz\\tutorz-backend\\Tutorz.Api\\appsettings.json",
               "RelativeDocumentMoniker": "Tutorz.Api\\appsettings.json",

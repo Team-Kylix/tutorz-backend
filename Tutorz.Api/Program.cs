@@ -1,4 +1,8 @@
 
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+
 using Microsoft.EntityFrameworkCore;
 using Tutorz.Infrastructure;
 using Tutorz.Infrastructure.Persistence;
@@ -10,6 +14,21 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // 2. Register the DbContext
 builder.Services.AddDbContext<TutorzDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// --- START: Add JWT Configuration ---
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
+                .GetBytes(builder.Configuration["Jwt:Key"])),
+            ValidateIssuer = false, // For development
+            ValidateAudience = false // For development
+        };
+    });
+// --- END: Add JWT Configuration ---
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -27,29 +46,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
+// --- START: Add Authentication Middleware ---
+// IMPORTANT: This must come BEFORE app.UseAuthorization();
+app.UseAuthentication();
+// --- END: Add Authentication Middleware ---
+app.UseAuthorization();
+app.MapControllers();
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

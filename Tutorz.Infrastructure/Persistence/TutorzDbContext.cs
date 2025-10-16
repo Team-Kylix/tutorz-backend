@@ -15,5 +15,9 @@ namespace Tutorz.Infrastructure.Persistence
 
         public DbSet<User> Users { get; set; }
         public DbSet<Role> Roles { get; set; }
+        public DbSet<Institute> Institutions { get; set; }
+        public DbSet<Tutor> Tutors { get; set; }
+        public DbSet<Student> Students { get; set; }
+
     }
 }

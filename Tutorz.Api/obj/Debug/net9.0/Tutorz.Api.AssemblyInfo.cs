@@ -11,10 +11,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("f7346f7b-92d3-4c32-8c61-873c713ed7bf")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("Tutorz.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c627ad610f3b5a0e8862cc566234f6847d680e46")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+21afd131fd89f69e921177244caa8358c1a35262")]
 [assembly: System.Reflection.AssemblyProductAttribute("Tutorz.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Tutorz.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
