@@ -1,5 +1,8 @@
 # .gitignore for .NET (Backend)
 
+# Visual Studio cache
+/.vs/
+
 # Build artifacts
 [Bb]in/
 [Oo]bj/
