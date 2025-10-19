@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Domain.Entities;
 
-namespace Tutorz.Infrastructure.Persistence
+namespace Tutorz.Infrastructure.Data
 {
     public class TutorzDbContext : DbContext
     {

@@ -4,12 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Tutorz.Application.Features.Auth.Dtos
+namespace Tutorz.Application.DTOs.Auth
 {
-    public class RegisterRequest
+    public class LoginRequest
     {
         public string Email { get; set; }
         public string Password { get; set; }
-        public string Role { get; set; } // "Tutor", "Student", etc.
     }
 }
