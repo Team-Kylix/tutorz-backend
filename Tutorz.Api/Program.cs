@@ -23,8 +23,9 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITutorRepository, TutorRepository>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
 
-// --- START: Add JWT Configuration ---
+// Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -33,11 +34,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
                 .GetBytes(builder.Configuration["Jwt:Key"])),
-            ValidateIssuer = false, // For development
+            ValidateIssuer = false, //
             ValidateAudience = false // For development
         };
     });
-// --- END: Add JWT Configuration ---
 
 builder.Services.AddControllers();
 // --- START: Add this code for Swagger ---

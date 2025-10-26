@@ -20,19 +20,31 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepository;
         private readonly ITutorRepository _tutorRepository;
         private readonly IStudentRepository _studentRepository;
+
+        // --- 1. ADD THE INSTITUTE REPOSITORY ---
+        private readonly IInstituteRepository _instituteRepository;
+
         private readonly IConfiguration _configuration;
-        private readonly IRoleRepository _roleRepository; //Add Role Repo
+        private readonly IRoleRepository _roleRepository;
 
         public AuthService(
             IUserRepository userRepository,
             ITutorRepository tutorRepository,
             IStudentRepository studentRepository,
+
+            // --- 2. ADD IT TO THE CONSTRUCTOR ---
+            IInstituteRepository instituteRepository,
+
             IRoleRepository roleRepository,
             IConfiguration configuration)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
             _studentRepository = studentRepository;
+
+            // --- 3. ASSIGN IT ---
+            _instituteRepository = instituteRepository;
+
             _roleRepository = roleRepository;
             _configuration = configuration;
         }
@@ -52,33 +64,52 @@ namespace Tutorz.Application.Services
                 throw new Exception($"Role '{request.Role}' does not exist.");
             }
 
-            // Hash the password
-            string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-            // Create the core User entity
             var user = new User
             {
                 UserId = Guid.NewGuid(),
                 Email = request.Email,
-                PasswordHash = passwordHash,
-                RoleId = role.RoleId
-                // You still need logic to map request.Role (string) to your RoleId (int)
-                // RoleId = GetRoleIdFor(request.Role)
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                RoleId = role.RoleId,
+                PhoneNumber = request.PhoneNumber
             };
             await _userRepository.AddAsync(user);
 
-            // Create the specific profile
             if (request.Role == "Tutor")
             {
-                await _tutorRepository.AddAsync(new Tutor { UserId = user.UserId });
+                await _tutorRepository.AddAsync(new Tutor
+                {
+                    UserId = user.UserId,
+
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    Bio = request.Bio,
+                    BankAccountNumber = request.BankAccountNumber,
+                    BankName = request.BankName,
+                    ExperienceYears = request.ExperienceYears
+                });
             }
             else if (request.Role == "Student")
             {
-                await _studentRepository.AddAsync(new Student { UserId = user.UserId });
+                // 👇 YOU WILL ADD STUDENT LOGIC HERE LATER
+                // (e.g., FullName, SchoolName)
+                await _studentRepository.AddAsync(new Student
+                {
+                    UserId = user.UserId,
+                    // FullName = request.FullName,
+                    // SchoolName = request.SchoolName
+                });
             }
-            // ... etc. for Institute
+            else if (request.Role == "Institute")
+            {
+                // 👇 YOU WILL ADD INSTITUTE LOGIC HERE LATER
+                // (e.g., InstituteName)
+                await _instituteRepository.AddAsync(new Institute
+                {
+                    UserId = user.UserId,
+                    // InstituteName = request.InstituteName
+                });
+            }
 
-            // Save all changes in one transaction
             await _userRepository.SaveChangesAsync();
 
             // Generate token (NOW WITH THE ROLE)

@@ -14,8 +14,8 @@ namespace Tutorz.Domain.Entities
         public String LastName { get; set; }
         public String Bio { get; set; }
         public int ExperienceYears { get; set; }
-        public String BankAccountNumber { get; set; }
-        public String BankName { get; set; }    
+        public string? BankAccountNumber { get; set; }
+        public string? BankName { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }

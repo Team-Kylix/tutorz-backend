@@ -17,6 +17,7 @@ namespace Tutorz.Api.Controllers
             _authService = authService;
         }
 
+        // In AuthController.cs
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request)
         {
@@ -27,7 +28,21 @@ namespace Tutorz.Api.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                // --- MODIFICATION ---
+                // Log the inner exception to your console
+                Console.WriteLine($"Error: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+                }
+                // --- END MODIFICATION ---
+
+                return BadRequest(new
+                {
+                    message = ex.Message,
+                    // Also send the inner exception to the frontend for debugging
+                    innerException = ex.InnerException?.Message
+                });
             }
         }
 
@@ -36,7 +51,7 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
-                // 3. Call the service
+                // Call the service
                 var response = await _authService.LoginAsync(request);
                 return Ok(response);
             }
