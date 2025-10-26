@@ -1,4 +1,3 @@
-
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -18,22 +17,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<TutorzDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Register the main service (from Application layer)
+// Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
-
-// This line tells your app:
-// "When any service (like AuthService) asks for the IRoleRepository contract,
-// give it a new instance of the RoleRepository tool."
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-
-// Register the repositories (from Infrastructure layer)
-// When AuthService asks for IUserRepository, give it a UserRepository
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITutorRepository, TutorRepository>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
-// builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
-
-// --- END: Register Services and Repositories ---
 
 // --- START: Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -50,16 +39,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 // --- END: Add JWT Configuration ---
 
-// Add services to the container.
 builder.Services.AddControllers();
 // --- START: Add this code for Swagger ---
-
 builder.Services.AddSwaggerGen(options =>
 {
-    // This defines the basic info for your API
+    // ... your existing SwaggerGen config ...
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Tutorz API", Version = "v1" });
-
-    // This configures the "Authorize" button to accept JWT Bearer tokens
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -69,8 +54,6 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
         Scheme = "Bearer"
     });
-
-    // This makes Swagger automatically add the token to all locked endpoints
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -86,15 +69,23 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
-
 // --- END: Add this code for Swagger ---
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-//builder.Services.AddOpenApi();
-//builder.Services.AddSwaggerGen();
+// DEFINE your CORS policy (This belongs with builder.Services)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: "AllowMyReactApp",
+                      policy =>
+                      {
+                          policy.WithOrigins("http://localhost:5173") // Vite frontend URL
+                                .AllowAnyHeader()
+                                .AllowAnyMethod();
+                      });
+});
+
 
 var app = builder.Build();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -105,18 +96,15 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-//// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.MapOpenApi();
-//}
-
 app.UseHttpsRedirection();
+
+// Your CORS policy MUST be used before Authentication/Authorization
+app.UseCors("AllowMyReactApp");
+
 // --- START: Add Authentication Middleware ---
-// IMPORTANT: This must come BEFORE app.UseAuthorization();
 app.UseAuthentication();
 // --- END: Add Authentication Middleware ---
 app.UseAuthorization();
+
 app.MapControllers();
 app.Run();
-

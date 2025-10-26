@@ -148,8 +148,12 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
         {
+            // --- START: Removed Duplicate Variable ---
+            // This line was removed: SocialLoginUser socialUser = await ValidateGoogleTokenAsync(request.IdToken);
+            // --- END: Removed Duplicate Variable ---
+
             // 1. Validate the external token and get user info
-            SocialLoginUser socialUser;
+            SocialLoginUser socialUser; // Declare the variable once here
             if (request.Provider.ToLower() == "google")
             {
                 socialUser = await ValidateGoogleTokenAsync(request.IdToken);
@@ -162,38 +166,77 @@ namespace Tutorz.Application.Services
             // 2. Find or create the user in your database
             var user = await _userRepository.GetAsync(u => u.Email == socialUser.Email);
             var roleName = "";
+            bool isNewUser = false; // Flag to check if we created a user
 
             if (user == null) // New user
             {
+                isNewUser = true; // Mark as new user
+
+                // Ensure the role was provided in the request for new users
+                if (string.IsNullOrEmpty(request.Role))
+                {
+                    throw new Exception("Role is required for new social login users.");
+                }
+
                 var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
-                if (role == null) throw new Exception("Invalid role for new user.");
+                if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
                 roleName = role.Name;
 
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
                     Email = socialUser.Email,
-                    // No password for social logins
+                    // PasswordHash is null for social logins
                     RoleId = role.RoleId
                 };
                 await _userRepository.AddAsync(user);
 
-                // Create the profile (Tutor/Student)
-                if (roleName == "Tutor") { /* ... create tutor ... */ }
-                else if (roleName == "Student") { /* ... create student ... */ }
-                else if (roleName == "Institute") { /* ... create Institute ... */ }
+                // Create the specific profile based on the role
+                // *** IMPORTANT: You need to implement the actual creation logic here ***
+                if (roleName == "Tutor")
+                {
+                    await _tutorRepository.AddAsync(new Tutor { UserId = user.UserId });
+                    Console.WriteLine($"DEBUG: Created Tutor profile for User ID: {user.UserId}"); // Add logging
+                }
+                else if (roleName == "Student")
+                {
+                    await _studentRepository.AddAsync(new Student { UserId = user.UserId });
+                    Console.WriteLine($"DEBUG: Created Student profile for User ID: {user.UserId}"); // Add logging
+                }
+                // else if (roleName == "Institute") { /* await _instituteRepository.AddAsync(new Institute { UserId = user.UserId }); */ } // Uncomment when InstituteRepo is ready
 
-                await _userRepository.SaveChangesAsync();
             }
             else // Existing user
             {
                 var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
+                // Handle cases where role might not be found (though unlikely if data is consistent)
+                if (role == null)
+                {
+                    throw new Exception($"Role not found for existing user with RoleId: {user.RoleId}");
+                }
                 roleName = role.Name;
             }
 
+            // Save changes ONLY IF a new user or profile was created
+            if (isNewUser)
+            {
+                await _userRepository.SaveChangesAsync(); // Use the context's SaveChangesAsync via one repository
+                Console.WriteLine($"DEBUG: Saved changes for new user: {user.Email}"); // Add logging
+            }
+
+
             // 3. Issue your OWN token
             var token = GenerateJwtToken(user, roleName);
-            return new AuthResponse { /* ... populate ... */ };
+
+            // --- START: Populate the Response Correctly ---
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Email = user.Email,
+                Role = roleName, // Use the roleName we determined
+                Token = token
+            };
+            // --- END: Populate the Response Correctly ---
         }
 
         //validation logic for google token

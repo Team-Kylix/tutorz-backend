@@ -51,12 +51,19 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
+                // Log the incoming request for debugging
+                Console.WriteLine($"Social login request - Provider: {request.Provider}, Role: {request.Role}");
+
                 var response = await _authService.SocialLoginAsync(request);
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                // Log the full error
+                Console.WriteLine($"Social login error: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
     }
