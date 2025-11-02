@@ -13,8 +13,4 @@ namespace Tutorz.Application.Interfaces
         // Task<User> GetUserWithDetailsAsync(Guid id);
     }
 
-    // You should create these too:
-    // public interface ITutorRepository : IGenericRepository<Tutor> { }
-    // public interface IStudentRepository : IGenericRepository<Student> { }
-    // public interface IInstituteRepository : IGenericRepository<Institute> { }
 }

@@ -20,10 +20,7 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepository;
         private readonly ITutorRepository _tutorRepository;
         private readonly IStudentRepository _studentRepository;
-
-        // --- 1. ADD THE INSTITUTE REPOSITORY ---
         private readonly IInstituteRepository _instituteRepository;
-
         private readonly IConfiguration _configuration;
         private readonly IRoleRepository _roleRepository;
 
@@ -31,27 +28,21 @@ namespace Tutorz.Application.Services
             IUserRepository userRepository,
             ITutorRepository tutorRepository,
             IStudentRepository studentRepository,
-
-            // --- 2. ADD IT TO THE CONSTRUCTOR ---
             IInstituteRepository instituteRepository,
-
             IRoleRepository roleRepository,
             IConfiguration configuration)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
             _studentRepository = studentRepository;
-
-            // --- 3. ASSIGN IT ---
             _instituteRepository = instituteRepository;
-
             _roleRepository = roleRepository;
             _configuration = configuration;
         }
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
-            // Check if user exists (using the repository!)
+            // Check if user exists
             if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
             {
                 throw new Exception("User with this email already exists.");
@@ -79,7 +70,6 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
-
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -90,8 +80,7 @@ namespace Tutorz.Application.Services
             }
             else if (request.Role == "Student")
             {
-                // 👇 YOU WILL ADD STUDENT LOGIC HERE LATER
-                // (e.g., FullName, SchoolName)
+
                 await _studentRepository.AddAsync(new Student
                 {
                     UserId = user.UserId,
@@ -101,8 +90,6 @@ namespace Tutorz.Application.Services
             }
             else if (request.Role == "Institute")
             {
-                // 👇 YOU WILL ADD INSTITUTE LOGIC HERE LATER
-                // (e.g., InstituteName)
                 await _instituteRepository.AddAsync(new Institute
                 {
                     UserId = user.UserId,
@@ -112,7 +99,7 @@ namespace Tutorz.Application.Services
 
             await _userRepository.SaveChangesAsync();
 
-            // Generate token (NOW WITH THE ROLE)
+            // Generate token WITH THE ROLE
             var token = GenerateJwtToken(user, role.Name);
 
             return new AuthResponse
@@ -126,26 +113,26 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
-            // 1. Find user
+            // Find user
             var user = await _userRepository.GetAsync(u => u.Email == request.Email);
 
-            // 2. Validate
+            // Validate
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 throw new Exception("Invalid email or password.");
             }
 
-            // 3. GET THE ROLE (This is the new part)
+            // GET THE ROLE
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
             if (role == null)
             {
                 throw new Exception("User has no valid role.");
             }
 
-            // 4. Generate token (pass the role name)
+            // Generate token
             var token = GenerateJwtToken(user, role.Name);
 
-            // 5. Populate the response
+            // Populate the response
             return new AuthResponse
             {
                 UserId = user.UserId,
@@ -155,7 +142,7 @@ namespace Tutorz.Application.Services
             };
         }
 
-        // private string GenerateJwtToken(User user)
+        // private string GenerateJwtToken
         private string GenerateJwtToken(User user, string roleName) 
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
@@ -179,12 +166,9 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
         {
-            // --- START: Removed Duplicate Variable ---
-            // This line was removed: SocialLoginUser socialUser = await ValidateGoogleTokenAsync(request.IdToken);
-            // --- END: Removed Duplicate Variable ---
 
-            // 1. Validate the external token and get user info
-            SocialLoginUser socialUser; // Declare the variable once here
+            // Validate the external token and get user info
+            SocialLoginUser socialUser;
             if (request.Provider.ToLower() == "google")
             {
                 socialUser = await ValidateGoogleTokenAsync(request.IdToken);
@@ -194,14 +178,14 @@ namespace Tutorz.Application.Services
                 throw new Exception("Invalid provider");
             }
 
-            // 2. Find or create the user in your database
+            // Find or create the user in your database
             var user = await _userRepository.GetAsync(u => u.Email == socialUser.Email);
             var roleName = "";
-            bool isNewUser = false; // Flag to check if we created a user
+            bool isNewUser = false;
 
-            if (user == null) // New user
+            if (user == null) 
             {
-                isNewUser = true; // Mark as new user
+                isNewUser = true; 
 
                 // Ensure the role was provided in the request for new users
                 if (string.IsNullOrEmpty(request.Role))
@@ -223,7 +207,6 @@ namespace Tutorz.Application.Services
                 await _userRepository.AddAsync(user);
 
                 // Create the specific profile based on the role
-                // *** IMPORTANT: You need to implement the actual creation logic here ***
                 if (roleName == "Tutor")
                 {
                     await _tutorRepository.AddAsync(new Tutor { UserId = user.UserId });
@@ -234,13 +217,13 @@ namespace Tutorz.Application.Services
                     await _studentRepository.AddAsync(new Student { UserId = user.UserId });
                     Console.WriteLine($"DEBUG: Created Student profile for User ID: {user.UserId}"); // Add logging
                 }
-                // else if (roleName == "Institute") { /* await _instituteRepository.AddAsync(new Institute { UserId = user.UserId }); */ } // Uncomment when InstituteRepo is ready
+                // else if (roleName == "Institute") { /* await _instituteRepository.AddAsync(new Institute { UserId = user.UserId }); */ }
 
             }
             else // Existing user
             {
                 var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
-                // Handle cases where role might not be found (though unlikely if data is consistent)
+                // Handle cases where role might not be found
                 if (role == null)
                 {
                     throw new Exception($"Role not found for existing user with RoleId: {user.RoleId}");
@@ -251,49 +234,47 @@ namespace Tutorz.Application.Services
             // Save changes ONLY IF a new user or profile was created
             if (isNewUser)
             {
-                await _userRepository.SaveChangesAsync(); // Use the context's SaveChangesAsync via one repository
+                await _userRepository.SaveChangesAsync(); // Use the context SaveChangesAsync via one repository
                 Console.WriteLine($"DEBUG: Saved changes for new user: {user.Email}"); // Add logging
             }
 
 
-            // 3. Issue your OWN token
+            // Issue your OWN token
             var token = GenerateJwtToken(user, roleName);
 
-            // --- START: Populate the Response Correctly ---
             return new AuthResponse
             {
                 UserId = user.UserId,
                 Email = user.Email,
-                Role = roleName, // Use the roleName we determined
+                Role = roleName, 
                 Token = token
             };
-            // --- END: Populate the Response Correctly ---
         }
 
-        //validation logic for google token
+        // validation logic for google token
         private async Task<SocialLoginUser> ValidateGoogleTokenAsync(string idToken)
         {
             try
             {
-                // 1. Get your Client ID from the configuration
+                // Get your Client ID from the configuration
                 var googleClientId = _configuration["Google:ClientId"];
                 if (string.IsNullOrEmpty(googleClientId))
                 {
                     throw new Exception("Google ClientId is not configured.");
                 }
 
-                // 2. Set up the validation settings
+                // Set up the validation settings
                 var validationSettings = new GoogleJsonWebSignature.ValidationSettings
                 {
                     Audience = new[] { googleClientId }
                 };
 
-                // 3. Validate the token
+                // Validate the token
                 // This method contacts Google's servers to verify the token is real
                 // and was issued for your application.
                 GoogleJsonWebSignature.Payload payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
 
-                // 4. Return the user info
+                // Return the user info
                 return new SocialLoginUser
                 {
                     Email = payload.Email,
@@ -302,7 +283,7 @@ namespace Tutorz.Application.Services
             }
             catch (Exception ex)
             {
-                // This will catch invalid tokens, expired tokens, etc.
+                // This will catch invalid tokens, expired tokens.
                 throw new Exception("Google token validation failed.", ex);
             }
         }

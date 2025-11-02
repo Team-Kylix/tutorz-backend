@@ -11,13 +11,12 @@ namespace Tutorz.Api.Controllers
     {
         private readonly IAuthService _authService;
 
-        // 1. Inject the service
+        // Inject the service
         public AuthController(IAuthService authService)
         {
             _authService = authService;
         }
 
-        // In AuthController.cs
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request)
         {
@@ -35,12 +34,11 @@ namespace Tutorz.Api.Controllers
                 {
                     Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
                 }
-                // --- END MODIFICATION ---
 
                 return BadRequest(new
                 {
                     message = ex.Message,
-                    // Also send the inner exception to the frontend for debugging
+                    // send the inner exception to the frontend for debugging
                     innerException = ex.InnerException?.Message
                 });
             }
