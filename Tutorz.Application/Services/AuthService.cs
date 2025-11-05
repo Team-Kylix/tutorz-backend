@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions; // Import Regex
 using System.Threading.Tasks;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Auth;
@@ -24,6 +25,7 @@ namespace Tutorz.Application.Services
         private readonly IConfiguration _configuration;
         private readonly IRoleRepository _roleRepository;
 
+        // Constructor...
         public AuthService(
             IUserRepository userRepository,
             ITutorRepository tutorRepository,
@@ -42,13 +44,28 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
-            // Check if user exists
+            // Phone Number Validation 
+            if (string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                throw new Exception("Phone number is required for registration.");
+            }
+            if (!Regex.IsMatch(request.PhoneNumber, @"^07\d{8}$"))
+            {
+                throw new Exception("Invalid phone number format. Must be 10 digits starting with 07 (e.g., 0712345678).");
+            }
+            string normalizedPhone = "+94" + request.PhoneNumber.Substring(1);
+            if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
+            {
+                throw new Exception("This phone number is already registered. Please log in.");
+            }
+
+            // Email Validation
             if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
             {
                 throw new Exception("User with this email already exists.");
             }
 
-            // Get the Role from the database
+            // Role Validation
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null)
             {
@@ -61,7 +78,7 @@ namespace Tutorz.Application.Services
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
-                PhoneNumber = request.PhoneNumber
+                PhoneNumber = normalizedPhone
             };
             await _userRepository.AddAsync(user);
 
@@ -80,12 +97,16 @@ namespace Tutorz.Application.Services
             }
             else if (request.Role == "Student")
             {
-
+                // Uncommented and mapped all fields from the request
                 await _studentRepository.AddAsync(new Student
                 {
                     UserId = user.UserId,
-                    // FullName = request.FullName,
-                    // SchoolName = request.SchoolName
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    SchoolName = request.SchoolName,
+                    Grade = request.Grade,
+                    ParentName = request.ParentName,
+                    DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow 
                 });
             }
             else if (request.Role == "Institute")
@@ -93,15 +114,13 @@ namespace Tutorz.Application.Services
                 await _instituteRepository.AddAsync(new Institute
                 {
                     UserId = user.UserId,
-                    // InstituteName = request.InstituteName
+                    InstituteName = request.FirstName 
                 });
             }
 
             await _userRepository.SaveChangesAsync();
 
-            // Generate token WITH THE ROLE
             var token = GenerateJwtToken(user, role.Name);
-
             return new AuthResponse
             {
                 UserId = user.UserId,
@@ -110,7 +129,6 @@ namespace Tutorz.Application.Services
                 Token = token
             };
         }
-
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
             // Find user

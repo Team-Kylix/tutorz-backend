@@ -9,7 +9,7 @@ namespace Tutorz.Domain.Entities
     public class Student
     {
         public Guid StudentId { get; set; }
-        public Guid UserId { get; set; } // Foreign Key to User
+        public Guid UserId { get; set; } 
         public String FirstName { get; set; }
         public String LastName { get; set; }
         public String SchoolName { get; set; }

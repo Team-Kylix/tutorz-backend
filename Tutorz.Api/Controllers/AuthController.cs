@@ -27,7 +27,6 @@ namespace Tutorz.Api.Controllers
             }
             catch (Exception ex)
             {
-                // --- MODIFICATION ---
                 // Log the inner exception to your console
                 Console.WriteLine($"Error: {ex.Message}");
                 if (ex.InnerException != null)

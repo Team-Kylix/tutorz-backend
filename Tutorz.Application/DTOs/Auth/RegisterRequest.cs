@@ -1,9 +1,8 @@
-﻿// In Tutorz.Application.DTOs.Auth.RegisterRequest.cs
+﻿
 namespace Tutorz.Application.DTOs.Auth
 {
     public class RegisterRequest
     {
-        // From the original form
         public string Email { get; set; }
         public string Password { get; set; }
         public string Role { get; set; }
@@ -14,5 +13,9 @@ namespace Tutorz.Application.DTOs.Auth
         public string? BankAccountNumber { get; set; }
         public string? BankName { get; set; }
         public int ExperienceYears { get; set; } = 0;
+        public string? SchoolName { get; set; }
+        public string? Grade { get; set; }
+        public string? ParentName { get; set; }
+        public DateTime? DateOfBirth { get; set; }
     }
 }
