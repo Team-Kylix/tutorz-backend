@@ -131,26 +131,51 @@ namespace Tutorz.Application.Services
         }
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
-            // Find user
-            var user = await _userRepository.GetAsync(u => u.Email == request.Email);
+            User user = null;
+            string searchIdentifier = request.Identifier;
 
-            // Validate
+            // Determine if input is Email or Phone
+            bool isEmail = searchIdentifier.Contains("@");
+
+            if (isEmail)
+            {
+                // Search by Email
+                user = await _userRepository.GetAsync(u => u.Email == searchIdentifier);
+            }
+            else
+            {
+                // Logic for Phone Number
+                // Remove any spaces or dashes
+                string cleanPhone = searchIdentifier.Replace(" ", "").Replace("-", "");
+
+                // If user entered 0712345678, convert to +94712345678 to match database format
+                if (cleanPhone.StartsWith("0"))
+                {
+                    cleanPhone = "+94" + cleanPhone.Substring(1);
+                }
+                else if (!cleanPhone.StartsWith("+"))
+                {
+                    // If they just typed 712345678, add +94
+                    cleanPhone = "+94" + cleanPhone;
+                }
+
+                // Search by Phone
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
+            // Validation
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
-                throw new Exception("Invalid email or password.");
+                // Generic error message for security
+                throw new Exception("Invalid email/mobile number or password.");
             }
 
-            // GET THE ROLE
+            // Get Role and Return Token (Existing logic)
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
-            if (role == null)
-            {
-                throw new Exception("User has no valid role.");
-            }
+            if (role == null) throw new Exception("User has no valid role.");
 
-            // Generate token
             var token = GenerateJwtToken(user, role.Name);
 
-            // Populate the response
             return new AuthResponse
             {
                 UserId = user.UserId,

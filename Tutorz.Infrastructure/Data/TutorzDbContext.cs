@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Domain.Entities;
+using System.Reflection;
 
 namespace Tutorz.Infrastructure.Data
 {
@@ -19,5 +20,13 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Tutor> Tutors { get; set; }
         public DbSet<Student> Students { get; set; }
 
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // This line tells EF Core to read the UserConfiguration file you created
+            modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        }
     }
 }
