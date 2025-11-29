@@ -43,6 +43,20 @@ namespace Tutorz.Api.Controllers
             }
         }
 
+        [HttpGet("check-email")]
+        public async Task<IActionResult> CheckEmail([FromQuery] string email)
+        {
+            try
+            {
+                bool exists = await _authService.CheckEmailExistsAsync(email);
+                return Ok(new { exists });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
@@ -78,5 +92,7 @@ namespace Tutorz.Api.Controllers
                 return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
+
+
     }
 }

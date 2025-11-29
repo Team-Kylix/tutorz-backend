@@ -137,6 +137,13 @@ namespace Tutorz.Application.Services
                 Token = token
             };
         }
+
+        public async Task<bool> CheckEmailExistsAsync(string email)
+        {
+            var user = await _userRepository.GetAsync(u => u.Email == email);
+            return user != null;
+        }
+
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
             User user = null;

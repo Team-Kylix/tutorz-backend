@@ -12,5 +12,6 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> RegisterAsync(RegisterRequest request);
         Task<AuthResponse> LoginAsync(LoginRequest request);
         Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request);
+        Task<bool> CheckEmailExistsAsync(string email);
     }
 }
