@@ -13,6 +13,8 @@ namespace Tutorz.Application.DTOs.Auth
         public string? BankAccountNumber { get; set; }
         public string? BankName { get; set; }
         public int ExperienceYears { get; set; } = 0;
+        public string? Address { get; set; }
+        public string? InstituteName { get; set; }
         public string? SchoolName { get; set; }
         public string? Grade { get; set; }
         public string? ParentName { get; set; }

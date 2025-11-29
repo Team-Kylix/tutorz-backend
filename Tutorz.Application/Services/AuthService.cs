@@ -111,10 +111,18 @@ namespace Tutorz.Application.Services
             }
             else if (request.Role == "Institute")
             {
+                // Validate required fields for Institute
+                if (string.IsNullOrWhiteSpace(request.InstituteName) || string.IsNullOrWhiteSpace(request.Address))
+                {
+                    throw new Exception("Institute Name and Address are required.");
+                }
+
                 await _instituteRepository.AddAsync(new Institute
                 {
                     UserId = user.UserId,
-                    InstituteName = request.FirstName 
+                    InstituteName = request.InstituteName ?? request.FirstName,
+                    Address = request.Address,
+                    ContactNumber = request.PhoneNumber // Map the phone number here as well
                 });
             }
 

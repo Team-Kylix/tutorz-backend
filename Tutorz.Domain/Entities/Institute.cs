@@ -13,7 +13,7 @@ namespace Tutorz.Domain.Entities
         public String InstituteName { get; set; }
         public String Address { get; set; }
         public String ContactNumber { get; set; }
-        public String Website { get; set; }
+        public string? Website { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
