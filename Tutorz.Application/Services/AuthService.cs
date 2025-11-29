@@ -13,6 +13,8 @@ using Tutorz.Application.DTOs.Auth;
 using Tutorz.Domain.Entities;
 using BCrypt.Net; // For BCrypt
 using Google.Apis.Auth;
+using System.Text.Json;
+using System.Net.Http;
 
 namespace Tutorz.Application.Services
 {
@@ -24,6 +26,7 @@ namespace Tutorz.Application.Services
         private readonly IInstituteRepository _instituteRepository;
         private readonly IConfiguration _configuration;
         private readonly IRoleRepository _roleRepository;
+        private readonly HttpClient _httpClient;
 
         // Constructor...
         public AuthService(
@@ -40,6 +43,7 @@ namespace Tutorz.Application.Services
             _instituteRepository = instituteRepository;
             _roleRepository = roleRepository;
             _configuration = configuration;
+            _httpClient = new HttpClient();
         }
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -222,137 +226,175 @@ namespace Tutorz.Application.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
-        {
-
-            // Validate the external token and get user info
-            SocialLoginUser socialUser;
-            if (request.Provider.ToLower() == "google")
-            {
-                socialUser = await ValidateGoogleTokenAsync(request.IdToken);
-            }
-            else
-            {
-                throw new Exception("Invalid provider");
-            }
-
-            // Find or create the user in your database
-            var user = await _userRepository.GetAsync(u => u.Email == socialUser.Email);
-            var roleName = "";
-            bool isNewUser = false;
-
-            if (user == null) 
-            {
-                isNewUser = true; 
-
-                // Ensure the role was provided in the request for new users
-                if (string.IsNullOrEmpty(request.Role))
-                {
-                    throw new Exception("Role is required for new social login users.");
-                }
-
-                var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
-                if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
-                roleName = role.Name;
-
-                user = new User
-                {
-                    UserId = Guid.NewGuid(),
-                    Email = socialUser.Email,
-                    // PasswordHash is null for social logins
-                    RoleId = role.RoleId
-                };
-                await _userRepository.AddAsync(user);
-
-                // Create the specific profile based on the role
-                if (roleName == "Tutor")
-                {
-                    await _tutorRepository.AddAsync(new Tutor { UserId = user.UserId });
-                    Console.WriteLine($"DEBUG: Created Tutor profile for User ID: {user.UserId}"); // Add logging
-                }
-                else if (roleName == "Student")
-                {
-                    await _studentRepository.AddAsync(new Student { UserId = user.UserId });
-                    Console.WriteLine($"DEBUG: Created Student profile for User ID: {user.UserId}"); // Add logging
-                }
-                // else if (roleName == "Institute") { /* await _instituteRepository.AddAsync(new Institute { UserId = user.UserId }); */ }
-
-            }
-            else // Existing user
-            {
-                var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
-                // Handle cases where role might not be found
-                if (role == null)
-                {
-                    throw new Exception($"Role not found for existing user with RoleId: {user.RoleId}");
-                }
-                roleName = role.Name;
-            }
-
-            // Save changes ONLY IF a new user or profile was created
-            if (isNewUser)
-            {
-                await _userRepository.SaveChangesAsync(); // Use the context SaveChangesAsync via one repository
-                Console.WriteLine($"DEBUG: Saved changes for new user: {user.Email}"); // Add logging
-            }
-
-
-            // Issue your OWN token
-            var token = GenerateJwtToken(user, roleName);
-
-            return new AuthResponse
-            {
-                UserId = user.UserId,
-                Email = user.Email,
-                Role = roleName, 
-                Token = token
-            };
-        }
-
-        // validation logic for google token
-        private async Task<SocialLoginUser> ValidateGoogleTokenAsync(string idToken)
+        // Validate Access Token via Google API
+        private async Task<SocialLoginUser> ValidateGoogleAccessTokenAsync(string accessToken)
         {
             try
             {
-                // Get your Client ID from the configuration
-                var googleClientId = _configuration["Google:ClientId"];
-                if (string.IsNullOrEmpty(googleClientId))
+                // Call Google's UserInfo endpoint with the Access Token
+                var response = await _httpClient.GetAsync($"https://www.googleapis.com/oauth2/v3/userinfo?access_token={accessToken}");
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    throw new Exception("Google ClientId is not configured.");
+                    throw new Exception("Google token validation failed. Token might be expired or invalid.");
                 }
 
-                // Set up the validation settings
-                var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+                var content = await response.Content.ReadAsStringAsync();
+
+                // Parse the JSON response
+                var googleUser = JsonSerializer.Deserialize<GoogleUserInfo>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (googleUser == null || string.IsNullOrEmpty(googleUser.Email))
                 {
-                    Audience = new[] { googleClientId }
-                };
+                    throw new Exception("Could not retrieve email from Google.");
+                }
 
-                // Validate the token
-                // This method contacts Google's servers to verify the token is real
-                // and was issued for your application.
-                GoogleJsonWebSignature.Payload payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
-
-                // Return the user info
                 return new SocialLoginUser
                 {
-                    Email = payload.Email,
-                    Name = payload.Name
+                    Email = googleUser.Email,
+                    Name = googleUser.Name
                 };
             }
             catch (Exception ex)
             {
-                // This will catch invalid tokens, expired tokens.
-                throw new Exception("Google token validation failed.", ex);
+                throw new Exception($"Google validation error: {ex.Message}");
             }
         }
 
-        // A helper class
+        // Helper classes for JSON deserialization
+        private class GoogleUserInfo
+        {
+            public string Sub { get; set; }
+            public string Name { get; set; }
+            public string Given_Name { get; set; }
+            public string Family_Name { get; set; }
+            public string Picture { get; set; }
+            public string Email { get; set; }
+            public bool Email_Verified { get; set; }
+        }
+
         private class SocialLoginUser
         {
             public string Email { get; set; }
             public string Name { get; set; }
         }
 
+        public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
+        {
+            SocialLoginUser socialUser;
+            if (request.Provider.ToLower() == "google")
+            {
+                // We pass the "IdToken" from the frontend, which is actually an Access Token (ya29...)
+                socialUser = await ValidateGoogleAccessTokenAsync(request.IdToken);
+            }
+            else
+            {
+                throw new Exception("Invalid provider");
+            }
+
+            // ... (Rest of the SocialLoginAsync logic remains exactly the same as previous) ...
+
+            // 2. Check if user exists
+            var user = await _userRepository.GetAsync(u => u.Email == socialUser.Email);
+            var roleName = "";
+            bool isNewUser = false;
+
+            if (user == null)
+            {
+                isNewUser = true;
+
+                if (string.IsNullOrEmpty(request.Role))
+                {
+                    throw new Exception("Role is required for new social login users.");
+                }
+
+                // Validate Phone Number
+                if (!string.IsNullOrEmpty(request.PhoneNumber))
+                {
+                    string normalizedPhone = "+94" + request.PhoneNumber.Substring(1);
+                    if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
+                    {
+                        throw new Exception("This phone number is already in use.");
+                    }
+                }
+
+                var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
+                if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
+
+                roleName = role.Name;
+
+                user = new User
+                {
+                    UserId = Guid.NewGuid(),
+                    Email = socialUser.Email,
+                    PasswordHash = "",
+                    RoleId = role.RoleId,
+                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber)
+                                  ? ("+94" + request.PhoneNumber.Substring(1))
+                                  : null
+                };
+
+                await _userRepository.AddAsync(user);
+
+                // Map Profile Details
+                if (roleName == "Tutor")
+                {
+                    await _tutorRepository.AddAsync(new Tutor
+                    {
+                        UserId = user.UserId,
+                        FirstName = request.FirstName ?? socialUser.Name.Split(' ')[0],
+                        LastName = request.LastName ?? (socialUser.Name.Contains(' ') ? socialUser.Name.Split(' ')[1] : ""),
+                        Bio = request.Bio,
+                        BankAccountNumber = request.BankAccountNumber,
+                        BankName = request.BankName
+                    });
+                }
+                else if (roleName == "Student")
+                {
+                    await _studentRepository.AddAsync(new Student
+                    {
+                        UserId = user.UserId,
+                        FirstName = request.FirstName ?? socialUser.Name.Split(' ')[0],
+                        LastName = request.LastName ?? (socialUser.Name.Contains(' ') ? socialUser.Name.Split(' ')[1] : ""),
+                        SchoolName = request.SchoolName,
+                        Grade = request.Grade,
+                        ParentName = request.ParentName,
+                        DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow
+                    });
+                }
+                else if (roleName == "Institute")
+                {
+                    await _instituteRepository.AddAsync(new Institute
+                    {
+                        UserId = user.UserId,
+                        InstituteName = request.InstituteName ?? socialUser.Name,
+                        Address = request.Address,
+                        ContactNumber = user.PhoneNumber
+                    });
+                }
+            }
+            else
+            {
+                var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
+                if (role == null) throw new Exception("Role not found for existing user.");
+                roleName = role.Name;
+            }
+
+            if (isNewUser)
+            {
+                await _userRepository.SaveChangesAsync();
+            }
+
+            var token = GenerateJwtToken(user, roleName);
+
+            return new AuthResponse
+            {
+                UserId = user.UserId,
+                Email = user.Email,
+                Role = roleName,
+                Token = token
+            };
+        }
 
     }
 }
