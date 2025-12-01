@@ -101,7 +101,7 @@ namespace Tutorz.Application.Services
             }
             else if (request.Role == "Student")
             {
-                // Uncommented and mapped all fields from the request
+                // mapped all fields from the request
                 await _studentRepository.AddAsync(new Student
                 {
                     UserId = user.UserId,
@@ -126,7 +126,7 @@ namespace Tutorz.Application.Services
                     UserId = user.UserId,
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
-                    ContactNumber = request.PhoneNumber // Map the phone number here as well
+                    ContactNumber = request.PhoneNumber 
                 });
             }
 
@@ -292,9 +292,7 @@ namespace Tutorz.Application.Services
                 throw new Exception("Invalid provider");
             }
 
-            // ... (Rest of the SocialLoginAsync logic remains exactly the same as previous) ...
-
-            // 2. Check if user exists
+            // Check if user exists
             var user = await _userRepository.GetAsync(u => u.Email == socialUser.Email);
             var roleName = "";
             bool isNewUser = false;

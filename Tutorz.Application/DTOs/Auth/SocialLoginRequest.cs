@@ -10,7 +10,7 @@ namespace Tutorz.Application.DTOs.Auth
     {
         public string Provider { get; set; } // "Google"
         public string IdToken { get; set; }
-        public string? Role { get; set; } // "Tutor" or "Student"
+        public string? Role { get; set; }
         public string? PhoneNumber { get; set; }
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
