@@ -15,6 +15,7 @@ using BCrypt.Net; // For BCrypt
 using Google.Apis.Auth;
 using System.Text.Json;
 using System.Net.Http;
+using System.Security.Cryptography;
 
 namespace Tutorz.Application.Services
 {
@@ -27,6 +28,7 @@ namespace Tutorz.Application.Services
         private readonly IConfiguration _configuration;
         private readonly IRoleRepository _roleRepository;
         private readonly HttpClient _httpClient;
+        private readonly IEmailService _emailService;
 
         // Constructor...
         public AuthService(
@@ -35,7 +37,8 @@ namespace Tutorz.Application.Services
             IStudentRepository studentRepository,
             IInstituteRepository instituteRepository,
             IRoleRepository roleRepository,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IEmailService emailService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -43,11 +46,16 @@ namespace Tutorz.Application.Services
             _instituteRepository = instituteRepository;
             _roleRepository = roleRepository;
             _configuration = configuration;
+            _emailService = emailService; ;
             _httpClient = new HttpClient();
         }
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
+            if (request.Password.Length < 6 || request.Password.Length > 10)
+            {
+                throw new Exception("Password must be between 6 and 10 characters.");
+            }
             // Phone Number Validation 
             if (string.IsNullOrWhiteSpace(request.PhoneNumber))
             {
@@ -150,6 +158,11 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
+            if (request.Password.Length < 6 || request.Password.Length > 10)
+            {
+                throw new Exception("Password must be between 6 and 10 characters.");
+            }
+
             User user = null;
             string searchIdentifier = request.Identifier;
 
@@ -392,6 +405,51 @@ namespace Tutorz.Application.Services
                 Role = roleName,
                 Token = token
             };
+        }
+
+        // Inject the EmailService 
+        // Update ForgotPasswordAsync to throw an error if email is missing
+        public async Task ForgotPasswordAsync(string email)
+        {
+            var user = await _userRepository.GetAsync(u => u.Email == email);
+
+            // Throw an exception instead of just returning
+            if (user == null)
+            {
+                throw new Exception("This email address is not registered.");
+            }
+
+            var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
+            user.PasswordResetToken = token;
+            user.ResetTokenExpires = DateTime.UtcNow.AddHours(1);
+
+            await _userRepository.SaveChangesAsync();
+
+            string resetLink = $"http://localhost:5173/reset-password?token={token}";
+            _emailService.SendEmail(user.Email, "Reset Password", $"Click here to reset your password: <a href='{resetLink}'>Reset Link</a>");
+        }
+
+        // Update ResetPasswordAsync to validate length
+        public async Task ResetPasswordAsync(ResetPasswordRequest request)
+        {
+            // Add validation logic here
+            if (request.NewPassword.Length < 6 || request.NewPassword.Length > 10)
+            {
+                throw new Exception("Password must be between 6 and 10 characters.");
+            }
+
+            var user = await _userRepository.GetAsync(u => u.PasswordResetToken == request.Token);
+
+            if (user == null || user.ResetTokenExpires < DateTime.UtcNow)
+            {
+                throw new Exception("Invalid or expired token.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.PasswordResetToken = null;
+            user.ResetTokenExpires = null;
+
+            await _userRepository.SaveChangesAsync();
         }
 
     }

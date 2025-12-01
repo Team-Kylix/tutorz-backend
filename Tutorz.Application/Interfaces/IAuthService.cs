@@ -13,5 +13,7 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> LoginAsync(LoginRequest request);
         Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request);
         Task<bool> CheckEmailExistsAsync(string email);
+        Task ForgotPasswordAsync(string email);
+        Task ResetPasswordAsync(ResetPasswordRequest request);
     }
 }

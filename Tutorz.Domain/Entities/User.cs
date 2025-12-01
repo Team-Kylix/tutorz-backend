@@ -15,6 +15,8 @@ namespace Tutorz.Domain.Entities
         public string PasswordHash { get; set; }
         public Guid RoleId { get; set; } 
         public bool IsActive { get; set; } = true;
+        public string? PasswordResetToken { get; set; }
+        public DateTime? ResetTokenExpires { get; set; }
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
     }
