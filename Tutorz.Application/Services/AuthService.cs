@@ -150,11 +150,18 @@ namespace Tutorz.Application.Services
             };
         }
 
+
+
+
         public async Task<bool> CheckEmailExistsAsync(string email)
         {
             var user = await _userRepository.GetAsync(u => u.Email == email);
             return user != null;
         }
+
+
+
+
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
@@ -177,17 +184,14 @@ namespace Tutorz.Application.Services
             else
             {
                 // Logic for Phone Number
-                // Remove any spaces or dashes
                 string cleanPhone = searchIdentifier.Replace(" ", "").Replace("-", "");
 
-                // If user entered 0712345678, convert to +94712345678 to match database format
                 if (cleanPhone.StartsWith("0"))
                 {
                     cleanPhone = "+94" + cleanPhone.Substring(1);
                 }
                 else if (!cleanPhone.StartsWith("+"))
                 {
-                    // If they just typed 712345678, add +94
                     cleanPhone = "+94" + cleanPhone;
                 }
 
@@ -195,14 +199,26 @@ namespace Tutorz.Application.Services
                 user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
             }
 
-            // Validation
-            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            // Check if user exists
+            if (user == null)
             {
-                // Generic error message for security
                 throw new Exception("Invalid email/mobile number or password.");
             }
 
-            // Get Role and Return Token (Existing logic)
+            // Check if this is a Social-Only account (Empty Password)
+            // This catches Google users trying to login manually
+            if (string.IsNullOrEmpty(user.PasswordHash))
+            {
+                throw new Exception("This account was created using Google. Please use the 'Continue with Google' button.");
+            }
+
+            // Verify Password for Manual Accounts
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            {
+                throw new Exception("Invalid email/mobile number or password.");
+            }
+
+            // Get Role and Return Token
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
             if (role == null) throw new Exception("User has no valid role.");
 
@@ -294,6 +310,7 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
         {
+      
             SocialLoginUser socialUser;
             if (request.Provider.ToLower() == "google")
             {
@@ -316,7 +333,8 @@ namespace Tutorz.Application.Services
 
                 if (string.IsNullOrEmpty(request.Role))
                 {
-                    throw new Exception("Role is required for new social login users.");
+                    // This specific message will be caught by the frontend
+                    throw new Exception("You should register first.");
                 }
 
                 // Validate Phone Number
