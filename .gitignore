@@ -1,0 +1,15 @@
+# .gitignore for .NET (Backend)
+
+# Visual Studio cache
+/.vs/
+
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+
+# User-specific files
+*.suo
+*.user
+
+# Environment files
+.env
