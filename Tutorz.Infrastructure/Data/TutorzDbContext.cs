@@ -19,14 +19,17 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Institute> Institutions { get; set; }
         public DbSet<Tutor> Tutors { get; set; }
         public DbSet<Student> Students { get; set; }
-
+        public DbSet<UserSequence> UserSequences { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            // This line tells EF Core to read the UserConfiguration file you created
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+            // Ensure RegistrationNumber is unique
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.RegistrationNumber)
+                .IsUnique();
         }
     }
 }

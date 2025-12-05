@@ -29,6 +29,8 @@ namespace Tutorz.Application.Services
         private readonly IRoleRepository _roleRepository;
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
+        private readonly IIdGeneratorService _idGeneratorService;
+
 
         // Constructor...
         public AuthService(
@@ -38,7 +40,8 @@ namespace Tutorz.Application.Services
             IInstituteRepository instituteRepository,
             IRoleRepository roleRepository,
             IConfiguration configuration,
-            IEmailService emailService)
+            IEmailService emailService,
+            IIdGeneratorService idGeneratorService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -46,7 +49,8 @@ namespace Tutorz.Application.Services
             _instituteRepository = instituteRepository;
             _roleRepository = roleRepository;
             _configuration = configuration;
-            _emailService = emailService; ;
+            _emailService = emailService;
+            _idGeneratorService = idGeneratorService;
             _httpClient = new HttpClient();
         }
 
@@ -84,9 +88,13 @@ namespace Tutorz.Application.Services
                 throw new Exception($"Role '{request.Role}' does not exist.");
             }
 
+            // For students, we pass the grade to generate the specific ID pattern
+            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
+
             var user = new User
             {
                 UserId = Guid.NewGuid(),
+                RegistrationNumber = customId,
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
@@ -310,11 +318,9 @@ namespace Tutorz.Application.Services
 
         public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
         {
-      
             SocialLoginUser socialUser;
             if (request.Provider.ToLower() == "google")
             {
-                // We pass the "IdToken" from the frontend, which is actually an Access Token (ya29...)
                 socialUser = await ValidateGoogleAccessTokenAsync(request.IdToken);
             }
             else
@@ -333,11 +339,10 @@ namespace Tutorz.Application.Services
 
                 if (string.IsNullOrEmpty(request.Role))
                 {
-                    // This specific message will be caught by the frontend
                     throw new Exception("You should register first.");
                 }
 
-                // Validate Phone Number
+                // Validate Phone Number uniqueness if provided
                 if (!string.IsNullOrEmpty(request.PhoneNumber))
                 {
                     string normalizedPhone = "+94" + request.PhoneNumber.Substring(1);
@@ -352,15 +357,19 @@ namespace Tutorz.Application.Services
 
                 roleName = role.Name;
 
+                // Generate the ID *before* creating the user
+                string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
+
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
+                    RegistrationNumber = customId,
                     Email = socialUser.Email,
-                    PasswordHash = "",
+                    PasswordHash = "", 
                     RoleId = role.RoleId,
                     PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber)
-                                  ? ("+94" + request.PhoneNumber.Substring(1))
-                                  : null
+                        ? ("+94" + request.PhoneNumber.Substring(1))
+                        : null
                 };
 
                 await _userRepository.AddAsync(user);
@@ -401,17 +410,16 @@ namespace Tutorz.Application.Services
                         ContactNumber = user.PhoneNumber
                     });
                 }
+
+                // Save changes *after* adding User and Role-Specific Entity
+                await _userRepository.SaveChangesAsync();
             }
             else
             {
+                // User exists, just get the role for the token
                 var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
                 if (role == null) throw new Exception("Role not found for existing user.");
                 roleName = role.Name;
-            }
-
-            if (isNewUser)
-            {
-                await _userRepository.SaveChangesAsync();
             }
 
             var token = GenerateJwtToken(user, roleName);
