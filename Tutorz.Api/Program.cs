@@ -27,6 +27,8 @@ builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
 builder.Services.AddScoped<IUserSequenceRepository, UserSequenceRepository>();
 builder.Services.AddScoped<IEmailService, Tutorz.Infrastructure.Services.EmailService>();
 builder.Services.AddScoped<IIdGeneratorService, IdGeneratorService>();
+builder.Services.AddScoped<ITutorService, TutorService>();
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
