@@ -1,13 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Tutorz.Domain.Entities
 {
+    public enum ClassType
+    {
+        Class,      
+        Seminar,    
+        Workshop,   
+        Course      
+    }
+
     public class Class
     {
         [Key]
@@ -15,19 +19,25 @@ namespace Tutorz.Domain.Entities
         public Guid TutorId { get; set; }
 
         [Required]
-        [MaxLength(100)]
-        public string Subject { get; set; }
+        public string InstituteName { get; set; } 
+
+        public string ClassType { get; set; } 
 
         [Required]
-        [MaxLength(50)]
-        public string Grade { get; set; }
+        public string Subject { get; set; }
 
-        [MaxLength(100)]
-        public string ClassName { get; set; } // Optional custom name
+        public string Grade { get; set; } 
+        public string ClassName { get; set; } 
 
-        public string DayOfWeek { get; set; } // e.g., "Monday"
-        public string StartTime { get; set; } // e.g., "14:00"
-        public string EndTime { get; set; }   // e.g., "16:00"
+        public string DayOfWeek { get; set; } 
+
+        public DateTime? Date { get; set; } 
+
+        [Required]
+        public string StartTime { get; set; } 
+        [Required]
+        public string EndTime { get; set; }  
+
         public string HallName { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
@@ -35,9 +45,8 @@ namespace Tutorz.Domain.Entities
 
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedDate { get; set; }
+
         public Tutor Tutor { get; set; }
-        // Depending on your architecture, you might have a joining table 'ClassStudent'
-        // For simplicity here, assuming a collection or managed via a separate repository method
-        public ICollection<Student> Students { get; set; } = new List<Student>();
     }
 }

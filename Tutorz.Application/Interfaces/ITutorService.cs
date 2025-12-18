@@ -11,6 +11,6 @@ namespace Tutorz.Application.Interfaces
         Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request);
         Task<List<ClassDto>> GetClassesAsync(Guid userId);
         Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request);
-        
+        Task DeleteClassAsync(Guid classId, Guid userId);
     }
 }

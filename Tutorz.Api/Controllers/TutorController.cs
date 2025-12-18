@@ -47,5 +47,12 @@ namespace Tutorz.Api.Controllers
             await _tutorService.AddStudentToClassAsync(GetUserId(), request);
             return Ok(new { message = "Student added successfully" });
         }
+
+        [HttpDelete("classes/{id}")]
+        public async Task<IActionResult> DeleteClass(Guid id)
+        {
+            await _tutorService.DeleteClassAsync(id, GetUserId());
+            return Ok(new { message = "Class deleted successfully" });
+        }
     }
 }
