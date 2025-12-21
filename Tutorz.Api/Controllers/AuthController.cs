@@ -1,17 +1,20 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Tutorz.Application.DTOs.Auth; // DTOs
-using Tutorz.Application.Interfaces; // Service Interface
-
+using Tutorz.Application.DTOs.Auth;
+using Tutorz.Application.Interfaces;
+using System;
+using System.Threading.Tasks;
+using System.Security.Claims;
+using System.Collections.Generic;
 
 namespace Tutorz.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AuthController : ControllerBase // Use ControllerBase for APIs
+    public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
 
-        // Inject the service
+        // Constructor
         public AuthController(IAuthService authService)
         {
             _authService = authService;
@@ -27,22 +30,135 @@ namespace Tutorz.Api.Controllers
             }
             catch (Exception ex)
             {
-                // Log the inner exception to your console
                 Console.WriteLine($"Error: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
-                }
-
                 return BadRequest(new
                 {
                     message = ex.Message,
-                    // send the inner exception to the frontend for debugging
                     innerException = ex.InnerException?.Message
                 });
             }
         }
 
+        [HttpPost("login")]
+        public async Task<IActionResult> Login(LoginRequest request)
+        {
+            try
+            {
+                var response = await _authService.LoginAsync(request);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- CHECK USER STATUS ---
+        // Checks if email/phone exists and what role it has
+        // Returns: "NOT_FOUND", "EXISTS_AS_STUDENT", or "EXISTS_OTHER_ROLE"
+        [HttpPost("check-status")]
+        public async Task<IActionResult> CheckStatus([FromBody] CheckUserRequest request)
+        {
+            try
+            {
+                var status = await _authService.CheckUserStatusAsync(request.Identifier);
+                return Ok(new { status });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- SEND OTP ---
+        // Called when user confirms "Yes, I am the sibling"
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] CheckUserRequest request)
+        {
+            try
+            {
+                // In a real app, you would generate a code, save it to DB/Redis, and email it.
+                // For this implementation, we will assume AuthService or a helper handles it.
+                // MOCK Implementation for immediate testing:
+
+                Console.WriteLine($"[MOCK] OTP sent to {request.Identifier}");
+
+                // TODO: Call actual email service here
+                // await _authService.SendOtpAsync(request.Identifier);
+
+                return Ok(new { message = "OTP sent successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- 5. REGISTER SIBLING (New Flow Step 3) ---
+        // Only called after OTP is verified
+        [HttpPost("register-sibling")]
+        public async Task<IActionResult> RegisterSibling([FromBody] SiblingRegistrationRequest request)
+        {
+            try
+            {
+                // Logic to add a new student to the existing parent account
+                var response = await _authService.RegisterSiblingAsync(request);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- 6. SWITCH PROFILE (For Dashboard) ---
+        // Allows a logged-in parent to get a new token for a different child
+        [HttpPost("switch-profile")]
+        public async Task<IActionResult> SwitchProfile([FromBody] SwitchProfileRequest request)
+        {
+            try
+            {
+                // 1. Get current Parent User ID from the valid Token
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                // Fallback for standard JWT sub claim
+                var subClaim = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim) && string.IsNullOrEmpty(subClaim))
+                {
+                    return Unauthorized("Invalid token claims.");
+                }
+
+                var userId = Guid.Parse(userIdClaim ?? subClaim);
+
+                // 2. Call Service to validate that this StudentId belongs to this UserId
+                // and generate a new token
+                var response = await _authService.SwitchProfileAsync(userId, request.StudentId);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- 7. SOCIAL LOGIN ---
+        [HttpPost("social-login")]
+        public async Task<IActionResult> SocialLogin(SocialLoginRequest request)
+        {
+            try
+            {
+                Console.WriteLine($"Social login request - Provider: {request.Provider}, Role: {request.Role}");
+                var response = await _authService.SocialLoginAsync(request);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Social login error: {ex.Message}");
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
+            }
+        }
+
+        // --- 8. UTILS (Check Email, Forgot Pass) ---
         [HttpGet("check-email")]
         public async Task<IActionResult> CheckEmail([FromQuery] string email)
         {
@@ -57,47 +173,18 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginRequest request)
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
         {
             try
             {
-                // Call the service
-                var response = await _authService.LoginAsync(request);
-                return Ok(response);
+                await _authService.ForgotPasswordAsync(request.Email);
+                return Ok(new { message = "If your email is registered, you will receive a reset link." });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
-        }
-
-        [HttpPost("social-login")]
-        public async Task<IActionResult> SocialLogin(SocialLoginRequest request)
-        {
-            try
-            {
-                // Log the incoming request for debugging
-                Console.WriteLine($"Social login request - Provider: {request.Provider}, Role: {request.Role}");
-
-                var response = await _authService.SocialLoginAsync(request);
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Log the full error
-                Console.WriteLine($"Social login error: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-
-                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
-            }
-        }
-
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request)
-        {
-            await _authService.ForgotPasswordAsync(request.Email);
-            return Ok(new { message = "If your email is registered, you will receive a reset link." });
         }
 
         [HttpPost("reset-password")]
@@ -113,6 +200,5 @@ namespace Tutorz.Api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-
     }
 }

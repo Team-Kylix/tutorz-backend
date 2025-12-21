@@ -15,5 +15,8 @@ namespace Tutorz.Application.Interfaces
         Task<bool> CheckEmailExistsAsync(string email);
         Task ForgotPasswordAsync(string email);
         Task ResetPasswordAsync(ResetPasswordRequest request);
+        Task<string> CheckUserStatusAsync(string identifier);
+        Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request);
+        Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
     }
 }
