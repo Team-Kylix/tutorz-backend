@@ -176,6 +176,10 @@ namespace Tutorz.Application.Services
                 StudentCount = 0
             }).ToList();
         }
+        public async Task<TutorProfileDto> GetTutorProfileAsync(Guid userId)
+        {
+            return await _tutorRepo.GetTutorProfileAsync(userId);
+        }
 
         private ClassDto MapToDto(Class entity)
         {

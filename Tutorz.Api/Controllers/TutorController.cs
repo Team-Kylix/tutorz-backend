@@ -54,5 +54,14 @@ namespace Tutorz.Api.Controllers
             await _tutorService.DeleteClassAsync(id, GetUserId());
             return Ok(new { message = "Class deleted successfully" });
         }
+
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = GetUserId();
+            var profile = await _tutorService.GetTutorProfileAsync(userId);
+            if (profile == null) return NotFound("Profile not found");
+            return Ok(profile);
+        }
     }
 }
