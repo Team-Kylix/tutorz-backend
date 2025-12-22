@@ -18,5 +18,7 @@ namespace Tutorz.Application.Interfaces
         Task<string> CheckUserStatusAsync(string identifier);
         Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request);
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
+        Task SendOtpAsync(string identifier);
+        Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
     }
 }

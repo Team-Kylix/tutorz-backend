@@ -7,7 +7,6 @@ namespace Tutorz.Application.Services
 {
     public class IdGeneratorService : IIdGeneratorService
     {
-        // Use the Interface, not the DbContext
         private readonly IUserSequenceRepository _sequenceRepository;
 
         public IdGeneratorService(IUserSequenceRepository sequenceRepository)
@@ -22,44 +21,46 @@ namespace Tutorz.Application.Services
             string month = now.Month.ToString();
 
             string rolePrefix = "";
-            string middlePart = "";
+
+            // Standard middle part: Year + Month (e.g., "2512")
+            string middlePart = $"{year}{month}";
 
             switch (roleName.ToLower())
             {
                 case "student":
                     rolePrefix = "STU";
-                    string classNum = ExtractClassNumber(gradeOrClass);
-                    middlePart = $"{year}{month}{classNum}";
+                    // FIX: Removed 'classNum' from middlePart so the ID doesn't depend on the Grade.
+                    // Old: middlePart = $"{year}{month}{classNum}";
                     break;
                 case "tutor":
                     rolePrefix = "TUT";
-                    middlePart = $"{year}{month}";
                     break;
                 case "institute":
                     rolePrefix = "INS";
-                    middlePart = $"{year}{month}";
                     break;
                 case "admin":
                     rolePrefix = "ADM";
-                    middlePart = $"{year}{month}";
                     break;
                 default:
                     throw new Exception("Unknown Role for ID generation");
             }
 
-            // Generate Key
+            // Generate Key (e.g., STU-25-12)
+            // FIX: We do NOT append the grade here. All students share the same counter for the month.
             string sequenceKey = $"{rolePrefix}-{year}-{month}";
-            if (roleName.ToLower() == "student") sequenceKey += $"-{ExtractClassNumber(gradeOrClass)}";
 
-            // Call the Repository to get the number (No DB logic here)
+            // Call the Repository to get the number
             int nextNumber = await _sequenceRepository.GetNextSequenceNumberAsync(sequenceKey);
 
-            // Format
+            // Format (e.g., 00001)
             string incrementPart = nextNumber.ToString("D5");
 
+            // Result: STU + 2512 + 00001 => STU251200001
             return $"{rolePrefix}{middlePart}{incrementPart}";
         }
 
+        // This helper is no longer needed for ID generation but kept just in case you use it elsewhere, 
+        // or you can remove it if unused.
         private string ExtractClassNumber(string? grade)
         {
             if (string.IsNullOrEmpty(grade)) return "0";

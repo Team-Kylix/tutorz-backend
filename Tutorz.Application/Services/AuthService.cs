@@ -76,18 +76,19 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
 
-            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
-
+            // 1. Create User (WITHOUT RegistrationNumber)
             var user = new User
             {
                 UserId = Guid.NewGuid(),
-                RegistrationNumber = customId,
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
                 PhoneNumber = normalizedPhone
             };
             await _userRepository.AddAsync(user);
+
+            // 2. Generate Unique Registration ID
+            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
             // Handle Specific Roles
             Guid? newStudentId = null;
@@ -97,6 +98,7 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
+                    RegistrationNumber = customId, // Assigned to Tutor
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -111,6 +113,7 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
+                    RegistrationNumber = customId, // Assigned to Student
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
@@ -130,6 +133,7 @@ namespace Tutorz.Application.Services
                 await _instituteRepository.AddAsync(new Institute
                 {
                     UserId = user.UserId,
+                    RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
                     ContactNumber = request.PhoneNumber
@@ -291,17 +295,27 @@ namespace Tutorz.Application.Services
         // --- REGISTER SIBLING ---
         public async Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request)
         {
-            // In a real scenario validate 'request.VerificationToken' here.
-            // For now we assume the Controller or OTP service validated the user owns this account.
+            // --- FIX START: Normalize the identifier before searching ---
+            string searchIdentifier = request.Identifier;
 
-            var user = await _userRepository.GetAsync(u => u.Email == request.Identifier || u.PhoneNumber == request.Identifier);
+            // If it's not an email and starts with '0', convert it to '+94' format
+            if (!searchIdentifier.Contains("@") && searchIdentifier.StartsWith("0"))
+            {
+                searchIdentifier = "+94" + searchIdentifier.Substring(1);
+            }
+
+            var user = await _userRepository.GetAsync(u => u.Email == searchIdentifier || u.PhoneNumber == searchIdentifier);
             if (user == null) throw new Exception("Parent account not found.");
 
-            // Add the new Sibling
+            // 1. GENERATE NEW ID FOR THE SIBLING
+            string newStudentId = await _idGeneratorService.GenerateNextIdAsync("Student", request.Grade);
+
+            // 2. Create the Sibling Student
             var newStudent = new Student
             {
                 StudentId = Guid.NewGuid(),
-                UserId = user.UserId,
+                UserId = user.UserId, // Links to same Parent User
+                RegistrationNumber = newStudentId, // <-- UNIQUE ID FOR SIBLING (e.g., STU251200002)
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 SchoolName = request.SchoolName,
@@ -375,12 +389,13 @@ namespace Tutorz.Application.Services
                 if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
                 roleName = role.Name;
 
+                // 1. Generate ID
                 string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
+                // 2. Create Base User
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
-                    RegistrationNumber = customId,
                     Email = socialUser.Email,
                     PasswordHash = "",
                     RoleId = role.RoleId,
@@ -389,19 +404,21 @@ namespace Tutorz.Application.Services
 
                 await _userRepository.AddAsync(user);
 
+                // 3. Create Specific Role Entity (Assign customId and LastName here)
                 if (roleName == "Student")
                 {
                     var student = new Student
                     {
                         StudentId = Guid.NewGuid(),
                         UserId = user.UserId,
+                        RegistrationNumber = customId, // FIX: Assign ID to Student
                         FirstName = request.FirstName ?? socialUser.Name.Split(' ')[0],
                         LastName = request.LastName ?? (socialUser.Name.Contains(' ') ? socialUser.Name.Split(' ')[1] : ""),
                         SchoolName = request.SchoolName,
                         Grade = request.Grade,
                         ParentName = request.ParentName,
                         DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow,
-                        IsPrimary = true 
+                        IsPrimary = true
                     };
                     currentStudentId = student.StudentId;
                     await _studentRepository.AddAsync(student);
@@ -414,13 +431,14 @@ namespace Tutorz.Application.Services
                         IsPrimary = true
                     });
                 }
-
                 else if (roleName == "Tutor")
                 {
                     await _tutorRepository.AddAsync(new Tutor
                     {
                         UserId = user.UserId,
+                        RegistrationNumber = customId, // FIX: Assign ID to Tutor
                         FirstName = request.FirstName ?? socialUser.Name,
+                        LastName = request.LastName,   // FIX: Map LastName
                         Bio = request.Bio,
                         BankAccountNumber = request.BankAccountNumber,
                         BankName = request.BankName
@@ -431,6 +449,7 @@ namespace Tutorz.Application.Services
                     await _instituteRepository.AddAsync(new Institute
                     {
                         UserId = user.UserId,
+                        RegistrationNumber = customId, // FIX: Assign ID to Institute
                         InstituteName = request.InstituteName ?? socialUser.Name,
                         Address = request.Address,
                         ContactNumber = user.PhoneNumber
@@ -441,7 +460,7 @@ namespace Tutorz.Application.Services
             }
             else
             {
-
+                // --- EXISTING USER FLOW ---
                 var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
                 roleName = role.Name;
 
@@ -476,7 +495,6 @@ namespace Tutorz.Application.Services
                 Profiles = profiles
             };
         }
-
         // --- HELPER: JWT GENERATION ---
         private string GenerateJwtToken(User user, string roleName, Guid? studentId = null)
         {
@@ -522,6 +540,53 @@ namespace Tutorz.Application.Services
 
             string resetLink = $"http://localhost:5173/reset-password?token={token}";
             _emailService.SendEmail(user.Email, "Reset Password", $"Click here to reset your password: <a href='{resetLink}'>Reset Link</a>");
+        }
+
+        public async Task SendOtpAsync(string identifier)
+        {
+            var user = await _userRepository.GetAsync(u => u.Email == identifier);
+            if (user == null) throw new Exception("User not found.");
+
+            // 1. Generate 6-digit Code
+            string otp = new Random().Next(100000, 999999).ToString();
+
+            // 2. Save to DB
+            user.OtpCode = otp;
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 mins
+            await _userRepository.SaveChangesAsync();
+
+            // 3. Send Email
+            string subject = "Tutorz Family Verification Code";
+            string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
+
+            _emailService.SendEmail(user.Email, subject, body);
+        }
+
+        // Updated VerifyOtpAsync to return the Phone Number
+        public async Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request)
+        {
+            var user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+
+            if (user == null)
+                throw new Exception("User not found.");
+
+            if (user.OtpCode != request.Otp)
+                throw new Exception("Invalid OTP code.");
+
+            if (user.OtpExpires < DateTime.UtcNow)
+                throw new Exception("OTP code has expired.");
+
+            // Clear OTP after success
+            user.OtpCode = null;
+            user.OtpExpires = null;
+            await _userRepository.SaveChangesAsync();
+
+            // Return the phone number stored in the parent account
+            return new VerifyUserResponse
+            {
+                Success = true,
+                PhoneNumber = user.PhoneNumber
+            };
         }
 
         public async Task ResetPasswordAsync(ResetPasswordRequest request)

@@ -9,6 +9,7 @@ namespace Tutorz.Domain.Entities
     public class Institute
     {
         public Guid InstituteId { get; set; }
+        public string RegistrationNumber { get; set; }
         public Guid UserId { get; set; } // Foreign Key to User
         public String InstituteName { get; set; }
         public String Address { get; set; }

@@ -11,7 +11,8 @@ namespace Tutorz.Domain.Entities
     public class Student
     {
         [Key]
-        public Guid StudentId { get; set; } = Guid.NewGuid(); 
+        public Guid StudentId { get; set; } = Guid.NewGuid();
+        public string RegistrationNumber { get; set; }
 
         [ForeignKey("User")]
         public Guid UserId { get; set; }

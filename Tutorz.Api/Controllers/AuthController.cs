@@ -70,23 +70,29 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- SEND OTP ---
-        // Called when user confirms "Yes, I am the sibling"
         [HttpPost("send-otp")]
         public async Task<IActionResult> SendOtp([FromBody] CheckUserRequest request)
         {
             try
             {
-                // In a real app, you would generate a code, save it to DB/Redis, and email it.
-                // For this implementation, we will assume AuthService or a helper handles it.
-                // MOCK Implementation for immediate testing:
-
-                Console.WriteLine($"[MOCK] OTP sent to {request.Identifier}");
-
-                // TODO: Call actual email service here
-                // await _authService.SendOtpAsync(request.Identifier);
-
+                // Call the REAL service now
+                await _authService.SendOtpAsync(request.Identifier);
                 return Ok(new { message = "OTP sent successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyUserRequest request)
+        {
+            try
+            {
+                // Return the object containing the phone number
+                var result = await _authService.VerifyOtpAsync(request);
+                return Ok(result);
             }
             catch (Exception ex)
             {
