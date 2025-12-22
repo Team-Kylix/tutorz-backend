@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,17 +10,18 @@ namespace Tutorz.Domain.Entities
 {
     public class Student
     {
-        public Guid StudentId { get; set; }
-        public Guid UserId { get; set; } 
-        public String FirstName { get; set; }
-        public String LastName { get; set; }
-        public String SchoolName { get; set; }
-        public String Grade { get; set; }
-        public String ParentName { get; set; }
-        public bool IsActive { get; set; } = true;
+        [Key]
+        public Guid StudentId { get; set; } = Guid.NewGuid();
+        public string RegistrationNumber { get; set; }
+        [ForeignKey("User")]
+        public Guid UserId { get; set; }
+        public virtual User User { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string SchoolName { get; set; }
+        public string Grade { get; set; }
+        public string ParentName { get; set; }
         public DateTime DateOfBirth { get; set; }
-        public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedDate { get; set; }
-
+        public bool IsPrimary { get; set; } = false;
     }
 }

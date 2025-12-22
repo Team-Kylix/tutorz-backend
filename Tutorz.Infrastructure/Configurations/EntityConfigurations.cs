@@ -13,11 +13,21 @@ namespace Tutorz.Infrastructure.Configurations
     {
         public void Configure(EntityTypeBuilder<User> builder)
         {
-            // Ensure Email is unique
             builder.HasIndex(u => u.Email).IsUnique();
 
-            // Ensure Phone is unique
             builder.HasIndex(u => u.PhoneNumber).IsUnique();
+        }
+    }
+
+    public class StudentConfiguration : IEntityTypeConfiguration<Student>
+    {
+        public void Configure(EntityTypeBuilder<Student> builder)
+        {
+            builder.HasKey(s => s.StudentId);
+            builder.HasOne(s => s.User)
+                   .WithMany() // User can have multiple students
+                   .HasForeignKey(s => s.UserId)
+                   .OnDelete(DeleteBehavior.Cascade); // If Parent User is deleted delete all student profiles
         }
     }
 }
