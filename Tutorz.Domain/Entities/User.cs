@@ -10,7 +10,6 @@ namespace Tutorz.Domain.Entities
     public class User
     {
         public Guid UserId { get; set; }
-        public string RegistrationNumber { get; set; }
         public string Email { get; set; }
         public string? PhoneNumber { get; set; }
         public string PasswordHash { get; set; }
@@ -18,6 +17,8 @@ namespace Tutorz.Domain.Entities
         public bool IsActive { get; set; } = true;
         public string? PasswordResetToken { get; set; }
         public DateTime? ResetTokenExpires { get; set; }
+        public string? OtpCode { get; set; }
+        public DateTime? OtpExpires { get; set; }
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
     }
