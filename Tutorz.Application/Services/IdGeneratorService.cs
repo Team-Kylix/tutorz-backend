@@ -29,8 +29,6 @@ namespace Tutorz.Application.Services
             {
                 case "student":
                     rolePrefix = "STU";
-                    // FIX: Removed 'classNum' from middlePart so the ID doesn't depend on the Grade.
-                    // Old: middlePart = $"{year}{month}{classNum}";
                     break;
                 case "tutor":
                     rolePrefix = "TUT";
@@ -46,7 +44,6 @@ namespace Tutorz.Application.Services
             }
 
             // Generate Key (e.g., STU-25-12)
-            // FIX: We do NOT append the grade here. All students share the same counter for the month.
             string sequenceKey = $"{rolePrefix}-{year}-{month}";
 
             // Call the Repository to get the number
@@ -59,8 +56,6 @@ namespace Tutorz.Application.Services
             return $"{rolePrefix}{middlePart}{incrementPart}";
         }
 
-        // This helper is no longer needed for ID generation but kept just in case you use it elsewhere, 
-        // or you can remove it if unused.
         private string ExtractClassNumber(string? grade)
         {
             if (string.IsNullOrEmpty(grade)) return "0";

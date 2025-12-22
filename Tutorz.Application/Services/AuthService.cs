@@ -76,7 +76,7 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
 
-            // 1. Create User (WITHOUT RegistrationNumber)
+            // Create User (WITHOUT RegistrationNumber)
             var user = new User
             {
                 UserId = Guid.NewGuid(),
@@ -87,7 +87,7 @@ namespace Tutorz.Application.Services
             };
             await _userRepository.AddAsync(user);
 
-            // 2. Generate Unique Registration ID
+            // Generate Unique Registration ID
             string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
             // Handle Specific Roles
@@ -266,7 +266,7 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = student.StudentId,
-                Profiles = new List<StudentProfileDto>() // Optional: keep empty or refill
+                Profiles = new List<StudentProfileDto>() 
             };
         }
 
@@ -295,7 +295,7 @@ namespace Tutorz.Application.Services
         // --- REGISTER SIBLING ---
         public async Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request)
         {
-            // --- FIX START: Normalize the identifier before searching ---
+            // ---Normalize the identifier before searching ---
             string searchIdentifier = request.Identifier;
 
             // If it's not an email and starts with '0', convert it to '+94' format
@@ -307,15 +307,15 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == searchIdentifier || u.PhoneNumber == searchIdentifier);
             if (user == null) throw new Exception("Parent account not found.");
 
-            // 1. GENERATE NEW ID FOR THE SIBLING
+            // GENERATE NEW ID FOR THE SIBLING
             string newStudentId = await _idGeneratorService.GenerateNextIdAsync("Student", request.Grade);
 
-            // 2. Create the Sibling Student
+            // Create the Sibling Student
             var newStudent = new Student
             {
                 StudentId = Guid.NewGuid(),
-                UserId = user.UserId, // Links to same Parent User
-                RegistrationNumber = newStudentId, // <-- UNIQUE ID FOR SIBLING (e.g., STU251200002)
+                UserId = user.UserId, 
+                RegistrationNumber = newStudentId,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 SchoolName = request.SchoolName,
@@ -389,10 +389,10 @@ namespace Tutorz.Application.Services
                 if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
                 roleName = role.Name;
 
-                // 1. Generate ID
+                // Generate ID
                 string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
-                // 2. Create Base User
+                // Base User
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
@@ -404,14 +404,14 @@ namespace Tutorz.Application.Services
 
                 await _userRepository.AddAsync(user);
 
-                // 3. Create Specific Role Entity (Assign customId and LastName here)
+                // Create Specific Role Entity (Assign customId and LastName here)
                 if (roleName == "Student")
                 {
                     var student = new Student
                     {
                         StudentId = Guid.NewGuid(),
                         UserId = user.UserId,
-                        RegistrationNumber = customId, // FIX: Assign ID to Student
+                        RegistrationNumber = customId, 
                         FirstName = request.FirstName ?? socialUser.Name.Split(' ')[0],
                         LastName = request.LastName ?? (socialUser.Name.Contains(' ') ? socialUser.Name.Split(' ')[1] : ""),
                         SchoolName = request.SchoolName,
@@ -436,9 +436,9 @@ namespace Tutorz.Application.Services
                     await _tutorRepository.AddAsync(new Tutor
                     {
                         UserId = user.UserId,
-                        RegistrationNumber = customId, // FIX: Assign ID to Tutor
+                        RegistrationNumber = customId, 
                         FirstName = request.FirstName ?? socialUser.Name,
-                        LastName = request.LastName,   // FIX: Map LastName
+                        LastName = request.LastName,  
                         Bio = request.Bio,
                         BankAccountNumber = request.BankAccountNumber,
                         BankName = request.BankName
@@ -449,7 +449,7 @@ namespace Tutorz.Application.Services
                     await _instituteRepository.AddAsync(new Institute
                     {
                         UserId = user.UserId,
-                        RegistrationNumber = customId, // FIX: Assign ID to Institute
+                        RegistrationNumber = customId,
                         InstituteName = request.InstituteName ?? socialUser.Name,
                         Address = request.Address,
                         ContactNumber = user.PhoneNumber
@@ -495,7 +495,6 @@ namespace Tutorz.Application.Services
                 Profiles = profiles
             };
         }
-        // --- HELPER: JWT GENERATION ---
         private string GenerateJwtToken(User user, string roleName, Guid? studentId = null)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
@@ -552,7 +551,7 @@ namespace Tutorz.Application.Services
 
             // 2. Save to DB
             user.OtpCode = otp;
-            user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 mins
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 min
             await _userRepository.SaveChangesAsync();
 
             // 3. Send Email
