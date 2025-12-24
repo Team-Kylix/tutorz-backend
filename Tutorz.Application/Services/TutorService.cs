@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
+using Tutorz.Application.DTOs.Common;
 
 namespace Tutorz.Application.Services
 {
@@ -15,12 +16,14 @@ namespace Tutorz.Application.Services
         private readonly ITutorRepository _tutorRepo;
         private readonly IGenericRepository<Class> _classRepo; 
         private readonly IStudentRepository _studentRepo;
+        private readonly IUserRepository _userRepo;
 
-        public TutorService(ITutorRepository tutorRepo, IGenericRepository<Class> classRepo, IStudentRepository studentRepo)
+        public TutorService(ITutorRepository tutorRepo, IGenericRepository<Class> classRepo, IStudentRepository studentRepo, IUserRepository userRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
             _studentRepo = studentRepo;
+            _userRepo = userRepo;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -108,6 +111,8 @@ namespace Tutorz.Application.Services
             return MapToDto(newClass);
         }
 
+
+
         public async Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
@@ -177,6 +182,54 @@ namespace Tutorz.Application.Services
             }).ToList();
         }
 
+
+        public async Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, TutorProfileDto request)
+        {
+            var response = new ServiceResponse<TutorProfileDto>();
+
+            // 1. Get Tutor Entity
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+            {
+                response.Success = false;
+                response.Message = "Tutor not found.";
+                return response;
+            }
+
+            // 2. Get User Entity (For Phone Number)
+            var user = await _userRepo.GetAsync(u => u.UserId == userId);
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "User not found.";
+                return response;
+            }
+
+            // 3. Update Fields
+            tutor.FirstName = request.FirstName;
+            tutor.LastName = request.LastName;
+            tutor.Bio = request.Bio;
+            tutor.BankName = request.BankName;
+            tutor.BankAccountNumber = request.BankAccountNumber;
+            tutor.UpdatedDate = DateTime.UtcNow;
+
+            user.PhoneNumber = request.PhoneNumber;
+            user.UpdatedDate = DateTime.UtcNow;
+
+            // 4. Save Changes
+            await _tutorRepo.SaveChangesAsync();
+            await _userRepo.SaveChangesAsync();
+
+            // 5. Return updated profile
+            // We call GetTutorProfileAsync internally to ensure we return the standard DTO
+            var updatedProfile = await GetTutorProfileAsync(userId);
+            response.Data = updatedProfile.Data;
+            response.Success = true;
+            response.Message = "Profile updated successfully";
+
+            return response;
+        }
+
         private ClassDto MapToDto(Class entity)
         {
             return new ClassDto
@@ -196,6 +249,25 @@ namespace Tutorz.Application.Services
                 IsActive = entity.IsActive,
                 StudentCount = 0
             };
+        }
+    
+
+        public async Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId)
+        {
+            var response = new ServiceResponse<TutorProfileDto>();
+
+            // We use your existing Repository method here
+            var profileDto = await _tutorRepo.GetTutorProfileAsync(userId);
+
+            if (profileDto == null)
+            {
+                response.Success = false;
+                response.Message = "Profile not found";
+                return response;
+            }
+
+            response.Data = profileDto;
+            return response;
         }
     }
 }
