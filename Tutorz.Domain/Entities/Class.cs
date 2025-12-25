@@ -47,6 +47,7 @@ namespace Tutorz.Domain.Entities
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedDate { get; set; }
 
-        public Tutor Tutor { get; set; }
+        [ForeignKey("TutorId")]
+        public virtual Tutor Tutor { get; set; }
     }
 }

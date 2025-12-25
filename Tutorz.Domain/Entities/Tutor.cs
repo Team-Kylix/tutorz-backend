@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations; 
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Tutorz.Domain.Entities
 {
@@ -10,7 +12,9 @@ namespace Tutorz.Domain.Entities
     {
         public Guid TutorId { get; set; }
         public string RegistrationNumber { get; set; }
-        public Guid UserId { get; set; } 
+        public Guid UserId { get; set; }
+        [ForeignKey("UserId")]
+        public virtual User User { get; set; }
         public String FirstName { get; set; }
         public String LastName { get; set; }
         public String Bio { get; set; }
