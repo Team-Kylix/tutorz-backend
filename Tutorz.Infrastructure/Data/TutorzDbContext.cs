@@ -35,12 +35,12 @@ namespace Tutorz.Infrastructure.Data
                 .WithMany() 
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
-                                                   
+
             modelBuilder.Entity<Student>()
-               .HasOne(s => s.User)
-               .WithMany()
-               .HasForeignKey(s => s.UserId)
-               .OnDelete(DeleteBehavior.Restrict);
+                .HasOne(s => s.User)            
+                .WithMany(u => u.Students)     
+                .HasForeignKey(s => s.UserId)   
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Class>()
                 .Property(c => c.Fee)

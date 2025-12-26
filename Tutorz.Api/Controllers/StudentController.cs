@@ -42,5 +42,51 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            // FIX: Read the specific "StudentId" claim from your token
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+
+            // Fallback: If "StudentId" is missing, try "sub" (NameIdentifier) just in case
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+
+            // Call the service
+            var result = await _studentService.GetProfileAsync(studentId);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateStudentProfileDto dto)
+        {
+            // FIX: Read the specific "StudentId" claim here too
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+
+            var result = await _studentService.UpdateProfileAsync(studentId, dto);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
     }
 }
