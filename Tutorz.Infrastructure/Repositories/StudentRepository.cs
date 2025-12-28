@@ -96,5 +96,14 @@ namespace Tutorz.Infrastructure.Repositories
 
             return "Success";
         }
+
+        public async Task<Student?> GetStudentWithUserAsync(Guid studentId)
+        {
+            var db = _context as TutorzDbContext;
+
+            return await db.Students
+                .Include(s => s.User) // Load the User to get the Email
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+        }
     }
 }
