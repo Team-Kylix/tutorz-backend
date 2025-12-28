@@ -9,6 +9,7 @@ using Tutorz.Application.Services;
 using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
 
+
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -29,6 +30,7 @@ builder.Services.AddScoped<IEmailService, Tutorz.Infrastructure.Services.EmailSe
 builder.Services.AddScoped<IIdGeneratorService, IdGeneratorService>();
 builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IStudentService, StudentService>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
