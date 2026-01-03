@@ -60,14 +60,15 @@ namespace Tutorz.Application.Services
             catch (Exception ex)
             {
                 response.Success = false;
-                response.Message = "Error joining class: " + ex.Message;
+
+                var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                response.Message = "Error joining class: " + innerMessage;
             }
             return response;
         }
 
         public async Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId)
         {
-            // USE YOUR EXISTING REPOSITORY METHOD
             // This finds the student AND joins the User table to get the Email
             var student = await _studentRepo.GetAsync(
                 expression: s => s.StudentId == studentId,
@@ -87,20 +88,19 @@ namespace Tutorz.Application.Services
                 ParentName = student.ParentName,
                 DateOfBirth = student.DateOfBirth,
                 RegistrationNumber = student.RegistrationNumber,
-                Email = student.User?.Email ?? "" // Safe access since we included "User"
+                Email = student.User?.Email ?? ""
             };
 
             return new ServiceResponse<StudentProfileDto> { Success = true, Data = dto };
         }
         public async Task<ServiceResponse<StudentProfileDto>> UpdateProfileAsync(Guid studentId, UpdateStudentProfileDto dto)
         {
-            // 1. Get the student using the Generic Repository
+            // Get the student using the Generic Repository
             var student = await _studentRepo.GetAsync(s => s.StudentId == studentId);
 
             if (student == null)
                 return new ServiceResponse<StudentProfileDto> { Success = false, Message = "Student not found." };
 
-            // 2. Update the fields in memory
             // Entity Framework tracks these changes automatically
             student.FirstName = dto.FirstName;
             student.LastName = dto.LastName;
@@ -109,10 +109,10 @@ namespace Tutorz.Application.Services
             student.ParentName = dto.ParentName;
             student.DateOfBirth = dto.DateOfBirth;
 
-            // 3. Save changes using the Generic Repository method
+            // Save changes using the Generic Repository method
             await _studentRepo.SaveChangesAsync();
 
-            // 4. Return the fresh data
+            // Return the fresh data
             return await GetProfileAsync(studentId);
         }
     }
