@@ -21,6 +21,9 @@ namespace Tutorz.Application.DTOs.Auth
         public string Email { get; set; }
         public string Role { get; set; }
         public string Token { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string RegistrationNumber { get; set; }
         public List<StudentProfileDto> Profiles { get; set; } = new();
     }
 }
