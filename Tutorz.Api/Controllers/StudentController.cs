@@ -32,13 +32,17 @@ namespace Tutorz.Api.Controllers
         [HttpPost("join-class")]
         public async Task<IActionResult> JoinClass([FromBody] JoinClassRequest request)
         {
-            var studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(studentIdString)) return Unauthorized();
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
 
             var studentId = Guid.Parse(studentIdString);
-
             var result = await _studentService.RequestJoinClassAsync(studentId, request.ClassId);
-
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -46,10 +50,10 @@ namespace Tutorz.Api.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            // FIX: Read the specific "StudentId" claim from your token
+            // Read the specific "StudentId" claim from your token
             var studentIdString = User.FindFirst("StudentId")?.Value;
 
-            // Fallback: If "StudentId" is missing, try "sub" (NameIdentifier) just in case
+            // If "StudentId" is missing, try "sub" (NameIdentifier) just in case
             if (string.IsNullOrEmpty(studentIdString))
             {
                 studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -70,7 +74,7 @@ namespace Tutorz.Api.Controllers
         [HttpPut("profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateStudentProfileDto dto)
         {
-            // FIX: Read the specific "StudentId" claim here too
+            // Read the specific "StudentId" claim here too
             var studentIdString = User.FindFirst("StudentId")?.Value;
 
             if (string.IsNullOrEmpty(studentIdString))
