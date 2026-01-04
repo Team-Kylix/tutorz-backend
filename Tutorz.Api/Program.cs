@@ -31,6 +31,8 @@ builder.Services.AddScoped<IIdGeneratorService, IdGeneratorService>();
 builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
+builder.Services.AddScoped<IInstituteService, InstituteService>();
+builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
