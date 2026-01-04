@@ -24,14 +24,31 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Role> Roles { get; set; }
         public DbSet<UserSequence> UserSequences { get; set; }
         public DbSet<Class> Classes { get; set; }
+        public DbSet<Enrollment> Enrollments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.ApplyConfiguration(new UserConfiguration());
-            modelBuilder.ApplyConfiguration(new StudentConfiguration());
+            modelBuilder.Entity<Tutor>()
+                .HasOne(t => t.User)
+                .WithMany() 
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Student>()
+                .HasOne(s => s.User)            
+                .WithMany(u => u.Students)     
+                .HasForeignKey(s => s.UserId)   
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Class>()
+                .Property(c => c.Fee)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<Enrollment>()
+                .HasIndex(e => new { e.StudentId, e.ClassId })
+                .IsUnique();
         }
     }
 }
