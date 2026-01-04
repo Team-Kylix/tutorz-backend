@@ -13,13 +13,10 @@ namespace Tutorz.Application.Interfaces
         Task<List<ClassDto>> GetClassesAsync(Guid userId);
         Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request);
         Task DeleteClassAsync(Guid classId, Guid userId);
-
-        // Change from Task<TutorProfileDto> to Task<ServiceResponse<TutorProfileDto>>
         Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId);
-
-        // This method should also return ServiceResponse
         Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, TutorProfileDto request);
+        Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);
+        Task<bool> ProcessStudentRequestsAsync(ProcessRequestDto request);
+        Task<StudentFullProfileDto> GetStudentProfileAsync(Guid studentId);
     }
-
-    
 }
