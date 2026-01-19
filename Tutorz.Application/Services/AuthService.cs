@@ -58,6 +58,7 @@ namespace Tutorz.Application.Services
             if (request.Password.Length < 6 || request.Password.Length > 10)
                 throw new Exception("Password must be between 6 and 10 characters.");
 
+            // Phone Number Validation
             if (string.IsNullOrWhiteSpace(request.PhoneNumber))
                 throw new Exception("Phone number is required for registration.");
 
@@ -68,12 +69,14 @@ namespace Tutorz.Application.Services
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
 
+            // Email Validation
             if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
                 throw new Exception("User with this email already exists.");
 
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
 
+            // Create User (WITHOUT RegistrationNumber)
             var user = new User
             {
                 UserId = Guid.NewGuid(),
@@ -84,7 +87,10 @@ namespace Tutorz.Application.Services
             };
             await _userRepository.AddAsync(user);
 
+            // Generate Unique Registration ID
             string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
+
+            // Handle Specific Roles
             Guid? newStudentId = null;
 
             if (request.Role == "Tutor")
@@ -92,7 +98,7 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
-                    RegistrationNumber = customId,
+                    RegistrationNumber = customId, // Assigned to Tutor
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -107,14 +113,14 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId,
+                    RegistrationNumber = customId, // Assigned to Student
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
                     Grade = request.Grade,
                     ParentName = request.ParentName,
                     DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow,
-                    IsPrimary = true
+                    IsPrimary = true // First registered student is Primary
                 };
                 newStudentId = student.StudentId;
                 await _studentRepository.AddAsync(student);
@@ -127,7 +133,7 @@ namespace Tutorz.Application.Services
                 await _instituteRepository.AddAsync(new Institute
                 {
                     UserId = user.UserId,
-                    RegistrationNumber = customId,
+                    RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
                     ContactNumber = request.PhoneNumber
@@ -136,7 +142,14 @@ namespace Tutorz.Application.Services
 
             await _userRepository.SaveChangesAsync();
 
+            // Pass the newStudentId if it exists
             var token = GenerateJwtToken(user, role.Name, newStudentId);
+
+            // Determine firstName and lastName based on role
+            string firstName = request.Role == "Institute"
+                ? (request.InstituteName ?? request.FirstName)
+                : request.FirstName;
+            string lastName = request.Role == "Institute" ? "" : request.LastName;
 
             var response = new AuthResponse
             {
@@ -145,13 +158,13 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = newStudentId,
-                Profiles = new List<StudentProfileDto>(),
-                // ✅ Correctly return the generated info
-                FirstName = request.Role == "Institute" ? (request.InstituteName ?? request.FirstName) : request.FirstName,
-                LastName = request.LastName,
-                RegistrationNumber = customId
+                FirstName = firstName,
+                LastName = lastName,
+                RegistrationNumber = customId,
+                Profiles = new List<StudentProfileDto>()
             };
 
+            // If student, add self to profiles list
             if (newStudentId.HasValue)
             {
                 response.Profiles.Add(new StudentProfileDto
@@ -166,7 +179,7 @@ namespace Tutorz.Application.Services
             return response;
         }
 
-        // --- LOGIN (Fixed to return RegistrationNumber) ---
+        // --- LOGIN (Handles Multiple Profiles) ---
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
             if (request.Password.Length < 6 || request.Password.Length > 10)
@@ -200,37 +213,15 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
             if (role == null) throw new Exception("User has no valid role.");
 
+            // --- Multi Profile Logic ---
             List<StudentProfileDto> profiles = new();
             Guid? currentStudentId = null;
 
-            // ✅ Initialize variables to hold specific user info
-            string firstName = "";
-            string lastName = "";
-            string regNo = "";
-
-            // ✅ Logic to fetch RegistrationNumber based on role
-            if (role.Name == "Tutor")
+            if (role.Name == "Student")
             {
-                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
-                if (tutor != null)
-                {
-                    firstName = tutor.FirstName;
-                    lastName = tutor.LastName;
-                    regNo = tutor.RegistrationNumber;
-                }
-            }
-            else if (role.Name == "Institute")
-            {
-                var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
-                if (inst != null)
-                {
-                    firstName = inst.InstituteName;
-                    regNo = inst.RegistrationNumber;
-                }
-            }
-            else if (role.Name == "Student")
-            {
+                // Fetch ALL students associated with this other User
                 var students = await _studentRepository.GetAllAsync(s => s.UserId == user.UserId);
+
                 if (students.Any())
                 {
                     profiles = students.Select(s => new StudentProfileDto
@@ -241,18 +232,50 @@ namespace Tutorz.Application.Services
                         IsPrimary = s.IsPrimary
                     }).ToList();
 
+                    // Default to Primary, otherwise first available
                     var activeStudent = students.FirstOrDefault(s => s.IsPrimary) ?? students.FirstOrDefault();
-                    if (activeStudent != null)
-                    {
-                        currentStudentId = activeStudent.StudentId;
-                        firstName = activeStudent.FirstName;
-                        lastName = activeStudent.LastName;
-                        regNo = activeStudent.RegistrationNumber;
-                    }
+                    currentStudentId = activeStudent?.StudentId;
                 }
             }
 
+            // Generate token with the selected StudentId
             var token = GenerateJwtToken(user, role.Name, currentStudentId);
+
+            // Fetch role-specific data for firstName, lastName, and registrationNumber
+            string firstName = null;
+            string lastName = null;
+            string registrationNumber = null;
+
+            if (role.Name == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null)
+                {
+                    firstName = tutor.FirstName;
+                    lastName = tutor.LastName;
+                    registrationNumber = tutor.RegistrationNumber;
+                }
+            }
+            else if (role.Name == "Student" && currentStudentId.HasValue)
+            {
+                var student = await _studentRepository.GetAsync(s => s.StudentId == currentStudentId.Value);
+                if (student != null)
+                {
+                    firstName = student.FirstName;
+                    lastName = student.LastName;
+                    registrationNumber = student.RegistrationNumber;
+                }
+            }
+            else if (role.Name == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null)
+                {
+                    firstName = institute.InstituteName;
+                    lastName = "";
+                    registrationNumber = institute.RegistrationNumber;
+                }
+            }
 
             return new AuthResponse
             {
@@ -261,26 +284,29 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = currentStudentId,
-                Profiles = profiles,
-                // ✅ Return fetched details
                 FirstName = firstName,
                 LastName = lastName,
-                RegistrationNumber = regNo
+                RegistrationNumber = registrationNumber,
+                Profiles = profiles
             };
         }
 
         public async Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId)
         {
+            // Verify ownership (Ensure this parent owns this student profile)
             var student = await _studentRepository.GetAsync(s => s.StudentId == targetStudentId && s.UserId == userId);
 
             if (student == null)
                 throw new Exception("Student profile not found or does not belong to this user.");
 
+            // Get User and Role details to regenerate token
             var user = await _userRepository.GetAsync(u => u.UserId == userId);
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
+            // Generate Token for THIS specific student
             var token = GenerateJwtToken(user, role.Name, student.StudentId);
 
+            // Return response with new token
             return new AuthResponse
             {
                 UserId = user.UserId,
@@ -288,14 +314,14 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = student.StudentId,
-                Profiles = new List<StudentProfileDto>(),
-                // ✅ Update info for the switched profile
                 FirstName = student.FirstName,
                 LastName = student.LastName,
-                RegistrationNumber = student.RegistrationNumber
+                RegistrationNumber = student.RegistrationNumber,
+                Profiles = new List<StudentProfileDto>()
             };
         }
 
+        // --- CHECK USER STATUS ---
         public async Task<string> CheckUserStatusAsync(string identifier)
         {
             User user;
@@ -303,6 +329,7 @@ namespace Tutorz.Application.Services
                 user = await _userRepository.GetAsync(u => u.Email == identifier);
             else
             {
+                // Simple phone normalization for check
                 string cleanPhone = identifier.StartsWith("0") ? "+94" + identifier.Substring(1) : identifier;
                 user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
             }
@@ -316,10 +343,13 @@ namespace Tutorz.Application.Services
             return "EXISTS_OTHER_ROLE";
         }
 
+        // --- REGISTER SIBLING ---
         public async Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request)
         {
+            // ---Normalize the identifier before searching ---
             string searchIdentifier = request.Identifier;
 
+            // If it's not an email and starts with '0', convert it to '+94' format
             if (!searchIdentifier.Contains("@") && searchIdentifier.StartsWith("0"))
             {
                 searchIdentifier = "+94" + searchIdentifier.Substring(1);
@@ -328,8 +358,10 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == searchIdentifier || u.PhoneNumber == searchIdentifier);
             if (user == null) throw new Exception("Parent account not found.");
 
+            // GENERATE NEW ID FOR THE SIBLING
             string newStudentId = await _idGeneratorService.GenerateNextIdAsync("Student", request.Grade);
 
+            // Create the Sibling Student
             var newStudent = new Student
             {
                 StudentId = Guid.NewGuid(),
@@ -347,8 +379,10 @@ namespace Tutorz.Application.Services
             await _studentRepository.AddAsync(newStudent);
             await _studentRepository.SaveChangesAsync();
 
+            // Auto-Login Response logic
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
+            // Re fetch all profiles including the new one
             var allStudents = await _studentRepository.GetAllAsync(s => s.UserId == user.UserId);
             var profiles = allStudents.Select(s => new StudentProfileDto
             {
@@ -358,6 +392,7 @@ namespace Tutorz.Application.Services
                 IsPrimary = s.IsPrimary
             }).ToList();
 
+            // Generate token for the NEW student specifically
             var token = GenerateJwtToken(user, role.Name, newStudent.StudentId);
 
             return new AuthResponse
@@ -367,14 +402,14 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = newStudent.StudentId,
-                Profiles = profiles,
-                // ✅ Return new student info
                 FirstName = newStudent.FirstName,
                 LastName = newStudent.LastName,
-                RegistrationNumber = newStudent.RegistrationNumber
+                RegistrationNumber = newStudent.RegistrationNumber,
+                Profiles = profiles
             };
         }
 
+        // --- SOCIAL LOGIN ---
         public async Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request)
         {
             SocialLoginUser socialUser;
@@ -392,11 +427,6 @@ namespace Tutorz.Application.Services
             Guid? currentStudentId = null;
             List<StudentProfileDto> profiles = new();
 
-            // ✅ Initialize info vars
-            string firstName = "";
-            string lastName = "";
-            string regNo = "";
-
             if (user == null)
             {
                 // --- NEW USER FLOW ---
@@ -413,9 +443,10 @@ namespace Tutorz.Application.Services
                 if (role == null) throw new Exception($"Invalid role '{request.Role}' for new user.");
                 roleName = role.Name;
 
+                // Generate ID
                 string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
-                regNo = customId; // ✅ Set generated ID
 
+                // Base User
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
@@ -427,6 +458,7 @@ namespace Tutorz.Application.Services
 
                 await _userRepository.AddAsync(user);
 
+                // Create Specific Role Entity (Assign customId and LastName here)
                 if (roleName == "Student")
                 {
                     var student = new Student
@@ -452,13 +484,10 @@ namespace Tutorz.Application.Services
                         Grade = student.Grade,
                         IsPrimary = true
                     });
-
-                    firstName = student.FirstName;
-                    lastName = student.LastName;
                 }
                 else if (roleName == "Tutor")
                 {
-                    var tutor = new Tutor
+                    await _tutorRepository.AddAsync(new Tutor
                     {
                         UserId = user.UserId,
                         RegistrationNumber = customId,
@@ -467,25 +496,18 @@ namespace Tutorz.Application.Services
                         Bio = request.Bio,
                         BankAccountNumber = request.BankAccountNumber,
                         BankName = request.BankName
-                    };
-                    await _tutorRepository.AddAsync(tutor);
-
-                    firstName = tutor.FirstName;
-                    lastName = tutor.LastName;
+                    });
                 }
                 else if (roleName == "Institute")
                 {
-                    var institute = new Institute
+                    await _instituteRepository.AddAsync(new Institute
                     {
                         UserId = user.UserId,
                         RegistrationNumber = customId,
                         InstituteName = request.InstituteName ?? socialUser.Name,
                         Address = request.Address,
                         ContactNumber = user.PhoneNumber
-                    };
-                    await _instituteRepository.AddAsync(institute);
-
-                    firstName = institute.InstituteName;
+                    });
                 }
 
                 await _userRepository.SaveChangesAsync();
@@ -496,27 +518,7 @@ namespace Tutorz.Application.Services
                 var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
                 roleName = role.Name;
 
-                // ✅ Fetch existing details
-                if (roleName == "Tutor")
-                {
-                    var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
-                    if (tutor != null)
-                    {
-                        firstName = tutor.FirstName;
-                        lastName = tutor.LastName;
-                        regNo = tutor.RegistrationNumber;
-                    }
-                }
-                else if (roleName == "Institute")
-                {
-                    var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
-                    if (inst != null)
-                    {
-                        firstName = inst.InstituteName;
-                        regNo = inst.RegistrationNumber;
-                    }
-                }
-                else if (roleName == "Student")
+                if (roleName == "Student")
                 {
                     var students = await _studentRepository.GetAllAsync(s => s.UserId == user.UserId);
                     if (students.Any())
@@ -530,18 +532,48 @@ namespace Tutorz.Application.Services
                         }).ToList();
 
                         var activeStudent = students.FirstOrDefault(s => s.IsPrimary) ?? students.FirstOrDefault();
-                        if (activeStudent != null)
-                        {
-                            currentStudentId = activeStudent.StudentId;
-                            firstName = activeStudent.FirstName;
-                            lastName = activeStudent.LastName;
-                            regNo = activeStudent.RegistrationNumber;
-                        }
+                        currentStudentId = activeStudent?.StudentId;
                     }
                 }
             }
 
             var token = GenerateJwtToken(user, roleName, currentStudentId);
+
+            // Fetch role-specific data for firstName, lastName, and registrationNumber
+            string firstName = null;
+            string lastName = null;
+            string registrationNumber = null;
+
+            if (roleName == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null)
+                {
+                    firstName = tutor.FirstName;
+                    lastName = tutor.LastName;
+                    registrationNumber = tutor.RegistrationNumber;
+                }
+            }
+            else if (roleName == "Student" && currentStudentId.HasValue)
+            {
+                var student = await _studentRepository.GetAsync(s => s.StudentId == currentStudentId.Value);
+                if (student != null)
+                {
+                    firstName = student.FirstName;
+                    lastName = student.LastName;
+                    registrationNumber = student.RegistrationNumber;
+                }
+            }
+            else if (roleName == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null)
+                {
+                    firstName = institute.InstituteName;
+                    lastName = "";
+                    registrationNumber = institute.RegistrationNumber;
+                }
+            }
 
             return new AuthResponse
             {
@@ -550,14 +582,12 @@ namespace Tutorz.Application.Services
                 Role = roleName,
                 Token = token,
                 CurrentStudentId = currentStudentId,
-                Profiles = profiles,
-                // ✅ Return fetched details
                 FirstName = firstName,
                 LastName = lastName,
-                RegistrationNumber = regNo
+                RegistrationNumber = registrationNumber,
+                Profiles = profiles
             };
         }
-
         private string GenerateJwtToken(User user, string roleName, Guid? studentId = null)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
@@ -609,18 +639,22 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == identifier);
             if (user == null) throw new Exception("User not found.");
 
+            // 1. Generate 6-digit Code
             string otp = new Random().Next(100000, 999999).ToString();
 
+            // 2. Save to DB
             user.OtpCode = otp;
-            user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 min
             await _userRepository.SaveChangesAsync();
 
+            // 3. Send Email
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 
             _emailService.SendEmail(user.Email, subject, body);
         }
 
+        // Updated VerifyOtpAsync to return the Phone Number
         public async Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request)
         {
             var user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
@@ -634,10 +668,12 @@ namespace Tutorz.Application.Services
             if (user.OtpExpires < DateTime.UtcNow)
                 throw new Exception("OTP code has expired.");
 
+            // Clear OTP after success
             user.OtpCode = null;
             user.OtpExpires = null;
             await _userRepository.SaveChangesAsync();
 
+            // Return the phone number stored in the parent account
             return new VerifyUserResponse
             {
                 Success = true,
@@ -662,6 +698,7 @@ namespace Tutorz.Application.Services
             await _userRepository.SaveChangesAsync();
         }
 
+        // Private helper for Google
         private async Task<SocialLoginUser> ValidateGoogleAccessTokenAsync(string accessToken)
         {
             try

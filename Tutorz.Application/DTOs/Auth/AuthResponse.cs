@@ -17,7 +17,7 @@ namespace Tutorz.Application.DTOs.Auth
     public class AuthResponse
     {
         public Guid UserId { get; set; }
-        public Guid? CurrentStudentId { get; set; } 
+        public Guid? CurrentStudentId { get; set; }
         public string Email { get; set; }
         public string Role { get; set; }
         public string Token { get; set; }
