@@ -29,6 +29,36 @@ namespace Tutorz.Infrastructure.Data
             // Use Fully Qualified Name
             string dummyHash = BCrypt.Net.BCrypt.HashPassword("Test@123");
 
+            // ==================================================
+            // 1. ADMIN ACCOUNT (Added)
+            // ==================================================
+            var userAdmin = new User
+            {
+                UserId = Guid.NewGuid(),
+                Email = "admin@tutorz.com",
+                PhoneNumber = "0112223344",
+                PasswordHash = dummyHash, // Password is: Test@123
+                RoleId = roleAdmin.RoleId,
+                IsActive = true
+            };
+
+            // Note: If you have a separate 'Admin' entity/table for profile details (like Tutor/Student),
+            // uncomment the lines below and ensure 'Admins' DbSet exists in your context.
+            /*
+            var adminProfile = new Admin
+            {
+                AdminId = Guid.NewGuid(),
+                UserId = userAdmin.UserId,
+                FirstName = "System",
+                LastName = "Administrator"
+            };
+            context.Admins.Add(adminProfile);
+            */
+
+            // Add Admin to the Users dbset
+            context.Users.Add(userAdmin);
+            // ==================================================
+
             // Tutor 1: John Doe (Maths)
             var userTutor1 = new User
             {

@@ -46,6 +46,12 @@ namespace Tutorz.Infrastructure.Data
                 .Property(c => c.Fee)
                 .HasColumnType("decimal(18,2)");
 
+            modelBuilder.Entity<Institute>()
+                .HasOne(i => i.User)
+                .WithOne() 
+                .HasForeignKey<Institute>(i => i.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             modelBuilder.Entity<Enrollment>()
                 .HasIndex(e => new { e.StudentId, e.ClassId })
                 .IsUnique();
