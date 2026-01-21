@@ -54,20 +54,13 @@ namespace Tutorz.Api.Controllers
         }
 
         // --- CHECK USER STATUS ---
-        // Checks if email/phone exists and what role it has
-        // Returns: "NOT_FOUND", "EXISTS_AS_STUDENT", or "EXISTS_OTHER_ROLE"
         [HttpPost("check-status")]
         public async Task<IActionResult> CheckStatus([FromBody] CheckUserRequest request)
         {
-            try
-            {
-                var status = await _authService.CheckUserStatusAsync(request.Identifier);
-                return Ok(new { status });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var result = await _authService.CheckUserStatusAsync(request);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
         }
 
         [HttpPost("send-otp")]
@@ -100,7 +93,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 5. REGISTER SIBLING (New Flow Step 3) ---
+        // --- REGISTER SIBLING ---
         // Only called after OTP is verified
         [HttpPost("register-sibling")]
         public async Task<IActionResult> RegisterSibling([FromBody] SiblingRegistrationRequest request)
@@ -117,14 +110,14 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 6. SWITCH PROFILE (For Dashboard) ---
+        // --- SWITCH PROFILE (For Dashboard) ---
         // Allows a logged-in parent to get a new token for a different child
         [HttpPost("switch-profile")]
         public async Task<IActionResult> SwitchProfile([FromBody] SwitchProfileRequest request)
         {
             try
             {
-                // 1. Get current Parent User ID from the valid Token
+                // Get current Parent User ID from the valid Token
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 // Fallback for standard JWT sub claim
                 var subClaim = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
@@ -136,7 +129,7 @@ namespace Tutorz.Api.Controllers
 
                 var userId = Guid.Parse(userIdClaim ?? subClaim);
 
-                // 2. Call Service to validate that this StudentId belongs to this UserId
+                // Call Service to validate that this StudentId belongs to this UserId
                 // and generate a new token
                 var response = await _authService.SwitchProfileAsync(userId, request.StudentId);
                 return Ok(response);
@@ -147,7 +140,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 7. SOCIAL LOGIN ---
+        // --- SOCIAL LOGIN ---
         [HttpPost("social-login")]
         public async Task<IActionResult> SocialLogin(SocialLoginRequest request)
         {
@@ -164,7 +157,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 8. UTILS (Check Email, Forgot Pass) ---
+        // --- UTILS (Check Email, Forgot Pass) ---
         [HttpGet("check-email")]
         public async Task<IActionResult> CheckEmail([FromQuery] string email)
         {

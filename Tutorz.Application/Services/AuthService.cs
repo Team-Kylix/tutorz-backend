@@ -1,21 +1,22 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using BCrypt.Net;
+using Google.Apis.Auth;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Auth;
+using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
-using BCrypt.Net;
-using Google.Apis.Auth;
-using System.Text.Json;
-using System.Net.Http;
-using System.Security.Cryptography;
 
 namespace Tutorz.Application.Services
 {
@@ -98,7 +99,7 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
-                    RegistrationNumber = customId, // Assigned to Tutor
+                    RegistrationNumber = customId, 
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -113,7 +114,7 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId, // Assigned to Student
+                    RegistrationNumber = customId, 
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
@@ -322,25 +323,88 @@ namespace Tutorz.Application.Services
         }
 
         // --- CHECK USER STATUS ---
-        public async Task<string> CheckUserStatusAsync(string identifier)
+        public async Task<ServiceResponse<CheckUserResponse>> CheckUserStatusAsync(CheckUserRequest request)
         {
-            User user;
-            if (identifier.Contains("@"))
-                user = await _userRepository.GetAsync(u => u.Email == identifier);
-            else
+            var response = new ServiceResponse<CheckUserResponse>();
+            User user = null;
+
+            // Check Specific Email
+            if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                // Simple phone normalization for check
-                string cleanPhone = identifier.StartsWith("0") ? "+94" + identifier.Substring(1) : identifier;
+                user = await _userRepository.GetAsync(u => u.Email == request.Email);
+            }
+
+            // Check Specific Phone (if user not found yet)
+            if (user == null && !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                string cleanPhone = NormalizePhone(request.PhoneNumber);
                 user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
             }
 
-            if (user == null) return "NOT_FOUND";
+            // Legacy "Identifier" Check (if user still not found)
+            if (user == null && !string.IsNullOrWhiteSpace(request.Identifier))
+            {
+                if (request.Identifier.Contains("@"))
+                {
+                    user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+                }
+                else
+                {
+                    string cleanPhone = NormalizePhone(request.Identifier);
+                    user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+                }
+            }
 
+            // --- RESULT PROCESSING (Same as before) ---
+            if (user == null)
+            {
+                response.Success = true;
+                response.Data = new CheckUserResponse { Exists = false, Message = "User does not exist." };
+                return response;
+            }
+
+            // Fetch Details
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
+            string name = "Unknown User";
 
-            if (role.Name == "Student") return "EXISTS_AS_STUDENT";
+            if (role.Name == "Student")
+            {
+                var student = (await _studentRepository.GetAllAsync(s => s.UserId == user.UserId))
+                              .OrderByDescending(s => s.IsPrimary).FirstOrDefault();
+                if (student != null) name = $"{student.FirstName} {student.LastName}";
+            }
+            else if (role.Name == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null) name = $"{tutor.FirstName} {tutor.LastName}";
+            }
+            else if (role.Name == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null) name = institute.InstituteName;
+            }
 
-            return "EXISTS_OTHER_ROLE";
+            response.Success = true;
+            response.Data = new CheckUserResponse
+            {
+                Exists = true,
+                UserId = user.UserId,
+                Name = name,
+                Role = role.Name,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber
+            };
+
+            return response;
+        }
+
+        // Helper method to keep code clean
+        private string NormalizePhone(string phone)
+        {
+            string clean = phone.Replace(" ", "").Replace("-", "");
+            if (clean.StartsWith("0")) return "+94" + clean.Substring(1);
+            if (!clean.StartsWith("+")) return "+94" + clean;
+            return clean;
         }
 
         // --- REGISTER SIBLING ---
@@ -639,15 +703,15 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == identifier);
             if (user == null) throw new Exception("User not found.");
 
-            // 1. Generate 6-digit Code
+            // Generate 6-digit Code
             string otp = new Random().Next(100000, 999999).ToString();
 
-            // 2. Save to DB
+            // Save to DB
             user.OtpCode = otp;
             user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 min
             await _userRepository.SaveChangesAsync();
 
-            // 3. Send Email
+            // Send Email
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 
