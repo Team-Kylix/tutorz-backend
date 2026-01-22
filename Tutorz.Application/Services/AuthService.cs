@@ -87,7 +87,8 @@ namespace Tutorz.Application.Services
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
-                PhoneNumber = normalizedPhone
+                PhoneNumber = normalizedPhone,
+                CityId = request.CityId
             };
             await _userRepository.AddAsync(user);
 
@@ -533,7 +534,8 @@ namespace Tutorz.Application.Services
                     Email = socialUser.Email,
                     PasswordHash = "",
                     RoleId = role.RoleId,
-                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null
+                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
+                    CityId = request.CityId 
                 };
 
                 await _userRepository.AddAsync(user);
@@ -730,15 +732,15 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == identifier);
             if (user == null) throw new Exception("User not found.");
 
-            // Generate 6-digit Code
+            // 1. Generate 6-digit Code
             string otp = new Random().Next(100000, 999999).ToString();
 
-            // Save to DB
+            // 2. Save to DB
             user.OtpCode = otp;
             user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 min
             await _userRepository.SaveChangesAsync();
 
-            // Send Email
+            // 3. Send Email
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 
