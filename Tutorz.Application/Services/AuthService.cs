@@ -31,6 +31,7 @@ namespace Tutorz.Application.Services
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
         private readonly IIdGeneratorService _idGeneratorService;
+        private readonly IQrCodeService _qrCodeService;
 
         public AuthService(
             IUserRepository userRepository,
@@ -40,7 +41,8 @@ namespace Tutorz.Application.Services
             IRoleRepository roleRepository,
             IConfiguration configuration,
             IEmailService emailService,
-            IIdGeneratorService idGeneratorService)
+            IIdGeneratorService idGeneratorService,
+            IQrCodeService qrCodeService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -51,6 +53,7 @@ namespace Tutorz.Application.Services
             _emailService = emailService;
             _idGeneratorService = idGeneratorService;
             _httpClient = new HttpClient();
+            _qrCodeService = qrCodeService;
         }
 
         // --- REGISTER (First Time User) ---
@@ -99,7 +102,7 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
-                    RegistrationNumber = customId, 
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -114,7 +117,7 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId, 
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
@@ -140,6 +143,19 @@ namespace Tutorz.Application.Services
                     ContactNumber = request.PhoneNumber
                 });
             }
+
+            // QR Code Generation Logic
+            // Determine Name for QR based on role
+            string qrName = request.FirstName;
+            if (request.Role == "Student") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Tutor") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Institute") qrName = request.InstituteName ?? request.FirstName;
+
+            // Generate QR and get Path
+            string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
+
+            // Update User Entity with QR Path
+            user.QrCodeUrl = qrPath;
 
             await _userRepository.SaveChangesAsync();
 
@@ -574,6 +590,17 @@ namespace Tutorz.Application.Services
                     });
                 }
 
+                await _userRepository.SaveChangesAsync();
+
+                // QR Code Generation Logic for Social Login
+                string qrName = request.FirstName;
+                if (roleName == "Institute") qrName = request.InstituteName ?? request.FirstName;
+                else qrName = $"{request.FirstName} {request.LastName}";
+
+                string phoneForQr = user.PhoneNumber ?? "N/A";
+
+                string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, phoneForQr, roleName);
+                user.QrCodeUrl = qrPath;
                 await _userRepository.SaveChangesAsync();
             }
             else
