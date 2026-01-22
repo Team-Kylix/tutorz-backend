@@ -25,6 +25,9 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<UserSequence> UserSequences { get; set; }
         public DbSet<Class> Classes { get; set; }
         public DbSet<Enrollment> Enrollments { get; set; }
+        public DbSet<Province> Provinces { get; set; }
+        public DbSet<District> Districts { get; set; }
+        public DbSet<City> Cities { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,14 +35,14 @@ namespace Tutorz.Infrastructure.Data
 
             modelBuilder.Entity<Tutor>()
                 .HasOne(t => t.User)
-                .WithMany() 
+                .WithMany()
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Student>()
-                .HasOne(s => s.User)            
-                .WithMany(u => u.Students)     
-                .HasForeignKey(s => s.UserId)   
+                .HasOne(s => s.User)
+                .WithMany(u => u.Students)
+                .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Class>()
@@ -48,7 +51,7 @@ namespace Tutorz.Infrastructure.Data
 
             modelBuilder.Entity<Institute>()
                 .HasOne(i => i.User)
-                .WithOne() 
+                .WithOne()
                 .HasForeignKey<Institute>(i => i.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
