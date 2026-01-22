@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251230182812_AddedRegistrationFields")]
+    partial class AddedRegistrationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -279,9 +282,16 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("UserId1")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("TutorId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId1")
+                        .IsUnique()
+                        .HasFilter("[UserId1] IS NOT NULL");
 
                     b.ToTable("Tutors");
                 });
@@ -381,9 +391,9 @@ namespace Tutorz.Infrastructure.Migrations
             modelBuilder.Entity("Tutorz.Domain.Entities.Student", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
-                        .WithMany()
+                        .WithMany("Students")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
@@ -397,7 +407,18 @@ namespace Tutorz.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Tutorz.Domain.Entities.User", null)
+                        .WithOne("Tutor")
+                        .HasForeignKey("Tutorz.Domain.Entities.Tutor", "UserId1");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.User", b =>
+                {
+                    b.Navigation("Students");
+
+                    b.Navigation("Tutor");
                 });
 #pragma warning restore 612, 618
         }
