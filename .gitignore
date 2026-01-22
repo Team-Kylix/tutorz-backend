@@ -18,3 +18,4 @@
 /Tutorz.Infrastructure/Migrations/20251230184701_AddedRegistrationField.cs
 /Tutorz.Infrastructure/Migrations/20251230184701_AddedRegistrationField.Designer.cs
 /Tutorz.Infrastructure/Migrations/TutorzDbContextModelSnapshot.cs
+/Tutorz.Api/wwwroot
