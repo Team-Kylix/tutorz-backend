@@ -1,12 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AutoMapper;
+using Tutorz.Application.DTOs.Tutor;
+using Tutorz.Domain.Entities;
 
 namespace Tutorz.Application.Mappings
 {
-    internal interface AutoMapperProfiles
+    public class AutoMapperProfiles : Profile
     {
+        public AutoMapperProfiles()
+        {
+            CreateMap<Class, ClassDto>();
+            CreateMap<CreateClassRequest, Class>();
+            // Add other mappings here as needed
+        }
     }
 }

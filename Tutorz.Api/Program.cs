@@ -1,4 +1,6 @@
 using System.Text;
+using FluentValidation.AspNetCore;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -19,6 +21,7 @@ builder.Services.AddDbContext<TutorzDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // Register services
+builder.Services.AddAutoMapper(typeof(Tutorz.Application.Mappings.AutoMapperProfiles).Assembly);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -49,6 +52,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddControllers();
+// Register FluentValidation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<Tutorz.Application.Validators.TutorValidator>();
+
 // code for Swagger
 builder.Services.AddSwaggerGen(options =>
 {
@@ -132,6 +139,8 @@ app.UseHttpsRedirection();
 app.UseCors("AllowMyReactApp");
 
 app.UseAuthentication();
+
+app.UseMiddleware<Tutorz.Api.Filters.ExceptionMiddleware>();
 
 app.UseAuthorization();
 

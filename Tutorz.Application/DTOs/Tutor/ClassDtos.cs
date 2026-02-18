@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+
 
 namespace Tutorz.Application.DTOs.Tutor
 {
@@ -24,13 +24,10 @@ namespace Tutorz.Application.DTOs.Tutor
 
     public class CreateClassRequest
     {
-        [Required]
         public string InstituteName { get; set; }
 
-        [Required]
         public string ClassType { get; set; }
 
-        [Required]
         public string Subject { get; set; }
 
         public string Grade { get; set; }
@@ -39,10 +36,8 @@ namespace Tutorz.Application.DTOs.Tutor
         public string DayOfWeek { get; set; }
         public DateTime? Date { get; set; }
 
-        [Required]
         public string StartTime { get; set; }
 
-        [Required]
         public string EndTime { get; set; }
 
         public string HallName { get; set; }
@@ -52,7 +47,7 @@ namespace Tutorz.Application.DTOs.Tutor
 
     public class AddStudentRequest
     {
-        [Required] public Guid ClassId { get; set; }
-        [Required] public string StudentRegistrationNumber { get; set; }
+        public Guid ClassId { get; set; }
+        public string StudentRegistrationNumber { get; set; }
     }
 }

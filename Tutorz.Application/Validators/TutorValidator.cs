@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Tutorz.Application.Validators
 {
-    internal interface TutorValidator
+    public interface TutorValidator
     {
     }
 }

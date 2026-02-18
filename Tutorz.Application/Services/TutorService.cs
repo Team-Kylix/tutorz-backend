@@ -7,6 +7,7 @@ using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
 using Tutorz.Application.DTOs.Common;
+using AutoMapper;
 
 namespace Tutorz.Application.Services
 {
@@ -16,17 +17,20 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<Class> _classRepo; 
         private readonly IStudentRepository _studentRepo;
         private readonly IUserRepository _userRepo;
+        private readonly IMapper _mapper;
 
         public TutorService(
             ITutorRepository tutorRepo,
             IGenericRepository<Class> classRepo,
             IStudentRepository studentRepo,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            IMapper mapper)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
             _studentRepo = studentRepo;
             _userRepo = userRepo;
+            _mapper = mapper;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -99,7 +103,7 @@ namespace Tutorz.Application.Services
             await _classRepo.AddAsync(newClass);
             await _classRepo.SaveChangesAsync();
 
-            return MapToDto(newClass);
+            return _mapper.Map<ClassDto>(newClass);
         }
 
         public async Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
@@ -124,7 +128,7 @@ namespace Tutorz.Application.Services
             existingClass.UpdatedDate = DateTime.UtcNow;
 
             await _classRepo.SaveChangesAsync();
-            return MapToDto(existingClass);
+            return _mapper.Map<ClassDto>(existingClass);
         }
 
         public async Task DeleteClassAsync(Guid classId, Guid userId)
@@ -152,7 +156,7 @@ namespace Tutorz.Application.Services
 
             var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId);
 
-            return classes.Select(c => MapToDto(c)).ToList();
+            return _mapper.Map<List<ClassDto>>(classes);
         }
 
         public async Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId)
@@ -259,25 +263,6 @@ namespace Tutorz.Application.Services
             return await _tutorRepo.GetStudentProfileForTutorAsync(studentId);
         }
 
-        private ClassDto MapToDto(Class entity)
-        {
-            return new ClassDto
-            {
-                ClassId = entity.ClassId,
-                InstituteName = entity.InstituteName,
-                ClassType = entity.ClassType,
-                Subject = entity.Subject,
-                Grade = entity.Grade,
-                ClassName = entity.ClassName,
-                DayOfWeek = entity.DayOfWeek,
-                Date = entity.Date,
-                StartTime = entity.StartTime,
-                EndTime = entity.EndTime,
-                HallName = entity.HallName,
-                Fee = entity.Fee,
-                IsActive = entity.IsActive,
-                StudentCount = 0 
-            };
-        }
+
     }
 }
