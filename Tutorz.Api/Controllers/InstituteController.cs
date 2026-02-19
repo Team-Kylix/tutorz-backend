@@ -14,10 +14,12 @@ namespace Tutorz.Api.Controllers
     public class InstituteController : ControllerBase
     {
         private readonly IInstituteService _instituteService;
+        private readonly IHallService _hallService;
 
-        public InstituteController(IInstituteService instituteService)
+        public InstituteController(IInstituteService instituteService, IHallService hallService)
         {
             _instituteService = instituteService;
+            _hallService = hallService;
         }
 
         [HttpGet("profile")]
@@ -56,6 +58,81 @@ namespace Tutorz.Api.Controllers
 
             var result = await _instituteService.UpdateProfileAsync(instituteId, dto);
 
+            return Ok(result);
+        }
+
+        [HttpPost("halls")]
+        public async Task<IActionResult> AddHall([FromBody] CreateHallDto dto)
+        {
+            var idString = User.FindFirst("InstituteId")?.Value;
+
+            if (string.IsNullOrEmpty(idString))
+                idString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(idString))
+                return Unauthorized("Institute ID not found in token.");
+
+            var instituteId = Guid.Parse(idString);
+
+            var result = await _hallService.AddHallAsync(instituteId, dto);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("halls")]
+        public async Task<IActionResult> GetHalls()
+        {
+            var idString = User.FindFirst("InstituteId")?.Value;
+
+            if (string.IsNullOrEmpty(idString))
+                idString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(idString))
+                return Unauthorized("Institute ID not found in token.");
+
+            var instituteId = Guid.Parse(idString);
+
+            var result = await _hallService.GetHallsAsync(instituteId);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+        [HttpPut("halls/{id}")]
+        public async Task<IActionResult> UpdateHall(Guid id, [FromBody] CreateHallDto dto)
+        {
+            var idString = User.FindFirst("InstituteId")?.Value;
+            // Fallback for older tokens (should be rare now)
+            if (string.IsNullOrEmpty(idString)) idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+             
+            if (string.IsNullOrEmpty(idString)) return Unauthorized("Institute ID not found.");
+            var instituteId = Guid.Parse(idString);
+
+            var result = await _hallService.UpdateHallAsync(instituteId, id, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpDelete("halls/{id}")]
+        public async Task<IActionResult> DeleteHall(Guid id)
+        {
+            var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(idString)) return Unauthorized("Institute ID not found.");
+            var instituteId = Guid.Parse(idString);
+
+            var result = await _hallService.DeleteHallAsync(instituteId, id);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPatch("halls/{id}/status")]
+        public async Task<IActionResult> ToggleHallStatus(Guid id)
+        {
+            var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(idString)) return Unauthorized("Institute ID not found.");
+            var instituteId = Guid.Parse(idString);
+
+            var result = await _hallService.ToggleHallStatusAsync(instituteId, id);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
