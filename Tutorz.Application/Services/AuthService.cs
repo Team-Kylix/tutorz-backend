@@ -161,8 +161,25 @@ namespace Tutorz.Application.Services
 
             await _userRepository.SaveChangesAsync();
 
+            // Fetch InstituteId if role is Institute
+            Guid? instituteId = null;
+            if (request.Role == "Institute")
+            {
+                 // We need to fetch the Institute created above. 
+                 // Since we didn't capture the ID during AddAsync (it returns Task, not entity with ID populated immediately unless EF tracks it... 
+                 // actually EF populates the ID on the entity instance after SaveChangesAsync).
+                 // However, we created 'new Institute { ... }' inside AddAsync call directly without a variable reference in the implementation above.
+                 // Wait, looking at the code: 
+                 // await _instituteRepository.AddAsync(new Institute { ... });
+                 
+                 // We need to fix the Register logic to capture the institute entity first.
+                 // Correcting this block requires finding the institute by UserId since we just saved it.
+                 var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                 instituteId = inst?.InstituteId;
+            }
+
             // Pass the newStudentId if it exists
-            var token = GenerateJwtToken(user, role.Name, newStudentId);
+            var token = GenerateJwtToken(user, role.Name, newStudentId, instituteId);
 
             // Determine firstName and lastName based on role
             string firstName = request.Role == "Institute"
@@ -257,8 +274,16 @@ namespace Tutorz.Application.Services
                 }
             }
 
-            // Generate token with the selected StudentId
-            var token = GenerateJwtToken(user, role.Name, currentStudentId);
+            // Fetch InstituteId for token if Institute
+            Guid? instituteId = null;
+            if (role.Name == "Institute")
+            {
+                var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                instituteId = inst?.InstituteId;
+            }
+
+            // Generate token with the selected StudentId and InstituteId
+            var token = GenerateJwtToken(user, role.Name, currentStudentId, instituteId);
 
             // Fetch role-specific data for firstName, lastName, and registrationNumber
             string firstName = null;
@@ -323,7 +348,7 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
             // Generate Token for THIS specific student
-            var token = GenerateJwtToken(user, role.Name, student.StudentId);
+            var token = GenerateJwtToken(user, role.Name, student.StudentId, null);
 
             // Return response with new token
             return new AuthResponse
@@ -475,7 +500,7 @@ namespace Tutorz.Application.Services
             }).ToList();
 
             // Generate token for the NEW student specifically
-            var token = GenerateJwtToken(user, role.Name, newStudent.StudentId);
+            var token = GenerateJwtToken(user, role.Name, newStudent.StudentId, null);
 
             return new AuthResponse
             {
@@ -631,7 +656,14 @@ namespace Tutorz.Application.Services
                 }
             }
 
-            var token = GenerateJwtToken(user, roleName, currentStudentId);
+            Guid? instituteId = null;
+            if (roleName == "Institute")
+            {
+                var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                instituteId = inst?.InstituteId;
+            }
+
+            var token = GenerateJwtToken(user, roleName, currentStudentId, instituteId);
 
             // Fetch role-specific data for firstName, lastName, and registrationNumber
             string firstName = null;
@@ -682,7 +714,7 @@ namespace Tutorz.Application.Services
                 Profiles = profiles
             };
         }
-        private string GenerateJwtToken(User user, string roleName, Guid? studentId = null)
+        private string GenerateJwtToken(User user, string roleName, Guid? studentId = null, Guid? instituteId = null)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -697,6 +729,12 @@ namespace Tutorz.Application.Services
             if (studentId.HasValue)
             {
                 claims.Add(new Claim("StudentId", studentId.Value.ToString()));
+            }
+
+            // ADDED: Include InstituteId claim if role is Institute
+            if (instituteId.HasValue)
+            {
+                claims.Add(new Claim("InstituteId", instituteId.Value.ToString()));
             }
 
             var token = new JwtSecurityToken(
