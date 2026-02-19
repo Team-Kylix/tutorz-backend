@@ -12,11 +12,10 @@ namespace Tutorz.Infrastructure.Repositories
 {
     public class TutorRepository : GenericRepository<Tutor>, ITutorRepository
     {
-        private readonly TutorzDbContext _context;
+
 
         public TutorRepository(TutorzDbContext context) : base(context)
         {
-            _context = context;
         }
 
         public async Task<TutorProfileDto> GetTutorProfileAsync(Guid userId)
