@@ -40,7 +40,8 @@ namespace Tutorz.Application.Services
                 Address = institute.Address,
                 ContactNumber = institute.ContactNumber,
                 Website = institute.Website,
-                Email = (institute.User != null) ? institute.User.Email : ""
+                Email = (institute.User != null) ? institute.User.Email : "",
+                CityId = (institute.User != null) ? institute.User.CityId : null
             };
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };

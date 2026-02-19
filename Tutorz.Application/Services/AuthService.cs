@@ -31,6 +31,7 @@ namespace Tutorz.Application.Services
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
         private readonly IIdGeneratorService _idGeneratorService;
+        private readonly IQrCodeService _qrCodeService;
 
         public AuthService(
             IUserRepository userRepository,
@@ -40,7 +41,8 @@ namespace Tutorz.Application.Services
             IRoleRepository roleRepository,
             IConfiguration configuration,
             IEmailService emailService,
-            IIdGeneratorService idGeneratorService)
+            IIdGeneratorService idGeneratorService,
+            IQrCodeService qrCodeService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -50,6 +52,7 @@ namespace Tutorz.Application.Services
             _configuration = configuration;
             _emailService = emailService;
             _idGeneratorService = idGeneratorService;
+            _qrCodeService = qrCodeService;
             _httpClient = new HttpClient();
         }
 
@@ -84,7 +87,8 @@ namespace Tutorz.Application.Services
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
-                PhoneNumber = normalizedPhone
+                PhoneNumber = normalizedPhone,
+                CityId = request.CityId
             };
             await _userRepository.AddAsync(user);
 
@@ -140,6 +144,15 @@ namespace Tutorz.Application.Services
                     ContactNumber = request.PhoneNumber
                 });
             }
+
+            // Generate QR Code
+            string qrName = request.FirstName;
+            if (request.Role == "Student") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Tutor") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Institute") qrName = request.InstituteName ?? request.FirstName;
+
+            string qrUrl = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
+            user.QrCodeUrl = qrUrl;
 
             await _userRepository.SaveChangesAsync();
 
@@ -517,7 +530,8 @@ namespace Tutorz.Application.Services
                     Email = socialUser.Email,
                     PasswordHash = "",
                     RoleId = role.RoleId,
-                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null
+                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
+                    CityId = null // Social login doesn't provide CityId initially, user can update profile later
                 };
 
                 await _userRepository.AddAsync(user);
@@ -574,6 +588,18 @@ namespace Tutorz.Application.Services
                     });
                 }
 
+                await _userRepository.SaveChangesAsync();
+
+                // Generate QR Code for Social Login User
+                // Note: user.UserId is now generated. We can use it or customId
+                // Re-save to update QrCodeUrl
+                string qrName = request.FirstName ?? socialUser.Name;
+                if (roleName == "Student") qrName = $"{request.FirstName ?? socialUser.Name} {request.LastName ?? ""}";
+                
+                string userPhone = user.PhoneNumber ?? "No Phone";
+                string qrUrl = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, userPhone, roleName);
+                user.QrCodeUrl = qrUrl;
+                
                 await _userRepository.SaveChangesAsync();
             }
             else

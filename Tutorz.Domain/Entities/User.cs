@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Tutorz.Domain.Entities
 {
@@ -16,6 +17,12 @@ namespace Tutorz.Domain.Entities
         public Guid RoleId { get; set; } 
 
         public bool IsActive { get; set; } = true;
+
+        public int? CityId { get; set; }
+        [ForeignKey("CityId")]
+        public City? City { get; set; }
+
+        public string? QrCodeUrl { get; set; }
 
         // Security / Reset logic
         public string? PasswordResetToken { get; set; }

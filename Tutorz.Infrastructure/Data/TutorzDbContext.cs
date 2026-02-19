@@ -25,6 +25,9 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<UserSequence> UserSequences { get; set; }
         public DbSet<Class> Classes { get; set; }
         public DbSet<Enrollment> Enrollments { get; set; }
+        public DbSet<Province> Provinces { get; set; }
+        public DbSet<District> Districts { get; set; }
+        public DbSet<City> Cities { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
