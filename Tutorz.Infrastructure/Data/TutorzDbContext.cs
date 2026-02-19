@@ -35,14 +35,14 @@ namespace Tutorz.Infrastructure.Data
 
             modelBuilder.Entity<Tutor>()
                 .HasOne(t => t.User)
-                .WithMany() 
+                .WithMany()
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Student>()
-                .HasOne(s => s.User)            
-                .WithMany(u => u.Students)     
-                .HasForeignKey(s => s.UserId)   
+                .HasOne(s => s.User)
+                .WithMany(u => u.Students)
+                .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Class>()
@@ -51,7 +51,7 @@ namespace Tutorz.Infrastructure.Data
 
             modelBuilder.Entity<Institute>()
                 .HasOne(i => i.User)
-                .WithOne() 
+                .WithOne()
                 .HasForeignKey<Institute>(i => i.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 

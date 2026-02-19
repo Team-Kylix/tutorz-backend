@@ -1,47 +1,57 @@
-using System;
-using System.Threading.Tasks;
+﻿using System;
+using System.Drawing; 
 using System.IO;
+using System.Threading.Tasks;
 using QRCoder;
 using Tutorz.Application.Interfaces;
+using Microsoft.AspNetCore.Hosting; 
 
 namespace Tutorz.Application.Services
 {
     public class QrCodeService : IQrCodeService
     {
-        public Task<string> GenerateUserQrCodeAsync(string customId, string name, string mobile, string role)
-        {
-            // Prepare data
-            string data = $"ID:{customId}|Name:{name}|Role:{role}";
+        private readonly IWebHostEnvironment _environment;
 
-            // Generate QR Code
+        public QrCodeService(IWebHostEnvironment environment)
+        {
+            _environment = environment;
+        }
+
+        public async Task<string> GenerateUserQrCodeAsync(string registrationId, string name, string mobile, string role)
+        {
+            // Define the Data Payload
+            // You can format this as a JSON string, a vCard, or just plain text.
+            // Requirement: ID, Name, Mobile, Login URL
+            string loginUrl = "https://tutorz.app/login"; // Replace with your actual frontend URL
+            string payload = $"ID: {registrationId}\nName: {name}\nMobile: {mobile}\nRole: {role}\nLogin: {loginUrl}";
+
+            // Generate QR Code Object
             using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
             {
-                QRCodeData qrCodeData = qrGenerator.CreateQrCode(data, QRCodeGenerator.ECCLevel.Q);
+                QRCodeData qrCodeData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
                 using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
                 {
-                    byte[] qrCodeImage = qrCode.GetGraphic(20);
+                    // Get image bytes
+                    byte[] qrCodeBytes = qrCode.GetGraphic(20);
 
-                    // Define path
-                    // User specified: D:\Tutorz\tutorz-backend\Tutorz.Api\wwwroot\wwwroot\qrcodes
-                    // We will attempt to use a relative path logic, but fallback to a predictable structure if needed.
-                    // Assuming the API is running with ContentRootPath at D:\Tutorz\tutorz-backend\Tutorz.Api
-                    
-                    string folderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "wwwroot", "qrcodes");
-                    
+                    // Define File Path
+                    // We save inside "wwwroot/qrcodes"
+                    string folderPath = Path.Combine(_environment.WebRootPath ?? Directory.GetCurrentDirectory(), "wwwroot", "qrcodes");
+
                     if (!Directory.Exists(folderPath))
                     {
                         Directory.CreateDirectory(folderPath);
                     }
 
-                    // Original filename format example: TUT26201_bfc1e678.png
-                    string fileName = $"{customId}_{Guid.NewGuid().ToString("N").Substring(0, 8)}.png";
-                    string filePath = Path.Combine(folderPath, fileName);
+                    string fileName = $"{registrationId}_{Guid.NewGuid().ToString().Substring(0, 8)}.png";
+                    string fullPath = Path.Combine(folderPath, fileName);
 
-                    File.WriteAllBytes(filePath, qrCodeImage);
+                    // Save to Disk
+                    await File.WriteAllBytesAsync(fullPath, qrCodeBytes);
 
-                    // Return relative URL
-                    // Example: /wwwroot/qrcodes/TUT26201_bfc1e678.png
-                    return Task.FromResult($"/wwwroot/qrcodes/{fileName}");
+                    // Return the Relative URL (to be saved in DB)
+                    // This allows frontend to access it like: https://api.tutorz.com/qrcodes/INS26100001_....png
+                    return $"/qrcodes/{fileName}";
                 }
             }
         }

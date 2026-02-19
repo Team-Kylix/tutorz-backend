@@ -8,7 +8,7 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Application.Services;
 using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
-
+using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -33,7 +33,7 @@ builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IInstituteService, InstituteService>();
-builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
+builder.Services.AddScoped<IQrCodeService, QrCodeService>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -44,8 +44,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
                 .GetBytes(builder.Configuration["Jwt:Key"])),
-            ValidateIssuer = false, 
-            ValidateAudience = false 
+            ValidateIssuer = false,
+            ValidateAudience = false
         };
     });
 
@@ -85,7 +85,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: "AllowMyReactApp",
                       policy =>
                       {
-                          policy.WithOrigins("http://localhost:5173") 
+                          policy.WithOrigins("http://localhost:5173")
                                 .AllowAnyHeader()
                                 .AllowAnyMethod();
                       });
@@ -100,8 +100,14 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<TutorzDbContext>();
-        // This will create the Roles (Tutor, Student, etc.) if they don't exist
+        var env = services.GetRequiredService<IWebHostEnvironment>();
+
+        // Initialize DB (Roles, etc.)
         DbInitializer.Initialize(context);
+
+        // Run Location Seeder
+        var locationSeeder = new LocationSeeder(context, env);
+        await locationSeeder.SeedAsync();
     }
     catch (Exception ex)
     {
@@ -119,6 +125,8 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Tutorz API V1");
     });
 }
+
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 

@@ -54,6 +54,7 @@ namespace Tutorz.Application.Services
             _idGeneratorService = idGeneratorService;
             _qrCodeService = qrCodeService;
             _httpClient = new HttpClient();
+            _qrCodeService = qrCodeService;
         }
 
         // --- REGISTER (First Time User) ---
@@ -103,7 +104,7 @@ namespace Tutorz.Application.Services
                 await _tutorRepository.AddAsync(new Tutor
                 {
                     UserId = user.UserId,
-                    RegistrationNumber = customId, 
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
@@ -118,7 +119,7 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId, 
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
@@ -145,14 +146,18 @@ namespace Tutorz.Application.Services
                 });
             }
 
-            // Generate QR Code
+            // QR Code Generation Logic
+            // Determine Name for QR based on role
             string qrName = request.FirstName;
             if (request.Role == "Student") qrName = $"{request.FirstName} {request.LastName}";
             if (request.Role == "Tutor") qrName = $"{request.FirstName} {request.LastName}";
             if (request.Role == "Institute") qrName = request.InstituteName ?? request.FirstName;
 
-            string qrUrl = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
-            user.QrCodeUrl = qrUrl;
+            // Generate QR and get Path
+            string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
+
+            // Update User Entity with QR Path
+            user.QrCodeUrl = qrPath;
 
             await _userRepository.SaveChangesAsync();
 
@@ -531,7 +536,7 @@ namespace Tutorz.Application.Services
                     PasswordHash = "",
                     RoleId = role.RoleId,
                     PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
-                    CityId = null // Social login doesn't provide CityId initially, user can update profile later
+                    CityId = request.CityId 
                 };
 
                 await _userRepository.AddAsync(user);
@@ -590,16 +595,15 @@ namespace Tutorz.Application.Services
 
                 await _userRepository.SaveChangesAsync();
 
-                // Generate QR Code for Social Login User
-                // Note: user.UserId is now generated. We can use it or customId
-                // Re-save to update QrCodeUrl
-                string qrName = request.FirstName ?? socialUser.Name;
-                if (roleName == "Student") qrName = $"{request.FirstName ?? socialUser.Name} {request.LastName ?? ""}";
-                
-                string userPhone = user.PhoneNumber ?? "No Phone";
-                string qrUrl = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, userPhone, roleName);
-                user.QrCodeUrl = qrUrl;
-                
+                // QR Code Generation Logic for Social Login
+                string qrName = request.FirstName;
+                if (roleName == "Institute") qrName = request.InstituteName ?? request.FirstName;
+                else qrName = $"{request.FirstName} {request.LastName}";
+
+                string phoneForQr = user.PhoneNumber ?? "N/A";
+
+                string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, phoneForQr, roleName);
+                user.QrCodeUrl = qrPath;
                 await _userRepository.SaveChangesAsync();
             }
             else
@@ -729,15 +733,15 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == identifier);
             if (user == null) throw new Exception("User not found.");
 
-            // Generate 6-digit Code
+            // 1. Generate 6-digit Code
             string otp = new Random().Next(100000, 999999).ToString();
 
-            // Save to DB
+            // 2. Save to DB
             user.OtpCode = otp;
             user.OtpExpires = DateTime.UtcNow.AddMinutes(10); // Valid for 10 min
             await _userRepository.SaveChangesAsync();
 
-            // Send Email
+            // 3. Send Email
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 

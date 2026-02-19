@@ -1,4 +1,5 @@
-﻿
+﻿using System;
+
 namespace Tutorz.Application.DTOs.Auth
 {
     public class RegisterRequest
