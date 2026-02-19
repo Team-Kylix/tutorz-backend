@@ -52,6 +52,7 @@ namespace Tutorz.Application.Services
             _configuration = configuration;
             _emailService = emailService;
             _idGeneratorService = idGeneratorService;
+            _qrCodeService = qrCodeService;
             _httpClient = new HttpClient();
             _qrCodeService = qrCodeService;
         }
