@@ -5,9 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Institute;
+using Tutorz.Application.DTOs.Student;
+using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
-using Tutorz.Application.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Tutorz.Application.Services
 {
@@ -15,10 +17,26 @@ namespace Tutorz.Application.Services
     {
 
         private readonly IInstituteRepository _instituteRepository;
+        private readonly IStudentRepository _studentRepository;
+        private readonly ITutorRepository _tutorRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IInstituteStudentRepository _instituteStudentRepository;
+        private readonly IInstituteTutorRepository _instituteTutorRepository;
 
-        public InstituteService(IInstituteRepository instituteRepository)
+        public InstituteService(
+            IInstituteRepository instituteRepository,
+            IStudentRepository studentRepository,
+            ITutorRepository tutorRepository,
+            IUserRepository userRepository,
+            IInstituteStudentRepository instituteStudentRepository,
+            IInstituteTutorRepository instituteTutorRepository)
         {
             _instituteRepository = instituteRepository;
+            _studentRepository = studentRepository;
+            _tutorRepository = tutorRepository;
+            _userRepository = userRepository;
+            _instituteStudentRepository = instituteStudentRepository;
+            _instituteTutorRepository = instituteTutorRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -66,6 +84,172 @@ namespace Tutorz.Application.Services
 
             
             return await GetProfileAsync(institute.InstituteId);
+        }
+
+        public async Task<ServiceResponse<bool>> AssignStudentAsync(Guid instituteId, AssignStudentDto dto)
+        {
+            var exists = await _instituteStudentRepository.GetAsync(is_ => is_.InstituteId == instituteId && is_.StudentId == dto.StudentId);
+            if (exists != null)
+                return new ServiceResponse<bool> { Success = false, Message = "Student is already assigned to this institute." };
+
+            await _instituteStudentRepository.AddAsync(new InstituteStudent
+            {
+                InstituteId = instituteId,
+                StudentId = dto.StudentId,
+                AssignedDate = DateTime.UtcNow
+            });
+            await _instituteStudentRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student assigned successfully." };
+        }
+
+        public async Task<ServiceResponse<bool>> AssignTutorAsync(Guid instituteId, AssignTutorDto dto)
+        {
+            var exists = await _instituteTutorRepository.GetAsync(it => it.InstituteId == instituteId && it.TutorId == dto.TutorId);
+            if (exists != null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor is already assigned to this institute." };
+
+            await _instituteTutorRepository.AddAsync(new InstituteTutor
+            {
+                InstituteId = instituteId,
+                TutorId = dto.TutorId,
+                AssignedDate = DateTime.UtcNow
+            });
+            await _instituteTutorRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Tutor assigned successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid instituteId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower();
+
+            // Just a basic search mechanism fetching all and filtering in memory or using where
+            // For production, this should preferably use IQueryable or full text search
+            var allStudents = await _studentRepository.GetAllAsync();
+            
+            var matchedStudents = allStudents.Where(s => 
+                s.FirstName.ToLower().Contains(query) || 
+                s.LastName.ToLower().Contains(query) ||
+                s.RegistrationNumber.ToLower().Contains(query)
+            ).ToList();
+
+            var assignedStudents = await _instituteStudentRepository.GetAllAsync(i => i.InstituteId == instituteId);
+            var assignedStudentIds = assignedStudents.Select(a => a.StudentId).ToHashSet();
+
+            var results = new List<SearchUserResultDto>();
+            foreach (var student in matchedStudents)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == student.UserId);
+                results.Add(new SearchUserResultDto
+                {
+                    UserId = student.UserId,
+                    RoleSpecificId = student.StudentId,
+                    RegistrationNumber = student.RegistrationNumber,
+                    Name = $"{student.FirstName} {student.LastName}",
+                    PhoneNumber = user?.PhoneNumber,
+                    Email = user?.Email,
+                    IsAlreadyAssigned = assignedStudentIds.Contains(student.StudentId)
+                });
+            }
+
+            return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid instituteId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower();
+
+            var allTutors = await _tutorRepository.GetAllAsync();
+            var matchedTutors = allTutors.Where(t => 
+                t.FirstName.ToLower().Contains(query) || 
+                t.LastName.ToLower().Contains(query) ||
+                t.RegistrationNumber.ToLower().Contains(query)
+            ).ToList();
+
+            var assignedTutors = await _instituteTutorRepository.GetAllAsync(i => i.InstituteId == instituteId);
+            var assignedTutorIds = assignedTutors.Select(a => a.TutorId).ToHashSet();
+
+            var results = new List<SearchUserResultDto>();
+            foreach (var tutor in matchedTutors)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
+                results.Add(new SearchUserResultDto
+                {
+                    UserId = tutor.UserId,
+                    RoleSpecificId = tutor.TutorId,
+                    RegistrationNumber = tutor.RegistrationNumber,
+                    Name = $"{tutor.FirstName} {tutor.LastName}",
+                    PhoneNumber = user?.PhoneNumber,
+                    Email = user?.Email,
+                    IsAlreadyAssigned = assignedTutorIds.Contains(tutor.TutorId)
+                });
+            }
+
+            return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId)
+        {
+            var assigned = await _instituteStudentRepository.GetAllAsync(i => i.InstituteId == instituteId);
+            var studentIds = assigned.Select(a => a.StudentId).ToList();
+
+            var profiles = new List<StudentProfileDto>();
+            foreach (var id in studentIds)
+            {
+                var student = await _studentRepository.GetAsync(s => s.StudentId == id);
+                if (student != null)
+                {
+                    var user = await _userRepository.GetAsync(u => u.UserId == student.UserId);
+                    profiles.Add(new StudentProfileDto
+                    {
+                        StudentId = student.StudentId,
+                        FirstName = student.FirstName,
+                        LastName = student.LastName,
+                        Grade = student.Grade,
+                        IsPrimary = student.IsPrimary,
+                        RegistrationNumber = student.RegistrationNumber,
+                        Email = user?.Email,
+                        PhoneNumber = user?.PhoneNumber
+                    });
+                }
+            }
+            return new ServiceResponse<IEnumerable<StudentProfileDto>> { Success = true, Data = profiles };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<TutorProfileDto>>> GetAssignedTutorsAsync(Guid instituteId)
+        {
+            var assigned = await _instituteTutorRepository.GetAllAsync(i => i.InstituteId == instituteId);
+            var tutorIds = assigned.Select(a => a.TutorId).ToList();
+
+            var profiles = new List<TutorProfileDto>();
+            foreach (var id in tutorIds)
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.TutorId == id);
+                if (tutor != null)
+                {
+                    var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
+                    profiles.Add(new TutorProfileDto
+                    {
+                        TutorId = tutor.TutorId,
+                        FirstName = tutor.FirstName,
+                        LastName = tutor.LastName,
+                        Bio = tutor.Bio,
+                        ExperienceYears = tutor.ExperienceYears,
+                        Email = user?.Email,
+                        PhoneNumber = user?.PhoneNumber,
+                        ProfileImageUrl = user?.QrCodeUrl, // Or actual profile image
+                        RegistrationNumber = tutor.RegistrationNumber
+                    });
+                }
+            }
+            return new ServiceResponse<IEnumerable<TutorProfileDto>> { Success = true, Data = profiles };
         }
     }
 }

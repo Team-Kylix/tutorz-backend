@@ -29,6 +29,8 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<District> Districts { get; set; }
         public DbSet<City> Cities { get; set; }
         public DbSet<Hall> Halls { get; set; }
+        public DbSet<InstituteStudent> InstituteStudents { get; set; }
+        public DbSet<InstituteTutor> InstituteTutors { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -59,6 +61,36 @@ namespace Tutorz.Infrastructure.Data
             modelBuilder.Entity<Enrollment>()
                 .HasIndex(e => new { e.StudentId, e.ClassId })
                 .IsUnique();
+
+            modelBuilder.Entity<InstituteStudent>()
+                .HasKey(is_ => new { is_.InstituteId, is_.StudentId });
+
+            modelBuilder.Entity<InstituteStudent>()
+                .HasOne(is_ => is_.Institute)
+                .WithMany(i => i.InstituteStudents)
+                .HasForeignKey(is_ => is_.InstituteId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<InstituteStudent>()
+                .HasOne(is_ => is_.Student)
+                .WithMany(s => s.InstituteStudents)
+                .HasForeignKey(is_ => is_.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<InstituteTutor>()
+                .HasKey(it => new { it.InstituteId, it.TutorId });
+
+            modelBuilder.Entity<InstituteTutor>()
+                .HasOne(it => it.Institute)
+                .WithMany(i => i.InstituteTutors)
+                .HasForeignKey(it => it.InstituteId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<InstituteTutor>()
+                .HasOne(it => it.Tutor)
+                .WithMany(t => t.InstituteTutors)
+                .HasForeignKey(it => it.TutorId)
+                .OnDelete(DeleteBehavior.NoAction);
         }
     }
 }
