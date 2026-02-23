@@ -31,5 +31,7 @@ namespace Tutorz.Domain.Entities
 
         
         public bool IsPrimary { get; set; } = false;
+
+        public virtual ICollection<InstituteStudent> InstituteStudents { get; set; } = new List<InstituteStudent>();
     }
 }

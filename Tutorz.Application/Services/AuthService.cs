@@ -32,6 +32,8 @@ namespace Tutorz.Application.Services
         private readonly IEmailService _emailService;
         private readonly IIdGeneratorService _idGeneratorService;
         private readonly IQrCodeService _qrCodeService;
+        private readonly IInstituteStudentRepository _instituteStudentRepository;
+        private readonly IInstituteTutorRepository _instituteTutorRepository;
 
         public AuthService(
             IUserRepository userRepository,
@@ -42,7 +44,9 @@ namespace Tutorz.Application.Services
             IConfiguration configuration,
             IEmailService emailService,
             IIdGeneratorService idGeneratorService,
-            IQrCodeService qrCodeService)
+            IQrCodeService qrCodeService,
+            IInstituteStudentRepository instituteStudentRepository,
+            IInstituteTutorRepository instituteTutorRepository)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -54,7 +58,8 @@ namespace Tutorz.Application.Services
             _idGeneratorService = idGeneratorService;
             _qrCodeService = qrCodeService;
             _httpClient = new HttpClient();
-            _qrCodeService = qrCodeService;
+            _instituteStudentRepository = instituteStudentRepository;
+            _instituteTutorRepository = instituteTutorRepository;
         }
 
         // --- REGISTER (First Time User) ---
@@ -142,8 +147,35 @@ namespace Tutorz.Application.Services
                     RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
-                    ContactNumber = request.PhoneNumber
                 });
+            }
+            // --- Link to Institute if InstituteId is provided in the request ---
+            if (request.InstituteId.HasValue)
+            {
+                // Verify institute exists
+                var institute = await _instituteRepository.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (institute == null)
+                    throw new Exception("Provided Institute ID does not exist.");
+
+                if (request.Role == "Tutor")
+                {
+                    // Since tutorId is the same as userId, we can use user.UserId
+                    await _instituteTutorRepository.AddAsync(new InstituteTutor
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        TutorId = user.UserId,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                }
+                else if (request.Role == "Student" && newStudentId.HasValue)
+                {
+                    await _instituteStudentRepository.AddAsync(new InstituteStudent
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        StudentId = newStudentId.Value,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                }
             }
 
             // QR Code Generation Logic

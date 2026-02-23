@@ -136,5 +136,80 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        // --- ASSIGNMENTS ---
+
+        [HttpPost("students/assign")]
+        public async Task<IActionResult> AssignStudent([FromBody] AssignStudentDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.AssignStudentAsync(instituteId, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("tutors/assign")]
+        public async Task<IActionResult> AssignTutor([FromBody] AssignTutorDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.AssignTutorAsync(instituteId, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        // --- SEARCH ---
+
+        [HttpGet("students/search")]
+        public async Task<IActionResult> SearchStudents([FromQuery] string query)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.SearchStudentsAsync(instituteId, query);
+            return Ok(result);
+        }
+
+        [HttpGet("tutors/search")]
+        public async Task<IActionResult> SearchTutors([FromQuery] string query)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.SearchTutorsAsync(instituteId, query);
+            return Ok(result);
+        }
+
+        // --- GET ASSIGNED ---
+
+        [HttpGet("students")]
+        public async Task<IActionResult> GetAssignedStudents()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetAssignedStudentsAsync(instituteId);
+            return Ok(result);
+        }
+
+        [HttpGet("tutors")]
+        public async Task<IActionResult> GetAssignedTutors()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetAssignedTutorsAsync(instituteId);
+            return Ok(result);
+        }
+
+        private Guid GetInstituteIdFromToken()
+        {
+            var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(idString)) return Guid.Empty;
+            return Guid.Parse(idString);
+        }
     }
 }
