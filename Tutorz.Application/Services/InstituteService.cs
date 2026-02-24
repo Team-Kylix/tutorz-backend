@@ -195,61 +195,111 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
         }
 
-        public async Task<ServiceResponse<IEnumerable<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId)
+        public async Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
         {
             var assigned = await _instituteStudentRepository.GetAllAsync(i => i.InstituteId == instituteId);
             var studentIds = assigned.Select(a => a.StudentId).ToList();
 
-            var profiles = new List<StudentProfileDto>();
-            foreach (var id in studentIds)
+            var query = await _studentRepository.GetAllAsync();
+            var instituteStudents = query.Where(s => studentIds.Contains(s.StudentId));
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
             {
-                var student = await _studentRepository.GetAsync(s => s.StudentId == id);
-                if (student != null)
-                {
-                    var user = await _userRepository.GetAsync(u => u.UserId == student.UserId);
-                    profiles.Add(new StudentProfileDto
-                    {
-                        StudentId = student.StudentId,
-                        FirstName = student.FirstName,
-                        LastName = student.LastName,
-                        Grade = student.Grade,
-                        IsPrimary = student.IsPrimary,
-                        RegistrationNumber = student.RegistrationNumber,
-                        Email = user?.Email,
-                        PhoneNumber = user?.PhoneNumber
-                    });
-                }
+                var lowerQuery = searchQuery.ToLower();
+                instituteStudents = instituteStudents.Where(s => 
+                    s.FirstName.ToLower().Contains(lowerQuery) || 
+                    s.LastName.ToLower().Contains(lowerQuery) ||
+                    s.RegistrationNumber.ToLower().Contains(lowerQuery)
+                );
             }
-            return new ServiceResponse<IEnumerable<StudentProfileDto>> { Success = true, Data = profiles };
+
+            var totalCount = instituteStudents.Count();
+            var pagedStudents = instituteStudents
+                .OrderBy(s => s.FirstName) // Predictable ordering
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var profiles = new List<StudentProfileDto>();
+            foreach (var student in pagedStudents)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == student.UserId);
+                profiles.Add(new StudentProfileDto
+                {
+                    StudentId = student.StudentId,
+                    FirstName = student.FirstName,
+                    LastName = student.LastName,
+                    Grade = student.Grade,
+                    IsPrimary = student.IsPrimary,
+                    RegistrationNumber = student.RegistrationNumber,
+                    Email = user?.Email,
+                    PhoneNumber = user?.PhoneNumber
+                });
+            }
+
+            var result = new PaginatedResultDto<StudentProfileDto>
+            {
+                Items = profiles,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return new ServiceResponse<PaginatedResultDto<StudentProfileDto>> { Success = true, Data = result };
         }
 
-        public async Task<ServiceResponse<IEnumerable<TutorProfileDto>>> GetAssignedTutorsAsync(Guid instituteId)
+        public async Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAssignedTutorsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
         {
             var assigned = await _instituteTutorRepository.GetAllAsync(i => i.InstituteId == instituteId);
             var tutorIds = assigned.Select(a => a.TutorId).ToList();
 
-            var profiles = new List<TutorProfileDto>();
-            foreach (var id in tutorIds)
+            var query = await _tutorRepository.GetAllAsync();
+            var instituteTutors = query.Where(t => tutorIds.Contains(t.TutorId));
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
             {
-                var tutor = await _tutorRepository.GetAsync(t => t.TutorId == id);
-                if (tutor != null)
-                {
-                    var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
-                    profiles.Add(new TutorProfileDto
-                    {
-                        TutorId = tutor.TutorId,
-                        FirstName = tutor.FirstName,
-                        LastName = tutor.LastName,
-                        Bio = tutor.Bio,
-                        ExperienceYears = tutor.ExperienceYears,
-                        Email = user?.Email,
-                        PhoneNumber = user?.PhoneNumber,
-                        ProfileImageUrl = user?.QrCodeUrl, // Or actual profile image
-                        RegistrationNumber = tutor.RegistrationNumber
-                    });
-                }
+                var lowerQuery = searchQuery.ToLower();
+                instituteTutors = instituteTutors.Where(t => 
+                    t.FirstName.ToLower().Contains(lowerQuery) || 
+                    t.LastName.ToLower().Contains(lowerQuery) ||
+                    t.RegistrationNumber.ToLower().Contains(lowerQuery)
+                );
             }
-            return new ServiceResponse<IEnumerable<TutorProfileDto>> { Success = true, Data = profiles };
+
+            var totalCount = instituteTutors.Count();
+            var pagedTutors = instituteTutors
+                .OrderBy(t => t.FirstName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var profiles = new List<TutorProfileDto>();
+            foreach (var tutor in pagedTutors)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
+                profiles.Add(new TutorProfileDto
+                {
+                    TutorId = tutor.TutorId,
+                    FirstName = tutor.FirstName,
+                    LastName = tutor.LastName,
+                    Bio = tutor.Bio,
+                    ExperienceYears = tutor.ExperienceYears,
+                    Email = user?.Email,
+                    PhoneNumber = user?.PhoneNumber,
+                    ProfileImageUrl = user?.QrCodeUrl, // Or actual profile image
+                    RegistrationNumber = tutor.RegistrationNumber
+                });
+            }
+
+            var result = new PaginatedResultDto<TutorProfileDto>
+            {
+                Items = profiles,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
         }
     }
 }
