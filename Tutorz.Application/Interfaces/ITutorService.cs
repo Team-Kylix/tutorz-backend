@@ -24,5 +24,8 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<bool>> SendInstituteRequestAsync(Guid tutorId, Guid instituteId);
         Task<ServiceResponse<IEnumerable<JoinRequestDto>>> GetInstituteRequestsAsync(Guid tutorId);
         Task<ServiceResponse<bool>> ProcessInstituteRequestAsync(Guid tutorId, Guid requestId, string action);
+
+        // Joined Institutes
+        Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
     }
 }

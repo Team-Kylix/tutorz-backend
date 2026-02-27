@@ -355,6 +355,26 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = $"Request {action.ToLower()}ed successfully." };
         }
 
+        public async Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<IEnumerable<InstituteDto>> { Success = false, Message = "Tutor not found." };
+
+            var assignments = await _instituteTutorRepo.GetAllAsync(
+                it => it.TutorId == tutor.TutorId,
+                includeProperties: "Institute,Institute.User,Institute.User.City"
+            );
+
+            var dtos = assignments.Where(a => a.Institute != null).Select(a => new InstituteDto
+            {
+                InstituteId = a.Institute.InstituteId,
+                Name = a.Institute.InstituteName,
+                City = a.Institute.User?.City?.Name
+            });
+
+            return new ServiceResponse<IEnumerable<InstituteDto>> { Success = true, Data = dtos };
+        }
+
         private ClassDto MapToDto(Class entity)
         {
             return new ClassDto

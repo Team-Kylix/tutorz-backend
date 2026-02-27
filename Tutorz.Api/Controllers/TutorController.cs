@@ -155,7 +155,6 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- INSTITUTE JOIN REQUESTS ---
 
         [HttpPost("institutes/{instituteId}/request")]
         public async Task<IActionResult> RequestJoinInstitute(Guid instituteId)
@@ -187,6 +186,18 @@ namespace Tutorz.Api.Controllers
             var result = await _tutorService.ProcessInstituteRequestAsync(userId, requestId, dto.Action);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
+        }
+
+        [HttpGet("institutes")]
+        public async Task<IActionResult> GetJoinedInstitutes()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetJoinedInstitutesAsync(userId);
+            if (!result.Success) return BadRequest(result);
+            
+            return Ok(result); 
         }
     }
 }

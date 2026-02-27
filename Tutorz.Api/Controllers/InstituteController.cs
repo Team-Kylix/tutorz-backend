@@ -98,6 +98,17 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [AllowAnonymous]
+        [HttpGet("halls/{instituteId}")]
+        public async Task<IActionResult> GetHallsByInstitute(Guid instituteId)
+        {
+            var result = await _hallService.GetHallsAsync(instituteId);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpPut("halls/{id}")]
         public async Task<IActionResult> UpdateHall(Guid id, [FromBody] CreateHallDto dto)
         {
