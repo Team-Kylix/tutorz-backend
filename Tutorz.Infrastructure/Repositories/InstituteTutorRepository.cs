@@ -24,16 +24,33 @@ namespace Tutorz.Infrastructure.Repositories
             await _context.InstituteTutors.AddAsync(entity);
         }
 
-        public async Task<IEnumerable<InstituteTutor>> GetAllAsync(Expression<Func<InstituteTutor, bool>> predicate = null)
+        public async Task<IEnumerable<InstituteTutor>> GetAllAsync(Expression<Func<InstituteTutor, bool>> predicate = null, string includeProperties = "")
         {
-            if (predicate == null)
-                return await _context.InstituteTutors.ToListAsync();
-            return await _context.InstituteTutors.Where(predicate).ToListAsync();
+            IQueryable<InstituteTutor> query = _context.InstituteTutors;
+
+            if (predicate != null)
+                query = query.Where(predicate);
+
+            foreach (var includeProperty in includeProperties.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                query = query.Include(includeProperty);
+            }
+
+            return await query.ToListAsync();
         }
 
-        public async Task<InstituteTutor> GetAsync(Expression<Func<InstituteTutor, bool>> predicate)
+        public async Task<InstituteTutor> GetAsync(Expression<Func<InstituteTutor, bool>> predicate, string includeProperties = "")
         {
-            return await _context.InstituteTutors.FirstOrDefaultAsync(predicate);
+            IQueryable<InstituteTutor> query = _context.InstituteTutors;
+            
+            query = query.Where(predicate);
+
+            foreach (var includeProperty in includeProperties.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                query = query.Include(includeProperty);
+            }
+
+            return await query.FirstOrDefaultAsync();
         }
 
         public void Remove(InstituteTutor entity)

@@ -9,6 +9,7 @@ using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
+using Tutorz.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Tutorz.Application.Services
@@ -22,6 +23,7 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepository;
         private readonly IInstituteStudentRepository _instituteStudentRepository;
         private readonly IInstituteTutorRepository _instituteTutorRepository;
+        private readonly IInstituteJoinRequestRepository _joinRequestRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -29,7 +31,8 @@ namespace Tutorz.Application.Services
             ITutorRepository tutorRepository,
             IUserRepository userRepository,
             IInstituteStudentRepository instituteStudentRepository,
-            IInstituteTutorRepository instituteTutorRepository)
+            IInstituteTutorRepository instituteTutorRepository,
+            IInstituteJoinRequestRepository joinRequestRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -37,6 +40,7 @@ namespace Tutorz.Application.Services
             _userRepository = userRepository;
             _instituteStudentRepository = instituteStudentRepository;
             _instituteTutorRepository = instituteTutorRepository;
+            _joinRequestRepository = joinRequestRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -103,21 +107,84 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student assigned successfully." };
         }
 
-        public async Task<ServiceResponse<bool>> AssignTutorAsync(Guid instituteId, AssignTutorDto dto)
+        public async Task<ServiceResponse<bool>> SendTutorRequestAsync(Guid instituteId, AssignTutorDto dto)
         {
             var exists = await _instituteTutorRepository.GetAsync(it => it.InstituteId == instituteId && it.TutorId == dto.TutorId);
             if (exists != null)
                 return new ServiceResponse<bool> { Success = false, Message = "Tutor is already assigned to this institute." };
 
-            await _instituteTutorRepository.AddAsync(new InstituteTutor
+            var pendingRequest = await _joinRequestRepository.GetAsync(r => r.InstituteId == instituteId && r.TutorId == dto.TutorId && r.Status == AssignmentStatus.Pending);
+            if (pendingRequest != null)
+                return new ServiceResponse<bool> { Success = false, Message = "A pending request already exists for this tutor." };
+
+            await _joinRequestRepository.AddAsync(new InstituteJoinRequest
             {
                 InstituteId = instituteId,
                 TutorId = dto.TutorId,
-                AssignedDate = DateTime.UtcNow
+                InitiatedBy = RequestInitiator.Institute,
+                Status = AssignmentStatus.Pending,
+                RequestedAt = DateTime.UtcNow
             });
+            await _joinRequestRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Join request sent successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<JoinRequestDto>>> GetIncomingRequestsAsync(Guid instituteId)
+        {
+            var requests = await _joinRequestRepository.GetAllAsync(
+                r => r.InstituteId == instituteId && r.Status == AssignmentStatus.Pending && r.InitiatedBy == RequestInitiator.User && r.TutorId != null,
+                includeProperties: "Tutor"
+            );
+
+            var dtos = requests.Select(r => new JoinRequestDto
+            {
+                RequestId = r.Id,
+                InstituteId = r.InstituteId,
+                TutorId = r.TutorId,
+                TutorName = r.Tutor != null ? $"{r.Tutor.FirstName} {r.Tutor.LastName}" : null,
+                Status = r.Status.ToString(),
+                InitiatedBy = r.InitiatedBy.ToString(),
+                RequestedAt = r.RequestedAt
+            });
+
+            return new ServiceResponse<IEnumerable<JoinRequestDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<bool>> ProcessJoinRequestAsync(Guid instituteId, Guid requestId, string action)
+        {
+            var request = await _joinRequestRepository.GetAsync(r => r.Id == requestId && r.InstituteId == instituteId);
+            if (request == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Request not found." };
+
+            if (request.Status != AssignmentStatus.Pending)
+                return new ServiceResponse<bool> { Success = false, Message = "Request is already processed." };
+
+            if (action.Equals("Accept", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = AssignmentStatus.Active;
+                request.ProcessedAt = DateTime.UtcNow;
+
+                if (request.TutorId.HasValue)
+                {
+                    await _instituteTutorRepository.AddAsync(new InstituteTutor { InstituteId = instituteId, TutorId = request.TutorId.Value, AssignedDate = DateTime.UtcNow });
+                }
+            }
+            else if (action.Equals("Decline", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = AssignmentStatus.Declined;
+                request.ProcessedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid action." };
+            }
+
+            await _joinRequestRepository.SaveChangesAsync();
+            await _instituteStudentRepository.SaveChangesAsync();
             await _instituteTutorRepository.SaveChangesAsync();
 
-            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Tutor assigned successfully." };
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = $"Request {action.ToLower()}ed successfully." };
         }
 
         public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid instituteId, string query)

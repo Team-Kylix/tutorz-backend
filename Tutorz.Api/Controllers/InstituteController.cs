@@ -98,6 +98,17 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [AllowAnonymous]
+        [HttpGet("halls/{instituteId}")]
+        public async Task<IActionResult> GetHallsByInstitute(Guid instituteId)
+        {
+            var result = await _hallService.GetHallsAsync(instituteId);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpPut("halls/{id}")]
         public async Task<IActionResult> UpdateHall(Guid id, [FromBody] CreateHallDto dto)
         {
@@ -150,13 +161,34 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
-        [HttpPost("tutors/assign")]
-        public async Task<IActionResult> AssignTutor([FromBody] AssignTutorDto dto)
+        [HttpPost("tutors/request")]
+        public async Task<IActionResult> RequestTutorJoin([FromBody] AssignTutorDto dto)
         {
             var instituteId = GetInstituteIdFromToken();
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
-            var result = await _instituteService.AssignTutorAsync(instituteId, dto);
+            var result = await _instituteService.SendTutorRequestAsync(instituteId, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("requests/incoming")]
+        public async Task<IActionResult> GetIncomingRequests()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetIncomingRequestsAsync(instituteId);
+            return Ok(result);
+        }
+
+        [HttpPost("requests/{requestId}/process")]
+        public async Task<IActionResult> ProcessRequest(Guid requestId, [FromBody] ProcessJoinRequestDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.ProcessJoinRequestAsync(instituteId, requestId, dto.Action);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

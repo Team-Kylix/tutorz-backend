@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.Interfaces;
+using Tutorz.Application.DTOs.Institute;
 
 namespace Tutorz.Api.Controllers
 {

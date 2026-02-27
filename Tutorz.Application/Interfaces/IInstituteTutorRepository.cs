@@ -8,8 +8,8 @@ namespace Tutorz.Application.Interfaces
 {
     public interface IInstituteTutorRepository
     {
-        Task<InstituteTutor> GetAsync(Expression<Func<InstituteTutor, bool>> predicate);
-        Task<IEnumerable<InstituteTutor>> GetAllAsync(Expression<Func<InstituteTutor, bool>> predicate = null);
+        Task<InstituteTutor> GetAsync(Expression<Func<InstituteTutor, bool>> predicate, string includeProperties = "");
+        Task<IEnumerable<InstituteTutor>> GetAllAsync(Expression<Func<InstituteTutor, bool>> predicate = null, string includeProperties = "");
         Task AddAsync(InstituteTutor entity);
         void Remove(InstituteTutor entity);
         Task SaveChangesAsync();
