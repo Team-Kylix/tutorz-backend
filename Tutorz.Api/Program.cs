@@ -30,6 +30,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITutorRepository, TutorRepository>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
+builder.Services.AddScoped<IInstituteJoinRequestRepository, InstituteJoinRequestRepository>();
 builder.Services.AddScoped<IHallRepository, HallRepository>();
 builder.Services.AddScoped<IUserSequenceRepository, UserSequenceRepository>();
 builder.Services.AddScoped<IEmailService, Tutorz.Infrastructure.Services.EmailService>();

@@ -103,11 +103,13 @@ namespace Tutorz.Application.Services
 
             // Handle Specific Roles
             Guid? newStudentId = null;
+            Guid? newTutorId = null;
 
             if (request.Role == "Tutor")
             {
-                await _tutorRepository.AddAsync(new Tutor
+                var tutor = new Tutor
                 {
+                    TutorId = Guid.NewGuid(),
                     UserId = user.UserId,
                     RegistrationNumber = customId,
                     FirstName = request.FirstName,
@@ -116,7 +118,9 @@ namespace Tutorz.Application.Services
                     BankAccountNumber = request.BankAccountNumber,
                     BankName = request.BankName,
                     ExperienceYears = request.ExperienceYears
-                });
+                };
+                newTutorId = tutor.TutorId;
+                await _tutorRepository.AddAsync(tutor);
             }
             else if (request.Role == "Student")
             {
@@ -157,13 +161,12 @@ namespace Tutorz.Application.Services
                 if (institute == null)
                     throw new Exception("Provided Institute ID does not exist.");
 
-                if (request.Role == "Tutor")
+                if (request.Role == "Tutor" && newTutorId.HasValue)
                 {
-                    // Since tutorId is the same as userId, we can use user.UserId
                     await _instituteTutorRepository.AddAsync(new InstituteTutor
                     {
                         InstituteId = request.InstituteId.Value,
-                        TutorId = user.UserId,
+                        TutorId = newTutorId.Value,
                         AssignedDate = DateTime.UtcNow
                     });
                 }

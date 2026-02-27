@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.DTOs.Institute;
 
 namespace Tutorz.Api.Controllers
 {
@@ -152,6 +153,40 @@ namespace Tutorz.Api.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        // --- INSTITUTE JOIN REQUESTS ---
+
+        [HttpPost("institutes/{instituteId}/request")]
+        public async Task<IActionResult> RequestJoinInstitute(Guid instituteId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.SendInstituteRequestAsync(userId, instituteId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("requests/institutes")]
+        public async Task<IActionResult> GetInstituteRequests()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetInstituteRequestsAsync(userId);
+            return Ok(result);
+        }
+
+        [HttpPost("requests/institutes/{requestId}/process")]
+        public async Task<IActionResult> ProcessInstituteRequest(Guid requestId, [FromBody] ProcessJoinRequestDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.ProcessInstituteRequestAsync(userId, requestId, dto.Action);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
         }
     }
 }

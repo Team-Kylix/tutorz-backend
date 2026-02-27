@@ -17,7 +17,11 @@ namespace Tutorz.Application.Interfaces
 
         // Assignments
         Task<ServiceResponse<bool>> AssignStudentAsync(Guid instituteId, AssignStudentDto dto);
-        Task<ServiceResponse<bool>> AssignTutorAsync(Guid instituteId, AssignTutorDto dto);
+
+        // Join Requests
+        Task<ServiceResponse<bool>> SendTutorRequestAsync(Guid instituteId, AssignTutorDto dto);
+        Task<ServiceResponse<IEnumerable<JoinRequestDto>>> GetIncomingRequestsAsync(Guid instituteId);
+        Task<ServiceResponse<bool>> ProcessJoinRequestAsync(Guid instituteId, Guid requestId, string action);
 
         // Searching
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid instituteId, string query);
