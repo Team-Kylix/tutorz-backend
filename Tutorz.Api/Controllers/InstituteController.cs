@@ -217,6 +217,16 @@ namespace Tutorz.Api.Controllers
 
         // --- GET ASSIGNED ---
 
+        [HttpGet("classes")]
+        public async Task<IActionResult> GetClasses([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetInstituteClassesAsync(instituteId, searchQuery, page, pageSize);
+            return Ok(result);
+        }
+
         [HttpGet("students")]
         public async Task<IActionResult> GetAssignedStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {

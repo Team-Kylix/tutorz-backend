@@ -17,6 +17,7 @@ namespace Tutorz.Application.DTOs.Tutor
         public decimal Fee { get; set; }
         public int StudentCount { get; set; }
         public bool IsActive { get; set; }
+        public Guid? InstituteId { get; set; }
         public string InstituteName { get; set; }
         public string ClassType { get; set; }
         public DateTime? Date { get; set; }
@@ -24,8 +25,7 @@ namespace Tutorz.Application.DTOs.Tutor
 
     public class CreateClassRequest
     {
-        [Required]
-        public string InstituteName { get; set; }
+        public Guid? InstituteId { get; set; }
 
         [Required]
         public string ClassType { get; set; }

@@ -24,6 +24,8 @@ namespace Tutorz.Application.Services
         private readonly IInstituteStudentRepository _instituteStudentRepository;
         private readonly IInstituteTutorRepository _instituteTutorRepository;
         private readonly IInstituteJoinRequestRepository _joinRequestRepository;
+        private readonly IGenericRepository<Class> _classRepository;
+        private readonly IGenericRepository<Enrollment> _enrollmentRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -32,7 +34,9 @@ namespace Tutorz.Application.Services
             IUserRepository userRepository,
             IInstituteStudentRepository instituteStudentRepository,
             IInstituteTutorRepository instituteTutorRepository,
-            IInstituteJoinRequestRepository joinRequestRepository)
+            IInstituteJoinRequestRepository joinRequestRepository,
+            IGenericRepository<Class> classRepository,
+            IGenericRepository<Enrollment> enrollmentRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -41,6 +45,8 @@ namespace Tutorz.Application.Services
             _instituteStudentRepository = instituteStudentRepository;
             _instituteTutorRepository = instituteTutorRepository;
             _joinRequestRepository = joinRequestRepository;
+            _classRepository = classRepository;
+            _enrollmentRepository = enrollmentRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -367,6 +373,59 @@ namespace Tutorz.Application.Services
             };
 
             return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
+        }
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                searchQuery = searchQuery.ToLower();
+                classes = classes.Where(c => 
+                    (c.ClassName != null && c.ClassName.ToLower().Contains(searchQuery)) ||
+                    (c.Subject != null && c.Subject.ToLower().Contains(searchQuery)) ||
+                    (c.Tutor != null && ((c.Tutor.FirstName != null && c.Tutor.FirstName.ToLower().Contains(searchQuery)) || (c.Tutor.LastName != null && c.Tutor.LastName.ToLower().Contains(searchQuery))))
+                ).ToList();
+            }
+
+            int totalItems = classes.Count();
+            var pagedClasses = classes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            var dtos = new List<InstituteClassDto>();
+            foreach (var c in pagedClasses)
+            {
+                var enrollments = await _enrollmentRepository.GetAllAsync(e => e.ClassId == c.ClassId && e.Status == EnrollmentStatus.Approved);
+                
+                dtos.Add(new InstituteClassDto
+                {
+                    ClassId = c.ClassId,
+                    ClassName = c.ClassName,
+                    ClassType = c.ClassType,
+                    TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : "Unknown",
+                    Subject = c.Subject,
+                    DayOfWeek = c.DayOfWeek,
+                    Date = c.Date,
+                    StartTime = c.StartTime,
+                    EndTime = c.EndTime,
+                    HallName = c.HallName,
+                    Fee = c.Fee,
+                    StudentRegisteredCount = enrollments.Count()
+                });
+            }
+
+            var result = new PaginatedResultDto<InstituteClassDto>
+            {
+                TotalCount = totalItems,
+                Page = page,
+                PageSize = pageSize,
+                Items = dtos
+            };
+
+            return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = true, Data = result };
         }
     }
 }
