@@ -24,6 +24,8 @@ namespace Tutorz.Application.Services
         private readonly IInstituteStudentRepository _instituteStudentRepository;
         private readonly IInstituteTutorRepository _instituteTutorRepository;
         private readonly IInstituteJoinRequestRepository _joinRequestRepository;
+        private readonly IGenericRepository<Class> _classRepository;
+        private readonly IGenericRepository<Enrollment> _enrollmentRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -32,7 +34,9 @@ namespace Tutorz.Application.Services
             IUserRepository userRepository,
             IInstituteStudentRepository instituteStudentRepository,
             IInstituteTutorRepository instituteTutorRepository,
-            IInstituteJoinRequestRepository joinRequestRepository)
+            IInstituteJoinRequestRepository joinRequestRepository,
+            IGenericRepository<Class> classRepository,
+            IGenericRepository<Enrollment> enrollmentRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -41,6 +45,8 @@ namespace Tutorz.Application.Services
             _instituteStudentRepository = instituteStudentRepository;
             _instituteTutorRepository = instituteTutorRepository;
             _joinRequestRepository = joinRequestRepository;
+            _classRepository = classRepository;
+            _enrollmentRepository = enrollmentRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -367,6 +373,251 @@ namespace Tutorz.Application.Services
             };
 
             return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
+        }
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                searchQuery = searchQuery.ToLower();
+                classes = classes.Where(c => 
+                    (c.ClassName != null && c.ClassName.ToLower().Contains(searchQuery)) ||
+                    (c.Subject != null && c.Subject.ToLower().Contains(searchQuery)) ||
+                    (c.Tutor != null && ((c.Tutor.FirstName != null && c.Tutor.FirstName.ToLower().Contains(searchQuery)) || (c.Tutor.LastName != null && c.Tutor.LastName.ToLower().Contains(searchQuery))))
+                ).ToList();
+            }
+
+            int totalItems = classes.Count();
+            var pagedClasses = classes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            var dtos = new List<InstituteClassDto>();
+            foreach (var c in pagedClasses)
+            {
+                var enrollments = await _enrollmentRepository.GetAllAsync(e => e.ClassId == c.ClassId && e.Status == EnrollmentStatus.Approved);
+                
+                dtos.Add(new InstituteClassDto
+                {
+                    ClassId = c.ClassId,
+                    ClassName = c.ClassName,
+                    ClassType = c.ClassType,
+                    Grade = c.Grade,
+                    IsActive = c.IsActive,
+                    TutorId = c.TutorId,
+                    TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : "Unknown",
+                    Subject = c.Subject,
+                    DayOfWeek = c.DayOfWeek,
+                    Date = c.Date,
+                    StartTime = c.StartTime,
+                    EndTime = c.EndTime,
+                    HallName = c.HallName,
+                    Fee = c.Fee,
+                    StudentRegisteredCount = enrollments.Count()
+                });
+            }
+
+            var result = new PaginatedResultDto<InstituteClassDto>
+            {
+                TotalCount = totalItems,
+                Page = page,
+                PageSize = pageSize,
+                Items = dtos
+            };
+
+            return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = true, Data = result };
+        }
+
+        public async Task<ServiceResponse<InstituteClassDto>> CreateInstituteClassAsync(Guid instituteId, CreateClassRequest request)
+        {
+            if (!request.TutorId.HasValue)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Tutor must be assigned to create a class from Institute." };
+
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Institute not found." };
+
+            var tutor = await _tutorRepository.GetAsync(t => t.TutorId == request.TutorId.Value);
+            if (tutor == null)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Assigned tutor not found." };
+
+            var assignment = await _instituteTutorRepository.GetAsync(it => it.InstituteId == institute.InstituteId && it.TutorId == tutor.TutorId);
+            if (assignment == null)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "The selected tutor is not assigned to your institute." };
+
+            var existingClasses = await _classRepository.GetAllAsync(c => c.TutorId == tutor.TutorId && c.IsActive);
+
+            int newStart = int.Parse(request.StartTime.Replace(":", ""));
+            int newEnd = int.Parse(request.EndTime.Replace(":", ""));
+
+            string checkDay = request.DayOfWeek;
+            DateTime? checkDate = request.Date;
+
+            if (request.ClassType != "Class" && request.Date.HasValue)
+            {
+                checkDay = request.Date.Value.DayOfWeek.ToString();
+            }
+
+            foreach (var existing in existingClasses)
+            {
+                bool isDayConflict = false;
+
+                if (request.ClassType == "Class")
+                {
+                    if (existing.ClassType == "Class" && existing.DayOfWeek == request.DayOfWeek)
+                        isDayConflict = true;
+                }
+                else
+                {
+                    if (existing.ClassType != "Class" && existing.Date.HasValue && checkDate.HasValue && existing.Date.Value.Date == checkDate.Value.Date)
+                        isDayConflict = true;
+
+                    if (existing.ClassType == "Class" && existing.DayOfWeek == checkDay)
+                        isDayConflict = true;
+                }
+
+                if (isDayConflict)
+                {
+                    int exStart = int.Parse(existing.StartTime.Replace(":", ""));
+                    int exEnd = int.Parse(existing.EndTime.Replace(":", ""));
+
+                    if (newStart < exEnd && newEnd > exStart)
+                    {
+                        return new ServiceResponse<InstituteClassDto> { Success = false, Message = $"Time Crash! This time overlaps with the Tutor's '{existing.ClassType}': {existing.Subject} ({existing.StartTime} - {existing.EndTime})." };
+                    }
+                }
+            }
+
+            var newClass = new Class
+            {
+                ClassId = Guid.NewGuid(),
+                TutorId = tutor.TutorId,
+                InstituteId = institute.InstituteId,
+                ClassType = request.ClassType,
+                Subject = request.Subject,
+                Grade = request.Grade,
+                ClassName = !string.IsNullOrEmpty(request.ClassName) ? request.ClassName : $"{request.Subject} ({request.ClassType})",
+                DayOfWeek = string.IsNullOrEmpty(request.DayOfWeek) ? "Monday" : request.DayOfWeek,
+                Date = request.Date,
+                StartTime = request.StartTime,
+                EndTime = request.EndTime,
+                HallName = request.HallName,
+                Fee = request.Fee,
+                IsActive = request.IsActive,
+                CreatedDate = DateTime.UtcNow
+            };
+
+            await _classRepository.AddAsync(newClass);
+            await _classRepository.SaveChangesAsync();
+
+            var dto = new InstituteClassDto
+            {
+                ClassId = newClass.ClassId,
+                ClassName = newClass.ClassName,
+                ClassType = newClass.ClassType,
+                TutorName = $"{tutor.FirstName} {tutor.LastName}",
+                Subject = newClass.Subject,
+                DayOfWeek = newClass.DayOfWeek,
+                Date = newClass.Date,
+                StartTime = newClass.StartTime,
+                EndTime = newClass.EndTime,
+                HallName = newClass.HallName,
+                Fee = newClass.Fee,
+                StudentRegisteredCount = 0
+            };
+
+            return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class created successfully." };
+        }
+
+        public async Task<ServiceResponse<InstituteClassDto>> UpdateInstituteClassAsync(Guid instituteId, Guid classId, CreateClassRequest request)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Institute not found." };
+
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+            if (existingClass == null)
+                return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Class not found or access denied." };
+
+            // Allow the frontend to optionally pass TutorId - though not strictly necessary since the class already holds it
+            var tutorId = request.TutorId.HasValue ? request.TutorId.Value : existingClass.TutorId;
+
+            existingClass.TutorId = tutorId;
+            existingClass.ClassType = request.ClassType;
+            existingClass.Subject = request.Subject;
+            existingClass.Grade = request.Grade;
+            existingClass.ClassName = request.ClassName;
+            existingClass.DayOfWeek = string.IsNullOrEmpty(request.DayOfWeek) ? "Monday" : request.DayOfWeek;
+            existingClass.Date = request.Date;
+            existingClass.StartTime = request.StartTime;
+            existingClass.EndTime = request.EndTime;
+            existingClass.HallName = request.HallName;
+            existingClass.Fee = request.Fee;
+            existingClass.UpdatedDate = DateTime.UtcNow;
+
+            await _classRepository.SaveChangesAsync();
+
+            // Refresh the tutor reference if it changed
+            if (request.TutorId.HasValue && existingClass.TutorId != existingClass.Tutor?.TutorId)
+            {
+                existingClass = await _classRepository.GetAsync(c => c.ClassId == classId, includeProperties: "Tutor");
+            }
+
+            var enrollments = await _enrollmentRepository.GetAllAsync(e => e.ClassId == existingClass.ClassId && e.Status == EnrollmentStatus.Approved);
+
+            var dto = new InstituteClassDto
+            {
+                ClassId = existingClass.ClassId,
+                ClassName = existingClass.ClassName,
+                ClassType = existingClass.ClassType,
+                Grade = existingClass.Grade,
+                IsActive = existingClass.IsActive,
+                TutorId = existingClass.TutorId,
+                TutorName = existingClass.Tutor != null ? $"{existingClass.Tutor.FirstName} {existingClass.Tutor.LastName}" : "Unknown",
+                Subject = existingClass.Subject,
+                DayOfWeek = existingClass.DayOfWeek,
+                Date = existingClass.Date,
+                StartTime = existingClass.StartTime,
+                EndTime = existingClass.EndTime,
+                HallName = existingClass.HallName,
+                Fee = existingClass.Fee,
+                StudentRegisteredCount = enrollments.Count()
+            };
+
+            return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class updated successfully." };
+        }
+
+        public async Task<ServiceResponse<bool>> DeleteInstituteClassAsync(Guid instituteId, Guid classId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            if (existingClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
+
+            await _classRepository.DeleteAsync(existingClass);
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Class deleted successfully." };
+        }
+
+        public async Task<ServiceResponse<bool>> ToggleInstituteClassStatusAsync(Guid instituteId, Guid classId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            if (existingClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
+
+            existingClass.IsActive = !existingClass.IsActive;
+            await _classRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = existingClass.IsActive, Message = "Class status toggled successfully." };
         }
     }
 }

@@ -89,7 +89,7 @@ namespace Tutorz.Application.Services
             {
                 ClassId = Guid.NewGuid(),
                 TutorId = tutor.TutorId,
-                InstituteName = request.InstituteName,
+                    InstituteId = request.InstituteId,
                 ClassType = request.ClassType,
                 Subject = request.Subject,
                 Grade = request.Grade,
@@ -117,7 +117,7 @@ namespace Tutorz.Application.Services
 
             if (existingClass == null) throw new Exception("Class not found or access denied.");
 
-            existingClass.InstituteName = request.InstituteName;
+            existingClass.InstituteId = request.InstituteId;
             existingClass.ClassType = request.ClassType;
             existingClass.Subject = request.Subject;
             existingClass.Grade = request.Grade;
@@ -158,7 +158,7 @@ namespace Tutorz.Application.Services
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             if (tutor == null) throw new Exception("Tutor profile not found.");
 
-            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId);
+            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute");
 
             return classes.Select(c => MapToDto(c)).ToList();
         }
@@ -380,7 +380,8 @@ namespace Tutorz.Application.Services
             return new ClassDto
             {
                 ClassId = entity.ClassId,
-                InstituteName = entity.InstituteName,
+                InstituteId = entity.InstituteId,
+                InstituteName = entity.Institute?.InstituteName ?? string.Empty,
                 ClassType = entity.ClassType,
                 Subject = entity.Subject,
                 Grade = entity.Grade,

@@ -18,8 +18,7 @@ namespace Tutorz.Domain.Entities
         public Guid ClassId { get; set; }
         public Guid TutorId { get; set; }
 
-        [Required]
-        public string InstituteName { get; set; } 
+        public Guid? InstituteId { get; set; } 
 
         public string ClassType { get; set; } 
 
@@ -49,5 +48,8 @@ namespace Tutorz.Domain.Entities
 
         [ForeignKey("TutorId")]
         public virtual Tutor Tutor { get; set; }
+
+        [ForeignKey("InstituteId")]
+        public virtual Institute Institute { get; set; }
     }
 }
