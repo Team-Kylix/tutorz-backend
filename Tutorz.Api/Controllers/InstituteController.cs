@@ -4,6 +4,8 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Institute;
+using Tutorz.Application.DTOs.Student;
+using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 
 namespace Tutorz.Api.Controllers
@@ -216,6 +218,50 @@ namespace Tutorz.Api.Controllers
         }
 
         // --- GET ASSIGNED ---
+
+        [HttpPost("classes")]
+        public async Task<IActionResult> CreateClass([FromBody] CreateClassRequest request)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.CreateInstituteClassAsync(instituteId, request);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPut("classes/{id}")]
+        public async Task<IActionResult> UpdateClass(Guid id, [FromBody] CreateClassRequest request)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.UpdateInstituteClassAsync(instituteId, id, request);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpDelete("classes/{id}")]
+        public async Task<IActionResult> DeleteClass(Guid id)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.DeleteInstituteClassAsync(instituteId, id);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPatch("classes/{id}/status")]
+        public async Task<IActionResult> ToggleClassStatus(Guid id)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.ToggleInstituteClassStatusAsync(instituteId, id);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
 
         [HttpGet("classes")]
         public async Task<IActionResult> GetClasses([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)

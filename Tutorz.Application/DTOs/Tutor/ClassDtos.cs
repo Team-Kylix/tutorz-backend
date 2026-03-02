@@ -26,6 +26,7 @@ namespace Tutorz.Application.DTOs.Tutor
     public class CreateClassRequest
     {
         public Guid? InstituteId { get; set; }
+        public Guid? TutorId { get; set; }
 
         [Required]
         public string ClassType { get; set; }

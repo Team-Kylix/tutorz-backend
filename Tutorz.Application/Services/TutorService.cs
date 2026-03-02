@@ -89,7 +89,7 @@ namespace Tutorz.Application.Services
             {
                 ClassId = Guid.NewGuid(),
                 TutorId = tutor.TutorId,
-                InstituteId = request.InstituteId,
+                    InstituteId = request.InstituteId,
                 ClassType = request.ClassType,
                 Subject = request.Subject,
                 Grade = request.Grade,
