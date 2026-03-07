@@ -35,5 +35,11 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
         Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAssignedTutorsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
+
+        // Attendance
+        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId);
+        Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid instituteId, MarkAttendanceDto dto);
+        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId);
+        Task<ServiceResponse<bool>> InstantEnrollStudentAsync(Guid instituteId, Guid studentId, Guid classId);
     }
 }

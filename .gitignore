@@ -20,3 +20,4 @@
 /Tutorz.Infrastructure/Migrations/TutorzDbContextModelSnapshot.cs
 /Tutorz.Api/wwwroot
 /Tutorz.Infrastructure/Migrations
+db_update_error.log

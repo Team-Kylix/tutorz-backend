@@ -32,6 +32,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<InstituteStudent> InstituteStudents { get; set; }
         public DbSet<InstituteTutor> InstituteTutors { get; set; }
         public DbSet<InstituteJoinRequest> InstituteJoinRequests { get; set; }
+        public DbSet<Attendance> Attendances { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -109,6 +110,24 @@ namespace Tutorz.Infrastructure.Data
                 .HasOne(r => r.Tutor)
                 .WithMany()
                 .HasForeignKey(r => r.TutorId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Attendance>()
+                .HasOne(a => a.Student)
+                .WithMany()
+                .HasForeignKey(a => a.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Attendance>()
+                .HasOne(a => a.Class)
+                .WithMany()
+                .HasForeignKey(a => a.ClassId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Attendance>()
+                .HasOne(a => a.Institute)
+                .WithMany()
+                .HasForeignKey(a => a.InstituteId)
                 .OnDelete(DeleteBehavior.NoAction);
         }
     }
