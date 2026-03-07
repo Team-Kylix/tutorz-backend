@@ -293,6 +293,63 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        // --- ATTENDANCE ---
+
+        [HttpGet("attendance/search-student")]
+        public async Task<IActionResult> SearchStudentForAttendance([FromQuery] string query)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            // We can reuse GetAssignedStudentsAsync since it already searches among assigned students
+            var result = await _instituteService.GetAssignedStudentsAsync(instituteId, query, 1, 50); // Fetch top 50 
+            return Ok(result);
+        }
+
+        [HttpGet("attendance/student-classes/{studentId}")]
+        public async Task<IActionResult> GetStudentClassesForAttendance(Guid studentId)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetStudentClassesForAttendanceAsync(instituteId, studentId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("attendance/mark")]
+        public async Task<IActionResult> MarkAttendance([FromBody] MarkAttendanceDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.MarkAttendanceAsync(instituteId, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("attendance/classes-today")]
+        public async Task<IActionResult> GetClassesToday()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetInstituteClassesTodayAsync(instituteId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("attendance/assign-class")]
+        public async Task<IActionResult> InstantEnroll([FromBody] InstantEnrollDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.InstantEnrollStudentAsync(instituteId, dto.StudentId, dto.ClassId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         private Guid GetInstituteIdFromToken()
         {
             var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

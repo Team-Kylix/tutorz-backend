@@ -26,6 +26,7 @@ namespace Tutorz.Application.Services
         private readonly IInstituteJoinRequestRepository _joinRequestRepository;
         private readonly IGenericRepository<Class> _classRepository;
         private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+        private readonly IAttendanceRepository _attendanceRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -36,7 +37,8 @@ namespace Tutorz.Application.Services
             IInstituteTutorRepository instituteTutorRepository,
             IInstituteJoinRequestRepository joinRequestRepository,
             IGenericRepository<Class> classRepository,
-            IGenericRepository<Enrollment> enrollmentRepository)
+            IGenericRepository<Enrollment> enrollmentRepository,
+            IAttendanceRepository attendanceRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -47,6 +49,7 @@ namespace Tutorz.Application.Services
             _joinRequestRepository = joinRequestRepository;
             _classRepository = classRepository;
             _enrollmentRepository = enrollmentRepository;
+            _attendanceRepository = attendanceRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -198,35 +201,69 @@ namespace Tutorz.Application.Services
             if (string.IsNullOrWhiteSpace(query))
                 return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
 
-            query = query.ToLower();
+            query = query.ToLower().Trim();
 
-            // Just a basic search mechanism fetching all and filtering in memory or using where
-            // For production, this should preferably use IQueryable or full text search
-            var allStudents = await _studentRepository.GetAllAsync();
-            
-            var matchedStudents = allStudents.Where(s => 
-                s.FirstName.ToLower().Contains(query) || 
-                s.LastName.ToLower().Contains(query) ||
-                s.RegistrationNumber.ToLower().Contains(query)
-            ).ToList();
+            // Normalize phone for exact matching (converts 07... to +947...)
+            string cleanPhone = query.Replace(" ", "").Replace("-", "");
+            string exactPhone = cleanPhone;
+            if (cleanPhone.StartsWith("0")) exactPhone = "+94" + cleanPhone.Substring(1);
+            else if (!cleanPhone.StartsWith("+") && cleanPhone.Length == 9) exactPhone = "+94" + cleanPhone;
 
+            // Get Assigned Student IDs for this institute
             var assignedStudents = await _instituteStudentRepository.GetAllAsync(i => i.InstituteId == instituteId);
             var assignedStudentIds = assignedStudents.Select(a => a.StudentId).ToHashSet();
 
+            var allStudents = await _studentRepository.GetAllAsync();
+            var allUsers = await _userRepository.GetAllAsync();
+            var userDict = allUsers.ToDictionary(u => u.UserId);
+
             var results = new List<SearchUserResultDto>();
-            foreach (var student in matchedStudents)
+
+            foreach (var student in allStudents)
             {
-                var user = await _userRepository.GetAsync(u => u.UserId == student.UserId);
-                results.Add(new SearchUserResultDto
+                userDict.TryGetValue(student.UserId, out var user);
+                string phone = user?.PhoneNumber ?? "";
+                string email = user?.Email ?? "";
+
+                bool isAssigned = assignedStudentIds.Contains(student.StudentId);
+                bool isMatch = false;
+
+                if (isAssigned)
                 {
-                    UserId = student.UserId,
-                    RoleSpecificId = student.StudentId,
-                    RegistrationNumber = student.RegistrationNumber,
-                    Name = $"{student.FirstName} {student.LastName}",
-                    PhoneNumber = user?.PhoneNumber,
-                    Email = user?.Email,
-                    IsAlreadyAssigned = assignedStudentIds.Contains(student.StudentId)
-                });
+                    // Partial match for students already in the institute
+                    if ((student.FirstName != null && student.FirstName.ToLower().Contains(query)) ||
+                        (student.LastName != null && student.LastName.ToLower().Contains(query)) ||
+                        (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(query)) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        email.ToLower().Contains(query))
+                    {
+                        isMatch = true;
+                    }
+                }
+                else
+                {
+                    // Exact match ONLY for walk-in/unassigned students
+                    if ((student.RegistrationNumber != null && student.RegistrationNumber.ToLower() == query) ||
+                        phone == exactPhone || phone == query ||
+                        (email != "" && email.ToLower() == query))
+                    {
+                        isMatch = true;
+                    }
+                }
+
+                if (isMatch)
+                {
+                    results.Add(new SearchUserResultDto
+                    {
+                        UserId = student.UserId,
+                        RoleSpecificId = student.StudentId,
+                        RegistrationNumber = student.RegistrationNumber,
+                        Name = $"{student.FirstName} {student.LastName}",
+                        PhoneNumber = phone,
+                        Email = email,
+                        IsAlreadyAssigned = isAssigned
+                    });
+                }
             }
 
             return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
@@ -237,32 +274,69 @@ namespace Tutorz.Application.Services
             if (string.IsNullOrWhiteSpace(query))
                 return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
 
-            query = query.ToLower();
+            query = query.ToLower().Trim();
+
+            // Normalize phone for exact matching (converts 07... to +947...)
+            string cleanPhone = query.Replace(" ", "").Replace("-", "");
+            string exactPhone = cleanPhone;
+            if (cleanPhone.StartsWith("0")) exactPhone = "+94" + cleanPhone.Substring(1);
+            else if (!cleanPhone.StartsWith("+") && cleanPhone.Length == 9) exactPhone = "+94" + cleanPhone;
+
+            // Get Assigned Tutor IDs for this institute
+            var assignedTutors = await _instituteTutorRepository.GetAllAsync(i => i.InstituteId == instituteId);
+            var assignedTutorIds = assignedTutors.Select(a => a.TutorId).ToHashSet(); // Only declared ONCE!
 
             var allTutors = await _tutorRepository.GetAllAsync();
-            var matchedTutors = allTutors.Where(t => 
-                t.FirstName.ToLower().Contains(query) || 
-                t.LastName.ToLower().Contains(query) ||
-                t.RegistrationNumber.ToLower().Contains(query)
-            ).ToList();
-
-            var assignedTutors = await _instituteTutorRepository.GetAllAsync(i => i.InstituteId == instituteId);
-            var assignedTutorIds = assignedTutors.Select(a => a.TutorId).ToHashSet();
+            var allUsers = await _userRepository.GetAllAsync();
+            var userDict = allUsers.ToDictionary(u => u.UserId);
 
             var results = new List<SearchUserResultDto>();
-            foreach (var tutor in matchedTutors)
+
+            foreach (var tutor in allTutors)
             {
-                var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
-                results.Add(new SearchUserResultDto
+                userDict.TryGetValue(tutor.UserId, out var user);
+                string phone = user?.PhoneNumber ?? "";
+                string email = user?.Email ?? "";
+
+                bool isAssigned = assignedTutorIds.Contains(tutor.TutorId);
+                bool isMatch = false;
+
+                if (isAssigned)
                 {
-                    UserId = tutor.UserId,
-                    RoleSpecificId = tutor.TutorId,
-                    RegistrationNumber = tutor.RegistrationNumber,
-                    Name = $"{tutor.FirstName} {tutor.LastName}",
-                    PhoneNumber = user?.PhoneNumber,
-                    Email = user?.Email,
-                    IsAlreadyAssigned = assignedTutorIds.Contains(tutor.TutorId)
-                });
+                    // Partial match for tutors already in the institute
+                    if ((tutor.FirstName != null && tutor.FirstName.ToLower().Contains(query)) ||
+                        (tutor.LastName != null && tutor.LastName.ToLower().Contains(query)) ||
+                        (tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower().Contains(query)) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        email.ToLower().Contains(query))
+                    {
+                        isMatch = true;
+                    }
+                }
+                else
+                {
+                    // Exact match ONLY for unassigned tutors
+                    if ((tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower() == query) ||
+                        phone == exactPhone || phone == query ||
+                        (email != "" && email.ToLower() == query))
+                    {
+                        isMatch = true;
+                    }
+                }
+
+                if (isMatch)
+                {
+                    results.Add(new SearchUserResultDto
+                    {
+                        UserId = tutor.UserId,
+                        RoleSpecificId = tutor.TutorId,
+                        RegistrationNumber = tutor.RegistrationNumber,
+                        Name = $"{tutor.FirstName} {tutor.LastName}",
+                        PhoneNumber = phone,
+                        Email = email,
+                        IsAlreadyAssigned = isAssigned
+                    });
+                }
             }
 
             return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
@@ -618,6 +692,179 @@ namespace Tutorz.Application.Services
             await _classRepository.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = existingClass.IsActive, Message = "Class status toggled successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            // Find classes for this institute
+            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+
+            // Find enrollments for this student
+            var activeEnrollments = await _enrollmentRepository.GetAllAsync(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
+            var enrolledClassIds = activeEnrollments.Select(e => e.ClassId).ToHashSet();
+
+            var studentEnrolledClasses = instituteClasses.Where(c => enrolledClassIds.Contains(c.ClassId)).ToList();
+
+            var dtos = studentEnrolledClasses.Select(c => new InstituteClassDto
+            {
+                ClassId = c.ClassId,
+                ClassName = c.ClassName,
+                ClassType = c.ClassType,
+                Grade = c.Grade,
+                IsActive = c.IsActive,
+                TutorId = c.TutorId,
+                TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : "Unknown",
+                Subject = c.Subject,
+                DayOfWeek = c.DayOfWeek,
+                Date = c.Date,
+                StartTime = c.StartTime,
+                EndTime = c.EndTime,
+                HallName = c.HallName,
+                Fee = c.Fee
+            }).ToList();
+
+            return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid instituteId, MarkAttendanceDto dto)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            // Auto-assign student to institute if they are not already
+            var studentAssignment = await _instituteStudentRepository.GetAsync(is_ => is_.InstituteId == institute.InstituteId && is_.StudentId == dto.StudentId);
+            if (studentAssignment == null)
+            {
+                await _instituteStudentRepository.AddAsync(new InstituteStudent
+                {
+                    InstituteId = institute.InstituteId,
+                    StudentId = dto.StudentId,
+                    AssignedDate = DateTime.UtcNow
+                });
+                await _instituteStudentRepository.SaveChangesAsync();
+            }
+
+            // Ensure class belongs to institute
+            var instituteClass = await _classRepository.GetAsync(c => c.ClassId == dto.ClassId && c.InstituteId == institute.InstituteId);
+            if (instituteClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or does not belong to this institute." };
+
+            var attendanceDate = dto.Date ?? DateTime.UtcNow;
+
+            var exists = await _attendanceRepository.HasAttendanceAsync(dto.StudentId, dto.ClassId, institute.InstituteId, attendanceDate);
+            if (exists)
+                return new ServiceResponse<bool> { Success = false, Message = "Attendance already marked for this date." };
+
+            var attendance = new Attendance
+            {
+                Id = Guid.NewGuid(),
+                StudentId = dto.StudentId,
+                ClassId = dto.ClassId,
+                InstituteId = institute.InstituteId,
+                Date = attendanceDate,
+                IsPresent = true,
+                MarkedAt = DateTime.UtcNow
+            };
+
+            await _attendanceRepository.AddAsync(attendance);
+            await _attendanceRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Attendance marked successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            var today = DateTime.UtcNow.DayOfWeek.ToString();
+            var todayDate = DateTime.UtcNow.Date;
+
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+
+            // Filter for today
+            var classesToday = classes.Where(c => 
+                (c.ClassType == "Class" && c.DayOfWeek == today) ||
+                (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == todayDate)
+            ).ToList();
+
+            var dtos = classesToday.Select(c => new InstituteClassDto
+            {
+                ClassId = c.ClassId,
+                ClassName = c.ClassName,
+                ClassType = c.ClassType,
+                Grade = c.Grade,
+                IsActive = c.IsActive,
+                TutorId = c.TutorId,
+                TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : "Unknown",
+                Subject = c.Subject,
+                DayOfWeek = c.DayOfWeek,
+                Date = c.Date,
+                StartTime = c.StartTime,
+                EndTime = c.EndTime,
+                HallName = c.HallName,
+                Fee = c.Fee
+            }).ToList();
+
+            return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<bool>> InstantEnrollStudentAsync(Guid instituteId, Guid studentId, Guid classId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            // Auto-assign student to institute if they are not already
+            var studentAssignment = await _instituteStudentRepository.GetAsync(is_ => is_.InstituteId == institute.InstituteId && is_.StudentId == studentId);
+            if (studentAssignment == null)
+            {
+                await _instituteStudentRepository.AddAsync(new InstituteStudent
+                {
+                    InstituteId = institute.InstituteId,
+                    StudentId = studentId,
+                    AssignedDate = DateTime.UtcNow
+                });
+                await _instituteStudentRepository.SaveChangesAsync();
+            }
+
+            // Ensure class belongs to institute
+            var instituteClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            if (instituteClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or does not belong to this institute." };
+
+            var existingEnrollment = await _enrollmentRepository.GetAsync(e => e.StudentId == studentId && e.ClassId == classId);
+            if (existingEnrollment != null)
+            {
+                if (existingEnrollment.Status == EnrollmentStatus.Approved)
+                    return new ServiceResponse<bool> { Success = false, Message = "Student is already enrolled." };
+                
+                existingEnrollment.Status = EnrollmentStatus.Approved;
+                existingEnrollment.EnrolledAt = DateTime.UtcNow;
+            }
+            else
+            {
+                var enrollment = new Enrollment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = studentId,
+                    ClassId = classId,
+                    Status = EnrollmentStatus.Approved,
+                    RequestedAt = DateTime.UtcNow,
+                    EnrolledAt = DateTime.UtcNow
+                };
+                await _enrollmentRepository.AddAsync(enrollment);
+            }
+            
+            await _enrollmentRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student instantly enrolled successfully." };
         }
     }
 }

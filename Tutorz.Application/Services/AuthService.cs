@@ -803,7 +803,17 @@ namespace Tutorz.Application.Services
 
         public async Task SendOtpAsync(string identifier)
         {
-            var user = await _userRepository.GetAsync(u => u.Email == identifier);
+            User user = null;
+            if (identifier.Contains("@"))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == identifier);
+            }
+            else
+            {
+                string cleanPhone = NormalizePhone(identifier);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
             if (user == null) throw new Exception("User not found.");
 
             // 1. Generate 6-digit Code
@@ -824,7 +834,16 @@ namespace Tutorz.Application.Services
         // Updated VerifyOtpAsync to return the Phone Number
         public async Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request)
         {
-            var user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+            User user = null;
+            if (request.Identifier.Contains("@"))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+            }
+            else
+            {
+                string cleanPhone = NormalizePhone(request.Identifier);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
 
             if (user == null)
                 throw new Exception("User not found.");
