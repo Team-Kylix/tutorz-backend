@@ -16,6 +16,7 @@ namespace Tutorz.Domain.Entities
         public string Address { get; set; }
         public string ContactNumber { get; set; }
         public string? Website { get; set; }
+        public bool IsSmsEnabled { get; set; } = true;
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }

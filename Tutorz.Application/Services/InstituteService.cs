@@ -72,7 +72,8 @@ namespace Tutorz.Application.Services
                 ContactNumber = institute.ContactNumber,
                 Website = institute.Website,
                 Email = (institute.User != null) ? institute.User.Email : "",
-                CityId = (institute.User != null) ? institute.User.CityId : null
+                CityId = (institute.User != null) ? institute.User.CityId : null,
+                IsSmsEnabled = institute.IsSmsEnabled
             };
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };
@@ -91,6 +92,7 @@ namespace Tutorz.Application.Services
             institute.Address = dto.Address;
             institute.ContactNumber = dto.ContactNumber;
             institute.Website = dto.Website;
+            institute.IsSmsEnabled = dto.IsSmsEnabled;
             institute.UpdatedDate = DateTime.UtcNow;
 
             await _instituteRepository.SaveChangesAsync();

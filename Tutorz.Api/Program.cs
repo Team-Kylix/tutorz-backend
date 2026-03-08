@@ -34,6 +34,7 @@ builder.Services.AddScoped<IInstituteJoinRequestRepository, InstituteJoinRequest
 builder.Services.AddScoped<IHallRepository, HallRepository>();
 builder.Services.AddScoped<IUserSequenceRepository, UserSequenceRepository>();
 builder.Services.AddScoped<IEmailService, Tutorz.Infrastructure.Services.EmailService>();
+builder.Services.AddHttpClient<ISmsService, Tutorz.Infrastructure.Services.SmsService>();
 builder.Services.AddScoped<IIdGeneratorService, IdGeneratorService>();
 builder.Services.AddScoped<IQrCodeService, QrCodeService>();
 builder.Services.AddScoped<ITutorService, TutorService>();

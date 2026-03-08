@@ -34,6 +34,7 @@ namespace Tutorz.Application.Services
         private readonly IQrCodeService _qrCodeService;
         private readonly IInstituteStudentRepository _instituteStudentRepository;
         private readonly IInstituteTutorRepository _instituteTutorRepository;
+        private readonly ISmsService _smsService;
 
         public AuthService(
             IUserRepository userRepository,
@@ -46,7 +47,8 @@ namespace Tutorz.Application.Services
             IIdGeneratorService idGeneratorService,
             IQrCodeService qrCodeService,
             IInstituteStudentRepository instituteStudentRepository,
-            IInstituteTutorRepository instituteTutorRepository)
+            IInstituteTutorRepository instituteTutorRepository,
+            ISmsService smsService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -60,6 +62,7 @@ namespace Tutorz.Application.Services
             _httpClient = new HttpClient();
             _instituteStudentRepository = instituteStudentRepository;
             _instituteTutorRepository = instituteTutorRepository;
+            _smsService = smsService;
         }
 
         // --- REGISTER (First Time User) ---
@@ -178,6 +181,20 @@ namespace Tutorz.Application.Services
                         StudentId = newStudentId.Value,
                         AssignedDate = DateTime.UtcNow
                     });
+                }
+
+                // Send Welcome SMS
+                if (institute.IsSmsEnabled)
+                {
+                    try
+                    {
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorz.lk/login";
+                        await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Welcome SMS failed for {normalizedPhone}: {ex.Message}");
+                    }
                 }
             }
 
@@ -521,6 +538,34 @@ namespace Tutorz.Application.Services
             await _studentRepository.AddAsync(newStudent);
             await _studentRepository.SaveChangesAsync();
 
+            // Link to Institute if registered via Institute Dashboard
+            if (request.InstituteId.HasValue)
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (institute != null)
+                {
+                    await _instituteStudentRepository.AddAsync(new InstituteStudent
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        StudentId = newStudent.StudentId,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                    
+                    if (institute.IsSmsEnabled && !string.IsNullOrEmpty(user.PhoneNumber))
+                    {
+                        try
+                        {
+                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorz.lk/login";
+                            await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Sibling Welcome SMS failed: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
             // Auto-Login Response logic
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
@@ -786,22 +831,7 @@ namespace Tutorz.Application.Services
             return user != null;
         }
 
-        public async Task ForgotPasswordAsync(string email)
-        {
-            var user = await _userRepository.GetAsync(u => u.Email == email);
-            if (user == null) throw new Exception("This email address is not registered.");
-
-            var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
-            user.PasswordResetToken = token;
-            user.ResetTokenExpires = DateTime.UtcNow.AddHours(1);
-
-            await _userRepository.SaveChangesAsync();
-
-            string resetLink = $"http://localhost:5173/reset-password?token={token}";
-            _emailService.SendEmail(user.Email, "Reset Password", $"Click here to reset your password: <a href='{resetLink}'>Reset Link</a>");
-        }
-
-        public async Task SendOtpAsync(string identifier)
+        public async Task ForgotPasswordAsync(string identifier)
         {
             User user = null;
             if (identifier.Contains("@"))
@@ -812,6 +842,55 @@ namespace Tutorz.Application.Services
             {
                 string cleanPhone = NormalizePhone(identifier);
                 user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
+            if (user == null) throw new Exception("This account is not registered.");
+
+            var otp = new Random().Next(100000, 999999).ToString();
+            user.PasswordResetToken = otp; // Store 6-digit OTP instead of token
+            user.ResetTokenExpires = DateTime.UtcNow.AddHours(1);
+
+            await _userRepository.SaveChangesAsync();
+
+            string subject = "Reset Password";
+            string body = $"<h3>Your password reset code is: <span style='color:blue'>{otp}</span></h3><p>Enter this code on the password reset page.</p>";
+            try { _emailService.SendEmail(user.Email, subject, body); } catch { }
+
+            if (!string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorz.lk/login"); } catch { }
+            }
+        }
+
+        public async Task SendOtpAsync(CheckUserRequest request)
+        {
+            User user = null;
+
+            // Check Email
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == request.Email);
+            }
+
+            // Check Phone
+            if (user == null && !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                string cleanPhone = NormalizePhone(request.PhoneNumber);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
+            // Check Identifier
+            if (user == null && !string.IsNullOrWhiteSpace(request.Identifier))
+            {
+                if (request.Identifier.Contains("@"))
+                {
+                    user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+                }
+                else
+                {
+                    string cleanPhone = NormalizePhone(request.Identifier);
+                    user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+                }
             }
 
             if (user == null) throw new Exception("User not found.");
@@ -828,7 +907,12 @@ namespace Tutorz.Application.Services
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 
-            _emailService.SendEmail(user.Email, subject, body);
+            try { _emailService.SendEmail(user.Email, subject, body); } catch { }
+
+            if (!string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorz.lk/login"); } catch { }
+            }
         }
 
         // Updated VerifyOtpAsync to return the Phone Number

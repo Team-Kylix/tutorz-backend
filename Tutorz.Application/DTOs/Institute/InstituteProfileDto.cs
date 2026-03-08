@@ -16,6 +16,7 @@ namespace Tutorz.Application.DTOs.Institute
         public string Website { get; set; }
         public string Email { get; set; } // Fetched from User table
         public int? CityId { get; set; }
+        public bool IsSmsEnabled { get; set; }
     }
 
     public class UpdateInstituteProfileDto
@@ -24,5 +25,6 @@ namespace Tutorz.Application.DTOs.Institute
         public string Address { get; set; }
         public string ContactNumber { get; set; }
         public string Website { get; set; }
+        public bool IsSmsEnabled { get; set; }
     }
 }

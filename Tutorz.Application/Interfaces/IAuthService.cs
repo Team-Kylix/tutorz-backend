@@ -14,12 +14,12 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> LoginAsync(LoginRequest request);
         Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request);
         Task<bool> CheckEmailExistsAsync(string email);
-        Task ForgotPasswordAsync(string email);
+        Task ForgotPasswordAsync(string identifier);
         Task ResetPasswordAsync(ResetPasswordRequest request);
         Task<ServiceResponse<CheckUserResponse>> CheckUserStatusAsync(CheckUserRequest request);
         Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request);
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
-        Task SendOtpAsync(string identifier);
+        Task SendOtpAsync(CheckUserRequest request);
         Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
     }
 }
