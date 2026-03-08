@@ -90,14 +90,17 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // DEFINE CORS policy (This belongs with builder.Services)
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "AllowMyReactApp",
                       policy =>
                       {
-                          policy.WithOrigins("http://localhost:5173")
+                          policy.WithOrigins(allowedOrigins)
                                 .AllowAnyHeader()
-                                .AllowAnyMethod();
+                                .AllowAnyMethod()
+                                .AllowCredentials(); // Often needed for auth apps
                       });
 });
 
@@ -127,7 +130,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
