@@ -389,6 +389,18 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("timetable")]
+        [ApiPurpose("Get Timetable by Date")]
+        public async Task<IActionResult> GetTimetableByDate([FromQuery] DateTime date)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetClassesByDateAsync(instituteId, date);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         private Guid GetInstituteIdFromToken()
         {
             var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

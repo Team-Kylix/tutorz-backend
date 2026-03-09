@@ -567,6 +567,56 @@ namespace Tutorz.Application.Services
                 }
             }
 
+            // ── Hall Conflict Check (same institute, same hall, overlapping time) ──
+            if (!string.IsNullOrWhiteSpace(request.HallName))
+            {
+                var hallClasses = await _classRepository.GetAllAsync(
+                    c => c.InstituteId == institute.InstituteId && c.IsActive &&
+                         c.HallName != null &&
+                         c.HallName.ToLower() == request.HallName.ToLower(),
+                    includeProperties: "Tutor");
+
+                string newHallCheckDay = request.DayOfWeek;
+                if (request.ClassType != "Class" && request.Date.HasValue)
+                    newHallCheckDay = request.Date.Value.DayOfWeek.ToString();
+
+                foreach (var hc in hallClasses)
+                {
+                    bool isHallDayMatch = false;
+
+                    string hcDay = hc.ClassType == "Class"
+                        ? hc.DayOfWeek
+                        : hc.Date.HasValue ? hc.Date.Value.DayOfWeek.ToString() : null;
+
+                    if (request.ClassType == "Class")
+                    {
+                        if (hcDay != null && hcDay.Equals(request.DayOfWeek, StringComparison.OrdinalIgnoreCase))
+                            isHallDayMatch = true;
+                    }
+                    else if (request.Date.HasValue)
+                    {
+                        if (hcDay != null && hcDay.Equals(newHallCheckDay, StringComparison.OrdinalIgnoreCase))
+                            isHallDayMatch = true;
+                    }
+
+                    if (isHallDayMatch)
+                    {
+                        int hcStart = int.Parse(hc.StartTime.Replace(":", ""));
+                        int hcEnd = int.Parse(hc.EndTime.Replace(":", ""));
+
+                        if (newStart < hcEnd && newEnd > hcStart)
+                        {
+                            string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
+                            return new ServiceResponse<InstituteClassDto>
+                            {
+                                Success = false,
+                                Message = $"Cannot create class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day."
+                            };
+                        }
+                    }
+                }
+            }
+
             var newClass = new Class
             {
                 ClassId = Guid.NewGuid(),
@@ -686,15 +736,62 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
 
-            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            var existingClass = await _classRepository.GetAsync(
+                c => c.ClassId == classId && c.InstituteId == institute.InstituteId,
+                includeProperties: "Tutor");
             if (existingClass == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
+
+            // ── If we are REACTIVATING, check for hall conflicts first ──
+            if (!existingClass.IsActive && !string.IsNullOrWhiteSpace(existingClass.HallName))
+            {
+                int newStart = int.Parse(existingClass.StartTime.Replace(":", ""));
+                int newEnd   = int.Parse(existingClass.EndTime.Replace(":", ""));
+
+                string newHallCheckDay = existingClass.ClassType == "Class"
+                    ? existingClass.DayOfWeek
+                    : existingClass.Date.HasValue ? existingClass.Date.Value.DayOfWeek.ToString() : null;
+
+                var hallClasses = await _classRepository.GetAllAsync(
+                    c => c.InstituteId == institute.InstituteId &&
+                         c.IsActive &&
+                         c.ClassId != classId &&
+                         c.HallName != null &&
+                         c.HallName.ToLower() == existingClass.HallName.ToLower(),
+                    includeProperties: "Tutor");
+
+                foreach (var hc in hallClasses)
+                {
+                    if (newHallCheckDay == null) break;
+
+                    string hcDay = hc.ClassType == "Class"
+                        ? hc.DayOfWeek
+                        : hc.Date.HasValue ? hc.Date.Value.DayOfWeek.ToString() : null;
+
+                    if (hcDay == null) continue;
+                    if (!hcDay.Equals(newHallCheckDay, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    int hcStart = int.Parse(hc.StartTime.Replace(":", ""));
+                    int hcEnd   = int.Parse(hc.EndTime.Replace(":", ""));
+
+                    if (newStart < hcEnd && newEnd > hcStart)
+                    {
+                        string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
+                        return new ServiceResponse<bool>
+                        {
+                            Success = false,
+                            Message = $"Cannot reactivate — {occupyingTutor}'s class already occupies {existingClass.HallName} from {hc.StartTime} to {hc.EndTime} on this day. Deactivate or delete that class first."
+                        };
+                    }
+                }
+            }
 
             existingClass.IsActive = !existingClass.IsActive;
             await _classRepository.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = existingClass.IsActive, Message = "Class status toggled successfully." };
         }
+
 
         public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId)
         {
@@ -950,6 +1047,47 @@ namespace Tutorz.Application.Services
             };
 
             return new ServiceResponse<AttendanceHistoryResponseDto> { Success = true, Data = responseDto };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetClassesByDateAsync(Guid instituteId, DateTime date)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            string dayOfWeek = date.DayOfWeek.ToString();
+            var dateOnly = date.Date;
+
+            var allClasses = await _classRepository.GetAllAsync(
+                c => c.InstituteId == institute.InstituteId && c.IsActive,
+                includeProperties: "Tutor");
+
+            // Include recurring classes matching the day-of-week, and one-off classes on that exact date
+            var filtered = allClasses.Where(c =>
+                (c.ClassType == "Class" && c.DayOfWeek != null &&
+                 c.DayOfWeek.Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase)) ||
+                (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == dateOnly)
+            ).ToList();
+
+            var dtos = filtered.Select(c => new InstituteClassDto
+            {
+                ClassId = c.ClassId,
+                ClassName = c.ClassName,
+                ClassType = c.ClassType,
+                Grade = c.Grade,
+                IsActive = c.IsActive,
+                TutorId = c.TutorId,
+                TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : "Unknown",
+                Subject = c.Subject,
+                DayOfWeek = c.DayOfWeek,
+                Date = c.Date,
+                StartTime = c.StartTime,
+                EndTime = c.EndTime,
+                HallName = c.HallName,
+                Fee = c.Fee
+            }).ToList();
+
+            return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
         }
     }
 }
