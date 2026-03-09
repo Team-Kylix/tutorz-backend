@@ -33,6 +33,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<InstituteTutor> InstituteTutors { get; set; }
         public DbSet<InstituteJoinRequest> InstituteJoinRequests { get; set; }
         public DbSet<Attendance> Attendances { get; set; }
+        public DbSet<SmsLog> SmsLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -129,6 +130,9 @@ namespace Tutorz.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(a => a.InstituteId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            // Apply SmsLog Configuration
+            modelBuilder.ApplyConfiguration(new SmsLogConfiguration());
         }
     }
 }

@@ -189,7 +189,7 @@ namespace Tutorz.Application.Services
                     try
                     {
                         string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorz.lk/login";
-                        await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage);
+                        await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
                     }
                     catch (Exception ex)
                     {
@@ -550,13 +550,14 @@ namespace Tutorz.Application.Services
                         StudentId = newStudent.StudentId,
                         AssignedDate = DateTime.UtcNow
                     });
+                    await _instituteStudentRepository.SaveChangesAsync();
                     
                     if (institute.IsSmsEnabled && !string.IsNullOrEmpty(user.PhoneNumber))
                     {
                         try
                         {
                             string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorz.lk/login";
-                            await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage);
+                            await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage, institute.UserId);
                         }
                         catch (Exception ex)
                         {

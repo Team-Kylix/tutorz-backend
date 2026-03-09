@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -6,6 +7,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Tutorz.Application.Interfaces;
+using Tutorz.Domain.Entities;
+using Tutorz.Infrastructure.Data;
 
 namespace Tutorz.Infrastructure.Services
 {
@@ -13,15 +16,31 @@ namespace Tutorz.Infrastructure.Services
     {
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public SmsService(HttpClient httpClient, IConfiguration configuration)
+        public SmsService(HttpClient httpClient, IConfiguration configuration, IServiceScopeFactory scopeFactory)
         {
             _httpClient = httpClient;
             _configuration = configuration;
+            _scopeFactory = scopeFactory;
         }
 
-        public async Task<bool> SendSmsAsync(string to, string message)
+        public async Task<bool> SendSmsAsync(string to, string message, Guid? senderUserId = null)
         {
+            var smsLog = new SmsLog
+            {
+                SmsLogId = Guid.NewGuid(),
+                SenderUserId = senderUserId,
+                ReceiverPhoneNumber = to,
+                MessageContent = message,
+                SentAt = DateTime.UtcNow,
+                Status = "Pending",
+                Cost = 2.0m, // Example fixed cost per SMS, you could also pull this from IConfiguration
+                ErrorMessage = string.Empty
+            };
+
+            bool isSuccess = false;
+
             try
             {
                 var apiUrl = _configuration["SmsSettings:ApiUrl"] ?? "https://app.text.lk/api/v3/sms/send";
@@ -31,6 +50,9 @@ namespace Tutorz.Infrastructure.Services
                 if (string.IsNullOrEmpty(apiToken))
                 {
                     Console.WriteLine("SMS sending skipped: API Token is not configured.");
+                    smsLog.Status = "Failed";
+                    smsLog.ErrorMessage = "API Token missing";
+                    await SaveLogAsync(smsLog);
                     return false; // Or throw Exception in production
                 }
 
@@ -59,19 +81,46 @@ namespace Tutorz.Infrastructure.Services
                 {
                     var responseBody = await response.Content.ReadAsStringAsync();
                     Console.WriteLine($"SMS sent successfully to {to}. Response: {responseBody}");
-                    return true;
+                    smsLog.Status = "Sent";
+                    isSuccess = true;
                 }
                 else
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
                     Console.WriteLine($"Failed to send SMS to {to}. Status: {response.StatusCode}, Error: {errorBody}");
-                    return false;
+                    smsLog.Status = "Failed";
+                    smsLog.ErrorMessage = $"Status: {response.StatusCode}, Error: {errorBody}";
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception when sending SMS to {to}: {ex.Message}");
-                return false;
+                smsLog.Status = "Failed";
+                smsLog.ErrorMessage = ex.Message;
+                isSuccess = false;
+            }
+
+            await SaveLogAsync(smsLog);
+            return isSuccess;
+        }
+
+        private async Task SaveLogAsync(SmsLog log)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<TutorzDbContext>();
+                
+                // Truncate message if too long for db constraints (just a safety precaution)
+                if (log.ErrorMessage != null && log.ErrorMessage.Length > 500)
+                    log.ErrorMessage = log.ErrorMessage.Substring(0, 497) + "...";
+
+                dbContext.SmsLogs.Add(log);
+                await dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to save SMS log to database: {ex.Message}");
             }
         }
     }
