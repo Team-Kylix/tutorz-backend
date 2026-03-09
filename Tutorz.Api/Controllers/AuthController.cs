@@ -5,6 +5,7 @@ using System;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using System.Collections.Generic;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -21,6 +22,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("register")]
+        [ApiPurpose("Register Account")]
         public async Task<IActionResult> Register(RegisterRequest request)
         {
             try
@@ -40,6 +42,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("login")]
+        [ApiPurpose("User Login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
             try

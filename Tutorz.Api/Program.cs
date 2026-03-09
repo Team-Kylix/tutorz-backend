@@ -9,6 +9,7 @@ using Tutorz.Application.Services;
 using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
 using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
+using Tutorz.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -44,6 +45,12 @@ builder.Services.AddScoped<IInstituteService, InstituteService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 
+// API Usage Tracking Services
+builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
+builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.ApiUsageBatchWorker>();
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.DailyAggregationWorker>();
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.MonthlyAggregationWorker>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -148,6 +155,8 @@ app.UseCors("AllowMyReactApp");
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.UseApiUsageTracking();
 
 app.MapControllers();
 app.Run();

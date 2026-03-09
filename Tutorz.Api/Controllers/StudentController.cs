@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Institute;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -20,6 +21,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("search-classes")]
+        [ApiPurpose("Search Classes")]
         public async Task<IActionResult> SearchClasses([FromQuery] string? grade, [FromQuery] string? query)
         {
             // StudentService.SearchClassesAsync already handles null/empty checks using string.IsNullOrEmpty().
@@ -31,6 +33,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("join-class")]
+        [ApiPurpose("Student Join Class")]
         public async Task<IActionResult> JoinClass([FromBody] JoinClassRequest request)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -49,6 +52,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("profile")]
+        [ApiPurpose("Get Student Profile")]
         public async Task<IActionResult> GetProfile()
         {
             // Read the specific "StudentId" claim from your token
@@ -73,6 +77,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("profile")]
+        [ApiPurpose("Update Student Profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateStudentProfileDto dto)
         {
             // Read the specific "StudentId" claim here too

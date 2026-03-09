@@ -34,6 +34,9 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<InstituteJoinRequest> InstituteJoinRequests { get; set; }
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<SmsLog> SmsLogs { get; set; }
+        public DbSet<ApiUsageLog> ApiUsageLogs { get; set; }
+        public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
+        public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -133,6 +136,27 @@ namespace Tutorz.Infrastructure.Data
 
             // Apply SmsLog Configuration
             modelBuilder.ApplyConfiguration(new SmsLogConfiguration());
+
+            // ApiUsageLog Configuration (Cascading delete if User is deleted)
+            modelBuilder.Entity<ApiUsageLog>()
+                .HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.SetNull); // Or Cascade depending on requirements. Choosing SetNull to keep usage data even if user is deleted, but user_id is nullable.
+
+            // ApiDailyUsageSummary Configuration
+            modelBuilder.Entity<ApiDailyUsageSummary>()
+                .HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // APIMonthlyUsageSummary Configuration
+            modelBuilder.Entity<APIMonthlyUsageSummary>()
+                .HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

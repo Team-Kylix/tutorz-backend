@@ -5,6 +5,7 @@ using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Institute;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -29,6 +30,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes")]
+        [ApiPurpose("Create Tutor Class")]
         public async Task<IActionResult> CreateClass(CreateClassRequest request)
         {
             var userId = GetUserId();
@@ -39,6 +41,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("classes/{id}")]
+        [ApiPurpose("Update Tutor Class")]
         public async Task<IActionResult> UpdateClass(Guid id, CreateClassRequest request)
         {
             var userId = GetUserId();
@@ -49,6 +52,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("classes")]
+        [ApiPurpose("Get Tutor Classes")]
         public async Task<IActionResult> GetClasses()
         {
             var userId = GetUserId();
@@ -59,6 +63,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes/add-student")]
+        [ApiPurpose("Add Student to Class")]
         public async Task<IActionResult> AddStudent(AddStudentRequest request)
         {
             var userId = GetUserId();
@@ -69,6 +74,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpDelete("classes/{id}")]
+        [ApiPurpose("Delete Tutor Class")]
         public async Task<IActionResult> DeleteClass(Guid id)
         {
             var userId = GetUserId();
@@ -79,6 +85,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("profile")]
+        [ApiPurpose("Get Tutor Profile")]
         public async Task<IActionResult> GetProfile()
         {
             var userId = GetUserId();
@@ -90,6 +97,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("profile")]
+        [ApiPurpose("Update Tutor Profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] TutorProfileDto request)
         {
             var userId = GetUserId();
@@ -103,6 +111,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("requests")]
+        [ApiPurpose("Get Student Requests")]
         public async Task<IActionResult> GetRequests()
         {
             try
@@ -120,6 +129,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("requests/process")]
+        [ApiPurpose("Process Student Requests")]
         public async Task<IActionResult> ProcessRequests([FromBody] ProcessRequestDto request)
         {
             try
@@ -138,6 +148,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("student-profile/{studentId}")]
+        [ApiPurpose("Get Student Profile for Tutor")]
         public async Task<IActionResult> GetStudentProfile(Guid studentId)
         {
             try
@@ -157,6 +168,7 @@ namespace Tutorz.Api.Controllers
 
 
         [HttpPost("institutes/{instituteId}/request")]
+        [ApiPurpose("Request Join Institute")]
         public async Task<IActionResult> RequestJoinInstitute(Guid instituteId)
         {
             var userId = GetUserId();
@@ -168,6 +180,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("requests/institutes")]
+        [ApiPurpose("Get Institute Requests")]
         public async Task<IActionResult> GetInstituteRequests()
         {
             var userId = GetUserId();
@@ -178,6 +191,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("requests/institutes/{requestId}/process")]
+        [ApiPurpose("Process Institute Request")]
         public async Task<IActionResult> ProcessInstituteRequest(Guid requestId, [FromBody] ProcessJoinRequestDto dto)
         {
             var userId = GetUserId();
@@ -189,6 +203,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("institutes")]
+        [ApiPurpose("Get Joined Institutes")]
         public async Task<IActionResult> GetJoinedInstitutes()
         {
             var userId = GetUserId();
