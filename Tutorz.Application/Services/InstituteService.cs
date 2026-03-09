@@ -72,7 +72,8 @@ namespace Tutorz.Application.Services
                 ContactNumber = institute.ContactNumber,
                 Website = institute.Website,
                 Email = (institute.User != null) ? institute.User.Email : "",
-                CityId = (institute.User != null) ? institute.User.CityId : null
+                CityId = (institute.User != null) ? institute.User.CityId : null,
+                IsSmsEnabled = institute.IsSmsEnabled
             };
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };
@@ -91,6 +92,7 @@ namespace Tutorz.Application.Services
             institute.Address = dto.Address;
             institute.ContactNumber = dto.ContactNumber;
             institute.Website = dto.Website;
+            institute.IsSmsEnabled = dto.IsSmsEnabled;
             institute.UpdatedDate = DateTime.UtcNow;
 
             await _instituteRepository.SaveChangesAsync();
@@ -865,6 +867,89 @@ namespace Tutorz.Application.Services
             await _enrollmentRepository.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student instantly enrolled successfully." };
+        }
+
+        public async Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(Guid instituteId, Guid classId, int? year, int? month, string? searchQuery)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Institute not found." };
+
+            var instituteClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            if (instituteClass == null)
+                return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Class not found or does not belong to this institute." };
+
+            // Fetch Attendances for the class and institute
+            var attendances = await _attendanceRepository.GetAllAsync(a => a.ClassId == classId && a.InstituteId == institute.InstituteId);
+            
+            if (year.HasValue)
+                attendances = attendances.Where(a => a.Date.Year == year.Value);
+            if (month.HasValue)
+                attendances = attendances.Where(a => a.Date.Month == month.Value);
+            
+            var attendancesList = attendances.ToList();
+            var distinctDates = attendancesList.Select(a => a.Date.Date).Distinct().OrderBy(d => d).ToList();
+
+            // Fetch Enrollments for the class
+            var enrollments = await _enrollmentRepository.GetAllAsync(e => e.ClassId == classId && e.Status == EnrollmentStatus.Approved, includeProperties: "Student");
+            var students = enrollments.Select(e => e.Student).ToList();
+
+            // Fetch User details for students (for email/phone search)
+            var userIds = students.Select(s => s.UserId).Distinct().ToList();
+            var allUsersQuery = await _userRepository.GetAllAsync();
+            var userDict = allUsersQuery.Where(u => userIds.Contains(u.UserId)).ToDictionary(u => u.UserId);
+
+            var rowDtos = new List<StudentAttendanceRowDto>();
+
+            foreach (var student in students)
+            {
+                userDict.TryGetValue(student.UserId, out var user);
+                string phone = user?.PhoneNumber ?? "";
+                string email = user?.Email ?? "";
+
+                bool isMatch = true;
+
+                if (!string.IsNullOrWhiteSpace(searchQuery))
+                {
+                    var lowerQuery = searchQuery.ToLower().Trim();
+                    string cleanPhone = lowerQuery.Replace(" ", "").Replace("-", "");
+                    
+                    isMatch = (student.FirstName != null && student.FirstName.ToLower().Contains(lowerQuery)) ||
+                              (student.LastName != null && student.LastName.ToLower().Contains(lowerQuery)) ||
+                              (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(lowerQuery)) ||
+                              phone.Contains(lowerQuery) || (!string.IsNullOrEmpty(cleanPhone) && phone.Contains(cleanPhone)) ||
+                              email.ToLower().Contains(lowerQuery);
+                }
+
+                if (isMatch)
+                {
+                    var studentAttendances = attendancesList.Where(a => a.StudentId == student.StudentId).ToList();
+                    var attendanceRecord = new Dictionary<DateTime, bool>();
+
+                    foreach (var date in distinctDates)
+                    {
+                        var record = studentAttendances.FirstOrDefault(a => a.Date.Date == date);
+                        attendanceRecord[date] = record != null && record.IsPresent;
+                    }
+
+                    rowDtos.Add(new StudentAttendanceRowDto
+                    {
+                        StudentId = student.StudentId,
+                        Name = $"{student.FirstName} {student.LastName}".Trim(),
+                        RegistrationNumber = student.RegistrationNumber ?? "",
+                        MobileNumber = phone,
+                        AttendanceRecord = attendanceRecord
+                    });
+                }
+            }
+
+            var responseDto = new AttendanceHistoryResponseDto
+            {
+                ConductedDates = distinctDates,
+                Students = rowDtos.OrderBy(s => s.Name).ToList()
+            };
+
+            return new ServiceResponse<AttendanceHistoryResponseDto> { Success = true, Data = responseDto };
         }
     }
 }

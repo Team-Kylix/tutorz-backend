@@ -69,7 +69,7 @@ namespace Tutorz.Api.Controllers
             try
             {
                 // Call the REAL service now
-                await _authService.SendOtpAsync(request.Identifier);
+                await _authService.SendOtpAsync(request);
                 return Ok(new { message = "OTP sent successfully." });
             }
             catch (Exception ex)
@@ -177,8 +177,8 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
-                await _authService.ForgotPasswordAsync(request.Email);
-                return Ok(new { message = "If your email is registered, you will receive a reset link." });
+                await _authService.ForgotPasswordAsync(request.Identifier);
+                return Ok(new { message = "If your account exists, you will receive a reset code." });
             }
             catch (Exception ex)
             {

@@ -30,5 +30,7 @@ namespace Tutorz.Application.DTOs.Auth
 
         [Required]
         public DateTime DateOfBirth { get; set; }
+
+        public Guid? InstituteId { get; set; }
     }
 }
