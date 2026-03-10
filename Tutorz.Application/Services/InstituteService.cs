@@ -684,7 +684,57 @@ namespace Tutorz.Application.Services
             existingClass.Fee = request.Fee;
             existingClass.UpdatedDate = DateTime.UtcNow;
 
+            // ── Hall Conflict Check on Update (exclude self, same institute + hall + overlapping time) ──
+            if (!string.IsNullOrWhiteSpace(request.HallName))
+            {
+                int newStart = int.Parse(request.StartTime.Replace(":", ""));
+                int newEnd   = int.Parse(request.EndTime.Replace(":", ""));
+
+                string newHallCheckDay = request.DayOfWeek;
+                if (request.ClassType != "Class" && request.Date.HasValue)
+                    newHallCheckDay = request.Date.Value.DayOfWeek.ToString();
+
+                var hallClasses = await _classRepository.GetAllAsync(
+                    c => c.InstituteId == institute.InstituteId &&
+                         c.IsActive &&
+                         c.ClassId != classId &&              // exclude self
+                         c.HallName != null &&
+                         c.HallName.ToLower() == request.HallName.ToLower(),
+                    includeProperties: "Tutor");
+
+                foreach (var hc in hallClasses)
+                {
+                    string hcDay = hc.ClassType == "Class"
+                        ? hc.DayOfWeek
+                        : hc.Date.HasValue ? hc.Date.Value.DayOfWeek.ToString() : null;
+
+                    if (hcDay == null) continue;
+
+                    bool dayMatch = false;
+                    if (request.ClassType == "Class")
+                        dayMatch = hcDay.Equals(request.DayOfWeek, StringComparison.OrdinalIgnoreCase);
+                    else if (request.Date.HasValue)
+                        dayMatch = hcDay.Equals(newHallCheckDay, StringComparison.OrdinalIgnoreCase);
+
+                    if (!dayMatch) continue;
+
+                    int hcStart = int.Parse(hc.StartTime.Replace(":", ""));
+                    int hcEnd   = int.Parse(hc.EndTime.Replace(":", ""));
+
+                    if (newStart < hcEnd && newEnd > hcStart)
+                    {
+                        string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
+                        return new ServiceResponse<InstituteClassDto>
+                        {
+                            Success = false,
+                            Message = $"Cannot update class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day."
+                        };
+                    }
+                }
+            }
+
             await _classRepository.SaveChangesAsync();
+
 
             // Refresh the tutor reference if it changed
             if (request.TutorId.HasValue && existingClass.TutorId != existingClass.Tutor?.TutorId)
