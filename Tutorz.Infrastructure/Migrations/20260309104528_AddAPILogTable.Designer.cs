@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260309104528_AddAPILogTable")]
+    partial class AddAPILogTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -50,28 +53,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("APIMonthlyUsageSummaries");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.ApiDailyUsageSummary", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("TotalCalls")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("ApiDailyUsageSummaries");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.ApiUsageLog", b =>
@@ -232,55 +213,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("Classes");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.ClassPayment", b =>
-                {
-                    b.Property<Guid>("PaymentId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("AmountPaid")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("ClassId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("InstituteId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("PaidAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("StudentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("PaymentId");
-
-                    b.HasIndex("ClassId");
-
-                    b.HasIndex("InstituteId");
-
-                    b.HasIndex("StudentId", "ClassId", "Month", "Year")
-                        .IsUnique();
-
-                    b.ToTable("ClassPayments");
-                });
-
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
                 {
                     b.Property<int>("Id")
@@ -380,9 +312,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("CommissionPercentage")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("ContactNumber")
                         .IsRequired()
@@ -760,17 +689,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.ApiDailyUsageSummary", b =>
-                {
-                    b.HasOne("Tutorz.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Tutorz.Domain.Entities.ApiUsageLog", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
@@ -834,33 +752,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Institute");
 
                     b.Navigation("Tutor");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.ClassPayment", b =>
-                {
-                    b.HasOne("Tutorz.Domain.Entities.Class", "Class")
-                        .WithMany()
-                        .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
-                        .WithMany()
-                        .HasForeignKey("InstituteId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Class");
-
-                    b.Navigation("Institute");
-
-                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>

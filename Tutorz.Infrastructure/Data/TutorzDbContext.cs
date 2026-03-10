@@ -37,6 +37,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<ApiUsageLog> ApiUsageLogs { get; set; }
         public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
         public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
+        public DbSet<ClassPayment> ClassPayments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -136,6 +137,34 @@ namespace Tutorz.Infrastructure.Data
 
             // Apply SmsLog Configuration
             modelBuilder.ApplyConfiguration(new SmsLogConfiguration());
+
+            // ClassPayment Configuration
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.AmountPaid)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<ClassPayment>()
+                .HasOne(p => p.Student)
+                .WithMany()
+                .HasForeignKey(p => p.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ClassPayment>()
+                .HasOne(p => p.Class)
+                .WithMany()
+                .HasForeignKey(p => p.ClassId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ClassPayment>()
+                .HasOne(p => p.Institute)
+                .WithMany()
+                .HasForeignKey(p => p.InstituteId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // Prevent duplicate payment for same student+class+month+year
+            modelBuilder.Entity<ClassPayment>()
+                .HasIndex(p => new { p.StudentId, p.ClassId, p.Month, p.Year })
+                .IsUnique();
 
             // ApiUsageLog Configuration (Cascading delete if User is deleted)
             modelBuilder.Entity<ApiUsageLog>()
