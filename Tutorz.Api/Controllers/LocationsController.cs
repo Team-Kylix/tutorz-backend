@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Tutorz.Infrastructure.Data;
 using System.Linq;
 using System.Threading.Tasks;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -18,18 +19,21 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("provinces")]
+        [ApiPurpose("Get Provinces")]
         public async Task<IActionResult> GetProvinces()
         {
             return Ok(await _context.Provinces.Select(p => new { p.Id, p.Name }).ToListAsync());
         }
 
         [HttpGet("provinces/{provinceId}/districts")]
+        [ApiPurpose("Get Districts by Province")]
         public async Task<IActionResult> GetDistricts(int provinceId)
         {
             return Ok(await _context.Districts.Where(d => d.ProvinceId == provinceId).Select(d => new { d.Id, d.Name }).ToListAsync());
         }
 
         [HttpGet("districts/{districtId}/cities")]
+        [ApiPurpose("Get Cities by District")]
         public async Task<IActionResult> GetCities(int districtId)
         {
             return Ok(await _context.Cities.Where(c => c.DistrictId == districtId).Select(c => new { c.Id, c.Name }).ToListAsync());
