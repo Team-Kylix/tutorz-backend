@@ -332,6 +332,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("CommissionPercentage")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("ContactNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

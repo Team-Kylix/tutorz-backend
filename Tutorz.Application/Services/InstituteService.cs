@@ -73,7 +73,8 @@ namespace Tutorz.Application.Services
                 Website = institute.Website,
                 Email = (institute.User != null) ? institute.User.Email : "",
                 CityId = (institute.User != null) ? institute.User.CityId : null,
-                IsSmsEnabled = institute.IsSmsEnabled
+                IsSmsEnabled = institute.IsSmsEnabled,
+                CommissionPercentage = institute.CommissionPercentage
             };
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };
@@ -1138,6 +1139,61 @@ namespace Tutorz.Application.Services
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<RevenueSummaryDto>> GetRevenueSummaryAsync(Guid instituteId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<RevenueSummaryDto> { Success = false, Message = "Institute not found." };
+
+            // Fetch all active classes for this institute
+            var classes = await _classRepository.GetAllAsync(
+                c => c.InstituteId == institute.InstituteId && c.IsActive);
+
+            decimal totalGross = 0m;
+
+            foreach (var cls in classes)
+            {
+                // Count only approved (active) enrollments for this class
+                var enrollments = await _enrollmentRepository.GetAllAsync(
+                    e => e.ClassId == cls.ClassId && e.Status == EnrollmentStatus.Approved);
+
+                totalGross += cls.Fee * enrollments.Count();
+            }
+
+            // Payment tracking not yet implemented — TotalReceived is always 0
+            decimal totalReceived = 0m;
+            decimal netRevenue = totalGross * (institute.CommissionPercentage / 100m);
+            decimal totalDue = totalGross - totalReceived;
+
+            var dto = new RevenueSummaryDto
+            {
+                TotalGrossRevenue = totalGross,
+                InstituteNetRevenue = netRevenue,
+                TotalReceived = totalReceived,
+                TotalDue = totalDue,
+                CommissionPercentage = institute.CommissionPercentage
+            };
+
+            return new ServiceResponse<RevenueSummaryDto> { Success = true, Data = dto };
+        }
+
+        public async Task<ServiceResponse<bool>> UpdateCommissionAsync(Guid instituteId, decimal percentage)
+        {
+            if (percentage < 0 || percentage > 100)
+                return new ServiceResponse<bool> { Success = false, Message = "Commission percentage must be between 0 and 100." };
+
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            institute.CommissionPercentage = percentage;
+            institute.UpdatedDate = DateTime.UtcNow;
+
+            await _instituteRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Commission percentage updated successfully." };
         }
     }
 }

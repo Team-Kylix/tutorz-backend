@@ -17,6 +17,7 @@ namespace Tutorz.Application.DTOs.Institute
         public string Email { get; set; } // Fetched from User table
         public int? CityId { get; set; }
         public bool IsSmsEnabled { get; set; }
+        public decimal CommissionPercentage { get; set; }
     }
 
     public class UpdateInstituteProfileDto

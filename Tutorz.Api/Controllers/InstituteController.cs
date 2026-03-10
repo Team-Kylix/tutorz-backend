@@ -401,6 +401,32 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        // --- REVENUE & SETTINGS ---
+
+        [HttpGet("revenue")]
+        [ApiPurpose("Get Revenue Summary")]
+        public async Task<IActionResult> GetRevenueSummary()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetRevenueSummaryAsync(instituteId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPut("settings/commission")]
+        [ApiPurpose("Update Commission Percentage")]
+        public async Task<IActionResult> UpdateCommission([FromBody] UpdateCommissionRequest request)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.UpdateCommissionAsync(instituteId, request.CommissionPercentage);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         private Guid GetInstituteIdFromToken()
         {
             var idString = User.FindFirst("InstituteId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

@@ -18,6 +18,9 @@ namespace Tutorz.Domain.Entities
         public string? Website { get; set; }
         public bool IsSmsEnabled { get; set; } = true;
         public bool IsActive { get; set; } = true;
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal CommissionPercentage { get; set; } = 0;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
 
