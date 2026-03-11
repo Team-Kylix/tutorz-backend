@@ -57,6 +57,27 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        /// <summary>
+        /// GET /api/payment/class/{classId}/history?searchQuery=
+        /// Returns the history of payments for a particular class (with optional student search), newest first.
+        /// </summary>
+        [HttpGet("class/history")]
+        public async Task<IActionResult> GetClassPaymentHistory(
+            [FromQuery] Guid? tutorId,
+            [FromQuery] Guid? classId,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty)
+                return Unauthorized("Institute ID not found in token.");
+
+            var result = await _paymentService.GetClassPaymentHistoryAsync(instituteId, tutorId, classId, searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────
         private Guid GetInstituteIdFromToken()
         {

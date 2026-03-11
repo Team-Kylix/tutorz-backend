@@ -175,5 +175,97 @@ namespace Tutorz.Infrastructure.Services
                 Message = "Payment recorded successfully."
             };
         }
+
+        /// <inheritdoc/>
+        public async Task<ServiceResponse<FinancialHistoryResponseDto>> GetClassPaymentHistoryAsync(
+            Guid instituteId, Guid? tutorId, Guid? classId, string? searchQuery = null, int page = 1, int pageSize = 10)
+        {
+            var query = _context.ClassPayments
+                .AsNoTracking()
+                .Include(p => p.Student)
+                .ThenInclude(s => s.User)
+                .Include(p => p.Class)
+                .Where(p => p.InstituteId == instituteId);
+
+            if (classId.HasValue && classId.Value != Guid.Empty)
+            {
+                query = query.Where(p => p.ClassId == classId.Value);
+            }
+            else if (tutorId.HasValue && tutorId.Value != Guid.Empty)
+            {
+                query = query.Where(p => p.Class != null && p.Class.TutorId == tutorId.Value);
+            }
+            else
+            {
+                return new ServiceResponse<FinancialHistoryResponseDto> 
+                { 
+                    Success = false, 
+                    Message = "Please select a tutor or class." 
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var lowerQuery = searchQuery.ToLower();
+                query = query.Where(p =>
+                    (p.Student.FirstName != null && p.Student.FirstName.ToLower().Contains(lowerQuery)) ||
+                    (p.Student.LastName != null && p.Student.LastName.ToLower().Contains(lowerQuery)) ||
+                    (p.Student.RegistrationNumber != null && p.Student.RegistrationNumber.ToLower().Contains(lowerQuery)) ||
+                    (p.Student.User != null && p.Student.User.PhoneNumber != null && p.Student.User.PhoneNumber.Contains(lowerQuery)));
+            }
+
+            // Summary Stats before pagination
+            decimal totalReceived = await query.SumAsync(p => p.AmountPaid);
+            int totalStudents = await query.Select(p => p.StudentId).Distinct().CountAsync();
+            int totalRecords = await query.CountAsync();
+
+            // Fetch commission
+            var institute = await _context.Institutes.AsNoTracking().FirstOrDefaultAsync(i => i.InstituteId == instituteId);
+            decimal commission = institute?.CommissionPercentage ?? 0;
+            decimal instituteShare = totalReceived * (commission / 100);
+            decimal teacherShare = totalReceived - instituteShare;
+
+            var payments = await query
+                .OrderByDescending(p => p.PaidAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(p => new ClassPaymentHistoryDto
+                {
+                    PaymentId = p.PaymentId,
+                    StudentId = p.StudentId,
+                    StudentName = $"{p.Student.FirstName} {p.Student.LastName}".Trim(),
+                    RegistrationNumber = p.Student.RegistrationNumber,
+                    MobileNumber = p.Student.User != null ? p.Student.User.PhoneNumber ?? "" : "",
+                    MonthYear = new DateTime(p.Year, p.Month, 1).ToString("MMM yyyy"),
+                    AmountPaid = p.AmountPaid,
+                    PaidAt = p.PaidAt,
+                    Status = p.Status,
+                    Note = p.Note
+                })
+                .ToListAsync();
+
+            var paginatedResult = new PaginatedResultDto<ClassPaymentHistoryDto>
+            {
+                Items = payments,
+                TotalCount = totalRecords,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            var responseDto = new FinancialHistoryResponseDto
+            {
+                PaginatedPayments = paginatedResult,
+                TotalReceived = totalReceived,
+                TeacherShare = teacherShare,
+                InstituteShare = instituteShare,
+                TotalStudents = totalStudents
+            };
+
+            return new ServiceResponse<FinancialHistoryResponseDto>
+            {
+                Success = true,
+                Data = responseDto
+            };
+        }
     }
 }

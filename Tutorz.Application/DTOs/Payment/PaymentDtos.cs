@@ -42,4 +42,19 @@ namespace Tutorz.Application.DTOs.Payment
         public decimal AmountPaid { get; set; }
         public string? Note { get; set; }
     }
+
+    /// <summary>Summary of a payment for the Financials history table</summary>
+    public class ClassPaymentHistoryDto
+    {
+        public Guid PaymentId { get; set; }
+        public Guid StudentId { get; set; }
+        public string StudentName { get; set; }
+        public string RegistrationNumber { get; set; }
+        public string MobileNumber { get; set; }
+        public string MonthYear { get; set; } // e.g. "March 2026"
+        public decimal AmountPaid { get; set; }
+        public DateTime PaidAt { get; set; }
+        public string Status { get; set; }
+        public string? Note { get; set; }
+    }
 }

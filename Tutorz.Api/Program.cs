@@ -44,6 +44,7 @@ builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IInstituteService, InstituteService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
 builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.PaymentService>();
 
 // API Usage Tracking Services

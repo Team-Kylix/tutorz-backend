@@ -377,14 +377,21 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
-        [HttpGet("attendance/class-history/{classId}")]
+        [HttpGet("attendance/history")]
         [ApiPurpose("Get Class Attendance History")]
-        public async Task<IActionResult> GetClassAttendanceHistory(Guid classId, [FromQuery] int? month, [FromQuery] int? year, [FromQuery] string? searchQuery)
+        public async Task<IActionResult> GetClassAttendanceHistory(
+            [FromQuery] Guid? tutorId, 
+            [FromQuery] Guid? classId, 
+            [FromQuery] int? month, 
+            [FromQuery] int? year, 
+            [FromQuery] string? searchQuery,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             var instituteId = GetInstituteIdFromToken();
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
-            var result = await _instituteService.GetClassAttendanceHistoryAsync(instituteId, classId, year, month, searchQuery);
+            var result = await _instituteService.GetClassAttendanceHistoryAsync(instituteId, tutorId, classId, year, month, searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

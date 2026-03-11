@@ -20,5 +20,12 @@ namespace Tutorz.Application.Interfaces
         /// </summary>
         Task<ServiceResponse<ClassPaymentDto>> RecordPaymentAsync(
             RecordPaymentRequest request, Guid instituteId);
+
+        /// <summary>
+        /// Gets the payment history for a specific class, ordered by most recent first.
+        /// Identical filtering logic to attendance history.
+        /// </summary>
+        Task<ServiceResponse<FinancialHistoryResponseDto>> GetClassPaymentHistoryAsync(
+            Guid instituteId, Guid? tutorId, Guid? classId, string? searchQuery = null, int page = 1, int pageSize = 10);
     }
 }
