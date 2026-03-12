@@ -46,6 +46,7 @@ builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
 builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.PaymentService>();
+builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
 
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
@@ -123,6 +124,9 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<TutorzDbContext>();
         var env = services.GetRequiredService<IWebHostEnvironment>();
+
+        //apply pending migrations and update the schema
+        await context.Database.MigrateAsync();
 
         // Initialize DB (Roles, etc.)
         DbInitializer.Initialize(context);

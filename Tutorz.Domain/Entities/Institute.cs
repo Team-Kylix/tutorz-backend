@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Tutorz.Domain.Entities
@@ -18,6 +18,9 @@ namespace Tutorz.Domain.Entities
         public string? Website { get; set; }
         public bool IsSmsEnabled { get; set; } = true;
         public bool IsActive { get; set; } = true;
+
+        public string? ProfileImageUrlSmall { get; set; }
+        public string? ProfileImageUrlLarge { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal CommissionPercentage { get; set; } = 0;

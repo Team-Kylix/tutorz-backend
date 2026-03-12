@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -34,7 +34,9 @@ namespace Tutorz.Infrastructure.Repositories
                               BankName = t.BankName,
                               RegistrationNumber = t.RegistrationNumber,
                               Email = u.Email,
-                              PhoneNumber = u.PhoneNumber
+                              PhoneNumber = u.PhoneNumber,
+                              ProfileImageUrlSmall = t.ProfileImageUrlSmall,
+                              ProfileImageUrlLarge = t.ProfileImageUrlLarge
                           }).FirstOrDefaultAsync();
         }
 

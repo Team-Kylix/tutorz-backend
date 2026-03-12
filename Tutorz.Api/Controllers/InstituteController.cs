@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
@@ -49,7 +49,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPut("profile")]
         [ApiPurpose("Update Institute Profile")]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateInstituteProfileDto dto)
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateInstituteProfileDto dto)
         {
             var idString = User.FindFirst("InstituteId")?.Value;
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,6 +28,9 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<Enrollment> _enrollmentRepository;
         private readonly IAttendanceRepository _attendanceRepository;
         private readonly IClassPaymentRepository _classPaymentRepository;
+        private readonly IProfilePictureService _profilePictureService;
+        private readonly IGenericRepository<City> _cityRepository;
+        private readonly IGenericRepository<District> _districtRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -40,7 +43,10 @@ namespace Tutorz.Application.Services
             IGenericRepository<Class> classRepository,
             IGenericRepository<Enrollment> enrollmentRepository,
             IAttendanceRepository attendanceRepository,
-            IClassPaymentRepository classPaymentRepository)
+            IClassPaymentRepository classPaymentRepository,
+            IProfilePictureService profilePictureService,
+            IGenericRepository<City> cityRepository,
+            IGenericRepository<District> districtRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -53,6 +59,9 @@ namespace Tutorz.Application.Services
             _enrollmentRepository = enrollmentRepository;
             _attendanceRepository = attendanceRepository;
             _classPaymentRepository = classPaymentRepository;
+            _profilePictureService = profilePictureService;
+            _cityRepository = cityRepository;
+            _districtRepository = districtRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -77,8 +86,24 @@ namespace Tutorz.Application.Services
                 Email = (institute.User != null) ? institute.User.Email : "",
                 CityId = (institute.User != null) ? institute.User.CityId : null,
                 IsSmsEnabled = institute.IsSmsEnabled,
-                CommissionPercentage = institute.CommissionPercentage
+                CommissionPercentage = institute.CommissionPercentage,
+                ProfileImageUrlSmall = institute.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = institute.ProfileImageUrlLarge
             };
+
+            if (dto.CityId.HasValue)
+            {
+                var city = await _cityRepository.GetAsync(c => c.Id == dto.CityId.Value);
+                if (city != null)
+                {
+                    dto.DistrictId = city.DistrictId;
+                    var district = await _districtRepository.GetAsync(d => d.Id == city.DistrictId);
+                    if (district != null)
+                    {
+                        dto.ProvinceId = district.ProvinceId;
+                    }
+                }
+            }
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };
         }
@@ -99,9 +124,32 @@ namespace Tutorz.Application.Services
             institute.IsSmsEnabled = dto.IsSmsEnabled;
             institute.UpdatedDate = DateTime.UtcNow;
 
+            if (dto.ProfilePicture != null)
+            {
+                var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                    institute.InstituteId,
+                    institute.RegistrationNumber,
+                    "Institute",
+                    dto.ProfilePicture
+                );
+
+                institute.ProfileImageUrlSmall = smallUrl;
+                institute.ProfileImageUrlLarge = largeUrl;
+            }
+
             await _instituteRepository.SaveChangesAsync();
 
-            
+            // Update user City location if provided
+            if (dto.CityId.HasValue && institute.UserId != Guid.Empty)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == institute.UserId);
+                if (user != null)
+                {
+                    user.CityId = dto.CityId;
+                    await _userRepository.SaveChangesAsync();
+                }
+            }
+
             return await GetProfileAsync(institute.InstituteId);
         }
 
@@ -439,7 +487,8 @@ namespace Tutorz.Application.Services
                     ExperienceYears = tutor.ExperienceYears,
                     Email = user?.Email,
                     PhoneNumber = user?.PhoneNumber,
-                    ProfileImageUrl = user?.QrCodeUrl, // Or actual profile image
+                    ProfileImageUrlSmall = tutor.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = tutor.ProfileImageUrlLarge,
                     RegistrationNumber = tutor.RegistrationNumber
                 });
             }

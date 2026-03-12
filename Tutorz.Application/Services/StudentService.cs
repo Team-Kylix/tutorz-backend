@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -88,7 +88,9 @@ namespace Tutorz.Application.Services
                 ParentName = student.ParentName,
                 DateOfBirth = student.DateOfBirth,
                 RegistrationNumber = student.RegistrationNumber,
-                Email = student.User?.Email ?? ""
+                Email = student.User?.Email ?? "",
+                ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = student.ProfileImageUrlLarge
             };
 
             return new ServiceResponse<StudentProfileDto> { Success = true, Data = dto };

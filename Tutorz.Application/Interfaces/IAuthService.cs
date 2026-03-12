@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,5 +21,12 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
         Task SendOtpAsync(CheckUserRequest request);
         Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
+        
+        // --- Credential Updates ---
+        Task RequestEmailUpdateAsync(Guid userId, string newEmail);
+        Task<ServiceResponse<bool>> VerifyEmailUpdateAsync(Guid userId, VerifyCredentialUpdateDto request);
+        Task RequestMobileUpdateAsync(Guid userId, string newMobile);
+        Task<ServiceResponse<bool>> VerifyMobileUpdateAsync(Guid userId, VerifyCredentialUpdateDto request);
+        Task<ServiceResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordDto request);
     }
 }
