@@ -123,22 +123,21 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<TutorzDbContext>();
-        var env = services.GetRequiredService<IWebHostEnvironment>();
 
-        //apply pending migrations and update the schema
+        // any new migrations to the Azure database
         await context.Database.MigrateAsync();
 
-        // Initialize DB (Roles, etc.)
+        // Seeds the initial data (Roles, Admin, etc.)
         DbInitializer.Initialize(context);
 
-        // Run Location Seeder
+        var env = services.GetRequiredService<IWebHostEnvironment>();
         var locationSeeder = new LocationSeeder(context, env);
         await locationSeeder.SeedAsync();
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        logger.LogError(ex, "An error occurred during database update.");
     }
 }
 

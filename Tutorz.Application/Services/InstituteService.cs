@@ -126,15 +126,26 @@ namespace Tutorz.Application.Services
 
             if (dto.ProfilePicture != null)
             {
-                var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
-                    institute.InstituteId,
-                    institute.RegistrationNumber,
-                    "Institute",
-                    dto.ProfilePicture
-                );
+                try
+                {
+                    var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                        institute.InstituteId,
+                        institute.RegistrationNumber,
+                        "Institute",
+                        dto.ProfilePicture
+                    );
 
-                institute.ProfileImageUrlSmall = smallUrl;
-                institute.ProfileImageUrlLarge = largeUrl;
+                    institute.ProfileImageUrlSmall = smallUrl;
+                    institute.ProfileImageUrlLarge = largeUrl;
+                }
+                catch (Exception ex)
+                {
+                    return new ServiceResponse<InstituteProfileDto> 
+                    { 
+                        Success = false, 
+                        Message = $"Failed to upload profile picture: {ex.Message}" 
+                    };
+                }
             }
 
             await _instituteRepository.SaveChangesAsync();
