@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Tutorz.Application.DTOs.Auth;
 using Tutorz.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -21,6 +24,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("register")]
+        [ApiPurpose("Register Account")]
         public async Task<IActionResult> Register(RegisterRequest request)
         {
             try
@@ -40,6 +44,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("login")]
+        [ApiPurpose("User Login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
             try
@@ -54,20 +59,13 @@ namespace Tutorz.Api.Controllers
         }
 
         // --- CHECK USER STATUS ---
-        // Checks if email/phone exists and what role it has
-        // Returns: "NOT_FOUND", "EXISTS_AS_STUDENT", or "EXISTS_OTHER_ROLE"
         [HttpPost("check-status")]
         public async Task<IActionResult> CheckStatus([FromBody] CheckUserRequest request)
         {
-            try
-            {
-                var status = await _authService.CheckUserStatusAsync(request.Identifier);
-                return Ok(new { status });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var result = await _authService.CheckUserStatusAsync(request);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
         }
 
         [HttpPost("send-otp")]
@@ -76,7 +74,7 @@ namespace Tutorz.Api.Controllers
             try
             {
                 // Call the REAL service now
-                await _authService.SendOtpAsync(request.Identifier);
+                await _authService.SendOtpAsync(request);
                 return Ok(new { message = "OTP sent successfully." });
             }
             catch (Exception ex)
@@ -100,7 +98,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 5. REGISTER SIBLING (New Flow Step 3) ---
+        // --- REGISTER SIBLING ---
         // Only called after OTP is verified
         [HttpPost("register-sibling")]
         public async Task<IActionResult> RegisterSibling([FromBody] SiblingRegistrationRequest request)
@@ -117,14 +115,14 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 6. SWITCH PROFILE (For Dashboard) ---
+        // --- SWITCH PROFILE (For Dashboard) ---
         // Allows a logged-in parent to get a new token for a different child
         [HttpPost("switch-profile")]
         public async Task<IActionResult> SwitchProfile([FromBody] SwitchProfileRequest request)
         {
             try
             {
-                // 1. Get current Parent User ID from the valid Token
+                // Get current Parent User ID from the valid Token
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 // Fallback for standard JWT sub claim
                 var subClaim = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
@@ -136,7 +134,7 @@ namespace Tutorz.Api.Controllers
 
                 var userId = Guid.Parse(userIdClaim ?? subClaim);
 
-                // 2. Call Service to validate that this StudentId belongs to this UserId
+                // Call Service to validate that this StudentId belongs to this UserId
                 // and generate a new token
                 var response = await _authService.SwitchProfileAsync(userId, request.StudentId);
                 return Ok(response);
@@ -147,7 +145,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 7. SOCIAL LOGIN ---
+        // --- SOCIAL LOGIN ---
         [HttpPost("social-login")]
         public async Task<IActionResult> SocialLogin(SocialLoginRequest request)
         {
@@ -164,7 +162,7 @@ namespace Tutorz.Api.Controllers
             }
         }
 
-        // --- 8. UTILS (Check Email, Forgot Pass) ---
+        // --- UTILS (Check Email, Forgot Pass) ---
         [HttpGet("check-email")]
         public async Task<IActionResult> CheckEmail([FromQuery] string email)
         {
@@ -184,8 +182,8 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
-                await _authService.ForgotPasswordAsync(request.Email);
-                return Ok(new { message = "If your email is registered, you will receive a reset link." });
+                await _authService.ForgotPasswordAsync(request.Identifier);
+                return Ok(new { message = "If your account exists, you will receive a reset code." });
             }
             catch (Exception ex)
             {
@@ -200,6 +198,136 @@ namespace Tutorz.Api.Controllers
             {
                 await _authService.ResetPasswordAsync(request);
                 return Ok(new { message = "Password reset successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- CREDENTIAL UPDATES (Authenticated) ---
+        [HttpPost("request-email-update")]
+        [Authorize]
+        [ApiPurpose("Request Email Update")]
+        public async Task<IActionResult> RequestEmailUpdate([FromBody] RequestCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                await _authService.RequestEmailUpdateAsync(Guid.Parse(userIdClaim), request.NewIdentifier);
+                return Ok(new { message = "OTP sent to new email." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-email-update")]
+        [Authorize]
+        [ApiPurpose("Verify Email Update")]
+        public async Task<IActionResult> VerifyEmailUpdate([FromBody] VerifyCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.VerifyEmailUpdateAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("request-mobile-update")]
+        [Authorize]
+        [ApiPurpose("Request Mobile Update")]
+        public async Task<IActionResult> RequestMobileUpdate([FromBody] RequestCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                await _authService.RequestMobileUpdateAsync(Guid.Parse(userIdClaim), request.NewIdentifier);
+                return Ok(new { message = "OTP sent to new mobile number." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-mobile-update")]
+        [Authorize]
+        [ApiPurpose("Verify Mobile Update")]
+        public async Task<IActionResult> VerifyMobileUpdate([FromBody] VerifyCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.VerifyMobileUpdateAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        [ApiPurpose("Change Password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.ChangePasswordAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        public class ProfilePictureUploadRequest
+        {
+            public Guid EntityId { get; set; }
+            public string RegistrationNumber { get; set; }
+            public string Role { get; set; }
+            public IFormFile File { get; set; }
+        }
+
+        // --- PROFILE PICTURE UPLOAD ---
+        [HttpPost("profile-picture")]
+        [ApiPurpose("Upload Profile Picture")]
+        public async Task<IActionResult> UploadProfilePicture(
+            [FromForm] ProfilePictureUploadRequest request,
+            [FromServices] IProfilePictureService profilePictureService)
+        {
+            try
+            {
+                var urls = await profilePictureService.UploadProfilePictureAsync(request.EntityId, request.RegistrationNumber, request.Role, request.File);
+                return Ok(new { smallUrl = urls.smallUrl, largeUrl = urls.largeUrl, message = "Profile picture uploaded successfully." });
             }
             catch (Exception ex)
             {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,7 +22,11 @@ namespace Tutorz.Domain.Entities
         public string? BankAccountNumber { get; set; }
         public string? BankName { get; set; }
         public bool IsActive { get; set; } = true;
+        public string? ProfileImageUrlSmall { get; set; }
+        public string? ProfileImageUrlLarge { get; set; }
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
+
+        public virtual ICollection<InstituteTutor> InstituteTutors { get; set; } = new List<InstituteTutor>();
     }
 }

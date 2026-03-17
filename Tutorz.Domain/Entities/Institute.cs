@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Tutorz.Domain.Entities
@@ -16,8 +16,18 @@ namespace Tutorz.Domain.Entities
         public string Address { get; set; }
         public string ContactNumber { get; set; }
         public string? Website { get; set; }
+        public bool IsSmsEnabled { get; set; } = true;
         public bool IsActive { get; set; } = true;
+
+        public string? ProfileImageUrlSmall { get; set; }
+        public string? ProfileImageUrlLarge { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal CommissionPercentage { get; set; } = 0;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedDate { get; set; }
+
+        public virtual ICollection<InstituteStudent> InstituteStudents { get; set; } = new List<InstituteStudent>();
+        public virtual ICollection<InstituteTutor> InstituteTutors { get; set; } = new List<InstituteTutor>();
     }
 }

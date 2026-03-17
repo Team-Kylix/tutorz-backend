@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -29,7 +29,11 @@ namespace Tutorz.Domain.Entities
 
         public DateTime DateOfBirth { get; set; }
 
-        
         public bool IsPrimary { get; set; } = false;
+
+        public string? ProfileImageUrlSmall { get; set; }
+        public string? ProfileImageUrlLarge { get; set; }
+
+        public virtual ICollection<InstituteStudent> InstituteStudents { get; set; } = new List<InstituteStudent>();
     }
 }

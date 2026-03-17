@@ -1,4 +1,5 @@
-﻿
+﻿using System;
+
 namespace Tutorz.Application.DTOs.Auth
 {
     public class RegisterRequest
@@ -19,5 +20,7 @@ namespace Tutorz.Application.DTOs.Auth
         public string? Grade { get; set; }
         public string? ParentName { get; set; }
         public DateTime? DateOfBirth { get; set; }
+        public int? CityId { get; set; }
+        public Guid? InstituteId { get; set; }
     }
 }

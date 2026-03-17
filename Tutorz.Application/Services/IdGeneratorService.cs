@@ -50,7 +50,7 @@ namespace Tutorz.Application.Services
             int nextNumber = await _sequenceRepository.GetNextSequenceNumberAsync(sequenceKey);
 
             // Format (e.g., 00001)
-            string incrementPart = nextNumber.ToString("D5");
+            string incrementPart = nextNumber.ToString("D2");
 
             // Result: STU + 2512 + 00001 => STU251200001
             return $"{rolePrefix}{middlePart}{incrementPart}";

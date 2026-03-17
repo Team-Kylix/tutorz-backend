@@ -10,7 +10,7 @@ namespace Tutorz.Infrastructure.Data
         public static void Initialize(TutorzDbContext context)
         {
             // Ensure Database Exists
-            context.Database.EnsureCreated();
+            //context.Database.EnsureCreated(); When Run database first time, it will create the database and tables based on the models. After that, comment this line to avoid data loss.
 
             // Check if data already exists
             if (context.Users.Any())
@@ -118,7 +118,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor1.TutorId,
-                    InstituteName = "Rotary Hall",
                     ClassType = "Class",
                     Subject = "Combined Maths",
                     Grade = "12",
@@ -134,7 +133,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor1.TutorId,
-                    InstituteName = "Online",
                     ClassType = "Seminar",
                     Subject = "Pure Maths",
                     Grade = "13",
@@ -151,7 +149,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor2.TutorId,
-                    InstituteName = "Sakya",
                     ClassType = "Class",
                     Subject = "Science",
                     Grade = "10",
@@ -167,7 +164,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor2.TutorId,
-                    InstituteName = "Sakya",
                     ClassType = "Workshop",
                     Subject = "Biology",
                     Grade = "11",
