@@ -10,7 +10,7 @@ namespace Tutorz.Infrastructure.Data
         public static void Initialize(TutorzDbContext context)
         {
             // Ensure Database Exists
-            context.Database.EnsureCreated();
+            //context.Database.EnsureCreated(); When Run database first time, it will create the database and tables based on the models. After that, comment this line to avoid data loss.
 
             // Check if data already exists
             if (context.Users.Any())
@@ -28,6 +28,36 @@ namespace Tutorz.Infrastructure.Data
 
             // Use Fully Qualified Name
             string dummyHash = BCrypt.Net.BCrypt.HashPassword("Test@123");
+
+            // ==================================================
+            // 1. ADMIN ACCOUNT (Added)
+            // ==================================================
+            var userAdmin = new User
+            {
+                UserId = Guid.NewGuid(),
+                Email = "admin@tutorz.com",
+                PhoneNumber = "0112223344",
+                PasswordHash = dummyHash, // Password is: Test@123
+                RoleId = roleAdmin.RoleId,
+                IsActive = true
+            };
+
+            // Note: If you have a separate 'Admin' entity/table for profile details (like Tutor/Student),
+            // uncomment the lines below and ensure 'Admins' DbSet exists in your context.
+            /*
+            var adminProfile = new Admin
+            {
+                AdminId = Guid.NewGuid(),
+                UserId = userAdmin.UserId,
+                FirstName = "System",
+                LastName = "Administrator"
+            };
+            context.Admins.Add(adminProfile);
+            */
+
+            // Add Admin to the Users dbset
+            context.Users.Add(userAdmin);
+            // ==================================================
 
             // Tutor 1: John Doe (Maths)
             var userTutor1 = new User
@@ -88,7 +118,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor1.TutorId,
-                    InstituteName = "Rotary Hall",
                     ClassType = "Class",
                     Subject = "Combined Maths",
                     Grade = "12",
@@ -104,7 +133,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor1.TutorId,
-                    InstituteName = "Online",
                     ClassType = "Seminar",
                     Subject = "Pure Maths",
                     Grade = "13",
@@ -121,7 +149,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor2.TutorId,
-                    InstituteName = "Sakya",
                     ClassType = "Class",
                     Subject = "Science",
                     Grade = "10",
@@ -137,7 +164,6 @@ namespace Tutorz.Infrastructure.Data
                 {
                     ClassId = Guid.NewGuid(),
                     TutorId = tutor2.TutorId,
-                    InstituteName = "Sakya",
                     ClassType = "Workshop",
                     Subject = "Biology",
                     Grade = "11",

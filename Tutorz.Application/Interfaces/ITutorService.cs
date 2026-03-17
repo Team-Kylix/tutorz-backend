@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Tutor;
+using Tutorz.Application.DTOs.Institute;
 
 namespace Tutorz.Application.Interfaces
 {
@@ -18,5 +19,13 @@ namespace Tutorz.Application.Interfaces
         Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);
         Task<bool> ProcessStudentRequestsAsync(ProcessRequestDto request);
         Task<StudentFullProfileDto> GetStudentProfileAsync(Guid studentId);
+
+        // Institute Join Requests
+        Task<ServiceResponse<bool>> SendInstituteRequestAsync(Guid tutorId, Guid instituteId);
+        Task<ServiceResponse<IEnumerable<JoinRequestDto>>> GetInstituteRequestsAsync(Guid tutorId);
+        Task<ServiceResponse<bool>> ProcessInstituteRequestAsync(Guid tutorId, Guid requestId, string action);
+
+        // Joined Institutes
+        Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
     }
 }

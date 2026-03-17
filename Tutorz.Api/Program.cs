@@ -8,7 +8,8 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Application.Services;
 using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
-
+using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
+using Tutorz.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -20,17 +21,39 @@ builder.Services.AddDbContext<TutorzDbContext>(options =>
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ICityRepository, CityRepository>();
+builder.Services.AddScoped<IDistrictRepository, DistrictRepository>();
+builder.Services.AddScoped<IProvinceRepository, ProvinceRepository>();
+builder.Services.AddScoped<IInstituteStudentRepository, InstituteStudentRepository>();
+builder.Services.AddScoped<IInstituteTutorRepository, InstituteTutorRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITutorRepository, TutorRepository>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<IInstituteRepository, InstituteRepository>();
+builder.Services.AddScoped<IInstituteJoinRequestRepository, InstituteJoinRequestRepository>();
+builder.Services.AddScoped<IHallRepository, HallRepository>();
 builder.Services.AddScoped<IUserSequenceRepository, UserSequenceRepository>();
 builder.Services.AddScoped<IEmailService, Tutorz.Infrastructure.Services.EmailService>();
+builder.Services.AddHttpClient<ISmsService, Tutorz.Infrastructure.Services.SmsService>();
 builder.Services.AddScoped<IIdGeneratorService, IdGeneratorService>();
+builder.Services.AddScoped<IQrCodeService, QrCodeService>();
 builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
+builder.Services.AddScoped<IInstituteService, InstituteService>();
+builder.Services.AddScoped<IHallService, HallService>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
+builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.PaymentService>();
+builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
+
+// API Usage Tracking Services
+builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
+builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.ApiUsageBatchWorker>();
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.DailyAggregationWorker>();
+builder.Services.AddHostedService<Tutorz.Infrastructure.Services.MonthlyAggregationWorker>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -40,9 +63,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
-                .GetBytes(builder.Configuration["Jwt:Key"])),
-            ValidateIssuer = false, 
-            ValidateAudience = false 
+                .GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing"))),
+            ValidateIssuer = false,
+            ValidateAudience = false
         };
     });
 
@@ -77,14 +100,17 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // DEFINE CORS policy (This belongs with builder.Services)
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "AllowMyReactApp",
                       policy =>
                       {
-                          policy.WithOrigins("http://localhost:5173") 
+                          policy.WithOrigins(allowedOrigins)
                                 .AllowAnyHeader()
-                                .AllowAnyMethod();
+                                .AllowAnyMethod()
+                                .AllowCredentials(); // Often needed for auth apps
                       });
 });
 
@@ -97,18 +123,26 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<TutorzDbContext>();
-        // This will create the Roles (Tutor, Student, etc.) if they don't exist
+
+        // any new migrations to the Azure database
+        await context.Database.MigrateAsync();
+
+        // Seeds the initial data (Roles, Admin, etc.)
         DbInitializer.Initialize(context);
+
+        var env = services.GetRequiredService<IWebHostEnvironment>();
+        var locationSeeder = new LocationSeeder(context, env);
+        await locationSeeder.SeedAsync();
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        logger.LogError(ex, "An error occurred during database update.");
     }
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -117,6 +151,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 
 app.UseCors("AllowMyReactApp");
@@ -124,6 +160,8 @@ app.UseCors("AllowMyReactApp");
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.UseApiUsageTracking();
 
 app.MapControllers();
 app.Run();

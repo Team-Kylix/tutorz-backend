@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace Tutorz.Application.DTOs.Institute
 {
-    internal interface InstituteDto
+    public class InstituteDto
     {
+        public Guid InstituteId { get; set; }
+        public string Name { get; set; }
+        public string? City { get; set; }
     }
 }

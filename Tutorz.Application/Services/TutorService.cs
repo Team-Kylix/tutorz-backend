@@ -7,6 +7,8 @@ using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
 using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.DTOs.Institute;
+using Tutorz.Domain.Enums;
 
 namespace Tutorz.Application.Services
 {
@@ -16,17 +18,23 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<Class> _classRepo; 
         private readonly IStudentRepository _studentRepo;
         private readonly IUserRepository _userRepo;
+        private readonly IInstituteJoinRequestRepository _joinRequestRepo;
+        private readonly IInstituteTutorRepository _instituteTutorRepo;
 
         public TutorService(
             ITutorRepository tutorRepo,
             IGenericRepository<Class> classRepo,
             IStudentRepository studentRepo,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            IInstituteJoinRequestRepository joinRequestRepo,
+            IInstituteTutorRepository instituteTutorRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
             _studentRepo = studentRepo;
             _userRepo = userRepo;
+            _joinRequestRepo = joinRequestRepo;
+            _instituteTutorRepo = instituteTutorRepo;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -77,11 +85,58 @@ namespace Tutorz.Application.Services
                 }
             }
 
+            // ── Hall Conflict Check (same institute, same hall, overlapping time) ──
+            if (request.InstituteId.HasValue && !string.IsNullOrWhiteSpace(request.HallName))
+            {
+                var hallClasses = await _classRepo.GetAllAsync(
+                    c => c.InstituteId == request.InstituteId.Value && c.IsActive &&
+                         c.HallName != null &&
+                         c.HallName.ToLower() == request.HallName.ToLower(),
+                    includeProperties: "Tutor");
+
+                string newHallCheckDay = request.DayOfWeek;
+                if (request.ClassType != "Class" && request.Date.HasValue)
+                    newHallCheckDay = request.Date.Value.DayOfWeek.ToString();
+
+                foreach (var hc in hallClasses)
+                {
+                    bool isHallDayMatch = false;
+
+                    string hcDay = hc.ClassType == "Class"
+                        ? hc.DayOfWeek
+                        : hc.Date.HasValue ? hc.Date.Value.DayOfWeek.ToString() : null;
+
+                    if (request.ClassType == "Class")
+                    {
+                        if (hcDay != null && hcDay.Equals(request.DayOfWeek, StringComparison.OrdinalIgnoreCase))
+                            isHallDayMatch = true;
+                    }
+                    else if (request.Date.HasValue)
+                    {
+                        if (hcDay != null && hcDay.Equals(newHallCheckDay, StringComparison.OrdinalIgnoreCase))
+                            isHallDayMatch = true;
+                    }
+
+                    if (isHallDayMatch)
+                    {
+                        int hcStart = int.Parse(hc.StartTime.Replace(":", ""));
+                        int hcEnd = int.Parse(hc.EndTime.Replace(":", ""));
+
+                        if (newStart < hcEnd && newEnd > hcStart)
+                        {
+                            string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
+                            throw new Exception($"Cannot create class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day.");
+                        }
+                    }
+                }
+            }
+
+
             var newClass = new Class
             {
                 ClassId = Guid.NewGuid(),
                 TutorId = tutor.TutorId,
-                InstituteName = request.InstituteName,
+                    InstituteId = request.InstituteId,
                 ClassType = request.ClassType,
                 Subject = request.Subject,
                 Grade = request.Grade,
@@ -109,7 +164,7 @@ namespace Tutorz.Application.Services
 
             if (existingClass == null) throw new Exception("Class not found or access denied.");
 
-            existingClass.InstituteName = request.InstituteName;
+            existingClass.InstituteId = request.InstituteId;
             existingClass.ClassType = request.ClassType;
             existingClass.Subject = request.Subject;
             existingClass.Grade = request.Grade;
@@ -123,9 +178,55 @@ namespace Tutorz.Application.Services
             existingClass.IsActive = request.IsActive;
             existingClass.UpdatedDate = DateTime.UtcNow;
 
+            // ── Hall Conflict Check on Update (same institute + hall, exclude self) ──
+            if (request.InstituteId.HasValue && !string.IsNullOrWhiteSpace(request.HallName))
+            {
+                int newStart = int.Parse(request.StartTime.Replace(":", ""));
+                int newEnd   = int.Parse(request.EndTime.Replace(":", ""));
+
+                string newHallCheckDay = request.DayOfWeek;
+                if (request.ClassType != "Class" && request.Date.HasValue)
+                    newHallCheckDay = request.Date.Value.DayOfWeek.ToString();
+
+                var hallClasses = await _classRepo.GetAllAsync(
+                    c => c.InstituteId == request.InstituteId.Value &&
+                         c.IsActive &&
+                         c.ClassId != classId &&          // exclude self
+                         c.HallName != null &&
+                         c.HallName.ToLower() == request.HallName.ToLower(),
+                    includeProperties: "Tutor");
+
+                foreach (var hc in hallClasses)
+                {
+                    string hcDay = hc.ClassType == "Class"
+                        ? hc.DayOfWeek
+                        : hc.Date.HasValue ? hc.Date.Value.DayOfWeek.ToString() : null;
+
+                    if (hcDay == null) continue;
+
+                    bool dayMatch = false;
+                    if (request.ClassType == "Class")
+                        dayMatch = hcDay.Equals(request.DayOfWeek, StringComparison.OrdinalIgnoreCase);
+                    else if (request.Date.HasValue)
+                        dayMatch = hcDay.Equals(newHallCheckDay, StringComparison.OrdinalIgnoreCase);
+
+                    if (!dayMatch) continue;
+
+                    int hcStart = int.Parse(hc.StartTime.Replace(":", ""));
+                    int hcEnd   = int.Parse(hc.EndTime.Replace(":", ""));
+
+                    if (newStart < hcEnd && newEnd > hcStart)
+                    {
+                        string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
+                        throw new Exception($"Cannot update class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day.");
+                    }
+                }
+            }
+
             await _classRepo.SaveChangesAsync();
             return MapToDto(existingClass);
         }
+
 
         public async Task DeleteClassAsync(Guid classId, Guid userId)
         {
@@ -150,7 +251,7 @@ namespace Tutorz.Application.Services
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             if (tutor == null) throw new Exception("Tutor profile not found.");
 
-            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId);
+            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute");
 
             return classes.Select(c => MapToDto(c)).ToList();
         }
@@ -259,12 +360,121 @@ namespace Tutorz.Application.Services
             return await _tutorRepo.GetStudentProfileForTutorAsync(studentId);
         }
 
+        public async Task<ServiceResponse<bool>> SendInstituteRequestAsync(Guid userId, Guid instituteId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+            var tutorId = tutor.TutorId;
+
+            var exists = await _instituteTutorRepo.GetAsync(it => it.InstituteId == instituteId && it.TutorId == tutorId);
+            if (exists != null)
+                return new ServiceResponse<bool> { Success = false, Message = "Already assigned to this institute." };
+
+            var pendingRequest = await _joinRequestRepo.GetAsync(r => r.InstituteId == instituteId && r.TutorId == tutorId && r.Status == AssignmentStatus.Pending);
+            if (pendingRequest != null)
+                return new ServiceResponse<bool> { Success = false, Message = "A pending request already exists." };
+
+            await _joinRequestRepo.AddAsync(new InstituteJoinRequest
+            {
+                InstituteId = instituteId,
+                TutorId = tutorId,
+                InitiatedBy = RequestInitiator.User,
+                Status = AssignmentStatus.Pending,
+                RequestedAt = DateTime.UtcNow
+            });
+            await _joinRequestRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Join request sent successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<JoinRequestDto>>> GetInstituteRequestsAsync(Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<IEnumerable<JoinRequestDto>> { Success = false, Message = "Tutor not found." };
+            var tutorId = tutor.TutorId;
+
+            var requests = await _joinRequestRepo.GetAllAsync(
+                r => r.TutorId == tutorId && r.Status == AssignmentStatus.Pending && r.InitiatedBy == RequestInitiator.Institute,
+                includeProperties: "Institute"
+            );
+
+            var dtos = requests.Select(r => new JoinRequestDto
+            {
+                RequestId = r.Id,
+                InstituteId = r.InstituteId,
+                InstituteName = r.Institute != null ? r.Institute.InstituteName : null,
+                TutorId = r.TutorId,
+                Status = r.Status.ToString(),
+                InitiatedBy = r.InitiatedBy.ToString(),
+                RequestedAt = r.RequestedAt
+            });
+
+            return new ServiceResponse<IEnumerable<JoinRequestDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<bool>> ProcessInstituteRequestAsync(Guid userId, Guid requestId, string action)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+            var tutorId = tutor.TutorId;
+
+            var request = await _joinRequestRepo.GetAsync(r => r.Id == requestId && r.TutorId == tutorId);
+            if (request == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Request not found." };
+
+            if (request.Status != AssignmentStatus.Pending)
+                return new ServiceResponse<bool> { Success = false, Message = "Request is already processed." };
+
+            if (action.Equals("Accept", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = AssignmentStatus.Active;
+                request.ProcessedAt = DateTime.UtcNow;
+
+                await _instituteTutorRepo.AddAsync(new InstituteTutor { InstituteId = request.InstituteId, TutorId = tutorId, AssignedDate = DateTime.UtcNow });
+            }
+            else if (action.Equals("Decline", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Status = AssignmentStatus.Declined;
+                request.ProcessedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid action." };
+            }
+
+            await _joinRequestRepo.SaveChangesAsync();
+            await _instituteTutorRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = $"Request {action.ToLower()}ed successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<IEnumerable<InstituteDto>> { Success = false, Message = "Tutor not found." };
+
+            var assignments = await _instituteTutorRepo.GetAllAsync(
+                it => it.TutorId == tutor.TutorId,
+                includeProperties: "Institute,Institute.User,Institute.User.City"
+            );
+
+            var dtos = assignments.Where(a => a.Institute != null).Select(a => new InstituteDto
+            {
+                InstituteId = a.Institute.InstituteId,
+                Name = a.Institute.InstituteName,
+                City = a.Institute.User?.City?.Name
+            });
+
+            return new ServiceResponse<IEnumerable<InstituteDto>> { Success = true, Data = dtos };
+        }
+
         private ClassDto MapToDto(Class entity)
         {
             return new ClassDto
             {
                 ClassId = entity.ClassId,
-                InstituteName = entity.InstituteName,
+                InstituteId = entity.InstituteId,
+                InstituteName = entity.Institute?.InstituteName ?? string.Empty,
                 ClassType = entity.ClassType,
                 Subject = entity.Subject,
                 Grade = entity.Grade,

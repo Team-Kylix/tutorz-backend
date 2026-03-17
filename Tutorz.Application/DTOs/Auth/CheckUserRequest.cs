@@ -9,7 +9,8 @@ namespace Tutorz.Application.DTOs.Auth
 {
     public class CheckUserRequest
     {
-        [Required]
-        public string Identifier { get; set; } // Email or Phone Number
+        public string? Identifier { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
     }
 }

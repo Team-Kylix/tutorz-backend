@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Auth;
+using Tutorz.Application.DTOs.Common;
 
 namespace Tutorz.Application.Interfaces
 {
@@ -13,12 +14,19 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> LoginAsync(LoginRequest request);
         Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request);
         Task<bool> CheckEmailExistsAsync(string email);
-        Task ForgotPasswordAsync(string email);
+        Task ForgotPasswordAsync(string identifier);
         Task ResetPasswordAsync(ResetPasswordRequest request);
-        Task<string> CheckUserStatusAsync(string identifier);
+        Task<ServiceResponse<CheckUserResponse>> CheckUserStatusAsync(CheckUserRequest request);
         Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request);
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
-        Task SendOtpAsync(string identifier);
+        Task SendOtpAsync(CheckUserRequest request);
         Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
+        
+        // --- Credential Updates ---
+        Task RequestEmailUpdateAsync(Guid userId, string newEmail);
+        Task<ServiceResponse<bool>> VerifyEmailUpdateAsync(Guid userId, VerifyCredentialUpdateDto request);
+        Task RequestMobileUpdateAsync(Guid userId, string newMobile);
+        Task<ServiceResponse<bool>> VerifyMobileUpdateAsync(Guid userId, VerifyCredentialUpdateDto request);
+        Task<ServiceResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordDto request);
     }
 }
