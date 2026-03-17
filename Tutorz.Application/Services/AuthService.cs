@@ -1,4 +1,4 @@
-﻿using BCrypt.Net;
+using BCrypt.Net;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -188,7 +188,7 @@ namespace Tutorz.Application.Services
                 {
                     try
                     {
-                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorz.lk/login";
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorz.azurewebsites.net";
                         await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
                     }
                     catch (Exception ex)
@@ -317,7 +317,9 @@ namespace Tutorz.Application.Services
                         StudentId = s.StudentId,
                         FirstName = s.FirstName,
                         Grade = s.Grade,
-                        IsPrimary = s.IsPrimary
+                        IsPrimary = s.IsPrimary,
+                        ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                        ProfileImageUrlLarge = s.ProfileImageUrlLarge
                     }).ToList();
 
                     // Default to Primary, otherwise first available
@@ -341,6 +343,8 @@ namespace Tutorz.Application.Services
             string firstName = null;
             string lastName = null;
             string registrationNumber = null;
+            string profileImageUrlSmall = null;
+            string profileImageUrlLarge = null;
 
             if (role.Name == "Tutor")
             {
@@ -350,6 +354,8 @@ namespace Tutorz.Application.Services
                     firstName = tutor.FirstName;
                     lastName = tutor.LastName;
                     registrationNumber = tutor.RegistrationNumber;
+                    profileImageUrlSmall = tutor.ProfileImageUrlSmall;
+                    profileImageUrlLarge = tutor.ProfileImageUrlLarge;
                 }
             }
             else if (role.Name == "Student" && currentStudentId.HasValue)
@@ -360,6 +366,8 @@ namespace Tutorz.Application.Services
                     firstName = student.FirstName;
                     lastName = student.LastName;
                     registrationNumber = student.RegistrationNumber;
+                    profileImageUrlSmall = student.ProfileImageUrlSmall;
+                    profileImageUrlLarge = student.ProfileImageUrlLarge;
                 }
             }
             else if (role.Name == "Institute")
@@ -370,6 +378,8 @@ namespace Tutorz.Application.Services
                     firstName = institute.InstituteName;
                     lastName = "";
                     registrationNumber = institute.RegistrationNumber;
+                    profileImageUrlSmall = institute.ProfileImageUrlSmall;
+                    profileImageUrlLarge = institute.ProfileImageUrlLarge;
                 }
             }
 
@@ -383,6 +393,8 @@ namespace Tutorz.Application.Services
                 FirstName = firstName,
                 LastName = lastName,
                 RegistrationNumber = registrationNumber,
+                ProfileImageUrlSmall = profileImageUrlSmall,
+                ProfileImageUrlLarge = profileImageUrlLarge,
                 Profiles = profiles
             };
         }
@@ -413,6 +425,8 @@ namespace Tutorz.Application.Services
                 FirstName = student.FirstName,
                 LastName = student.LastName,
                 RegistrationNumber = student.RegistrationNumber,
+                ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = student.ProfileImageUrlLarge,
                 Profiles = new List<StudentProfileDto>()
             };
         }
@@ -556,7 +570,7 @@ namespace Tutorz.Application.Services
                     {
                         try
                         {
-                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorz.lk/login";
+                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorz.azurewebsites.net";
                             await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage, institute.UserId);
                         }
                         catch (Exception ex)
@@ -728,7 +742,9 @@ namespace Tutorz.Application.Services
                             StudentId = s.StudentId,
                             FirstName = s.FirstName,
                             Grade = s.Grade,
-                            IsPrimary = s.IsPrimary
+                            IsPrimary = s.IsPrimary,
+                            ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                            ProfileImageUrlLarge = s.ProfileImageUrlLarge
                         }).ToList();
 
                         var activeStudent = students.FirstOrDefault(s => s.IsPrimary) ?? students.FirstOrDefault();
@@ -750,6 +766,8 @@ namespace Tutorz.Application.Services
             string firstName = null;
             string lastName = null;
             string registrationNumber = null;
+            string profileImageUrlSmall = null;
+            string profileImageUrlLarge = null;
 
             if (roleName == "Tutor")
             {
@@ -759,6 +777,8 @@ namespace Tutorz.Application.Services
                     firstName = tutor.FirstName;
                     lastName = tutor.LastName;
                     registrationNumber = tutor.RegistrationNumber;
+                    profileImageUrlSmall = tutor.ProfileImageUrlSmall;
+                    profileImageUrlLarge = tutor.ProfileImageUrlLarge;
                 }
             }
             else if (roleName == "Student" && currentStudentId.HasValue)
@@ -769,6 +789,8 @@ namespace Tutorz.Application.Services
                     firstName = student.FirstName;
                     lastName = student.LastName;
                     registrationNumber = student.RegistrationNumber;
+                    profileImageUrlSmall = student.ProfileImageUrlSmall;
+                    profileImageUrlLarge = student.ProfileImageUrlLarge;
                 }
             }
             else if (roleName == "Institute")
@@ -779,6 +801,8 @@ namespace Tutorz.Application.Services
                     firstName = institute.InstituteName;
                     lastName = "";
                     registrationNumber = institute.RegistrationNumber;
+                    profileImageUrlSmall = institute.ProfileImageUrlSmall;
+                    profileImageUrlLarge = institute.ProfileImageUrlLarge;
                 }
             }
 
@@ -792,6 +816,8 @@ namespace Tutorz.Application.Services
                 FirstName = firstName,
                 LastName = lastName,
                 RegistrationNumber = registrationNumber,
+                ProfileImageUrlSmall = profileImageUrlSmall,
+                ProfileImageUrlLarge = profileImageUrlLarge,
                 Profiles = profiles
             };
         }
@@ -859,7 +885,7 @@ namespace Tutorz.Application.Services
 
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorz.lk/login"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorz.azurewebsites.net"); } catch { }
             }
         }
 
@@ -912,7 +938,7 @@ namespace Tutorz.Application.Services
 
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorz.lk/login"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorz.azurewebsites.net"); } catch { }
             }
         }
 
@@ -967,6 +993,92 @@ namespace Tutorz.Application.Services
             user.ResetTokenExpires = null;
 
             await _userRepository.SaveChangesAsync();
+        }
+
+        // --- CREDENTIAL UPDATES ---
+        public async Task RequestEmailUpdateAsync(Guid userId, string newEmail)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) throw new Exception("User not found.");
+
+            if (await _userRepository.GetAsync(u => u.Email == newEmail && u.UserId != userId) != null)
+                throw new Exception("This email is already in use by another account.");
+
+            string otp = new Random().Next(100000, 999999).ToString();
+            user.OtpCode = otp;
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
+            await _userRepository.SaveChangesAsync();
+
+            string subject = "Tutorz Email Update Verification";
+            string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your new email address.</p>";
+            try { _emailService.SendEmail(newEmail, subject, body); } catch { }
+        }
+
+        public async Task<ServiceResponse<bool>> VerifyEmailUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (user.OtpCode != request.Otp || user.OtpExpires < DateTime.UtcNow)
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid or expired OTP." };
+
+            user.Email = request.NewIdentifier;
+            user.OtpCode = null;
+            user.OtpExpires = null;
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Email updated successfully.", Data = true };
+        }
+
+        public async Task RequestMobileUpdateAsync(Guid userId, string newMobile)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) throw new Exception("User not found.");
+
+            string cleanPhone = NormalizePhone(newMobile);
+
+            if (await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone && u.UserId != userId) != null)
+                throw new Exception("This mobile number is already in use by another account.");
+
+            string otp = new Random().Next(100000, 999999).ToString();
+            user.OtpCode = otp;
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
+            await _userRepository.SaveChangesAsync();
+
+            try { await _smsService.SendSmsAsync(cleanPhone, $"Your Tutorz Verification Code is {otp}", userId); } catch { }
+        }
+
+        public async Task<ServiceResponse<bool>> VerifyMobileUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (user.OtpCode != request.Otp || user.OtpExpires < DateTime.UtcNow)
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid or expired OTP." };
+
+            user.PhoneNumber = NormalizePhone(request.NewIdentifier);
+            user.OtpCode = null;
+            user.OtpExpires = null;
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Mobile number updated successfully.", Data = true };
+        }
+
+        public async Task<ServiceResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordDto request)
+        {
+            if (request.NewPassword.Length < 6 || request.NewPassword.Length > 10)
+                return new ServiceResponse<bool> { Success = false, Message = "New password must be between 6 and 10 characters." };
+
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return new ServiceResponse<bool> { Success = false, Message = "Incorrect current password." };
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Password changed successfully.", Data = true };
         }
 
         // Private helper for Google

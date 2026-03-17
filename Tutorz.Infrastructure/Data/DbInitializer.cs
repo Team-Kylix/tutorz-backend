@@ -10,7 +10,7 @@ namespace Tutorz.Infrastructure.Data
         public static void Initialize(TutorzDbContext context)
         {
             // Ensure Database Exists
-            context.Database.EnsureCreated();
+            //context.Database.EnsureCreated(); When Run database first time, it will create the database and tables based on the models. After that, comment this line to avoid data loss.
 
             // Check if data already exists
             if (context.Users.Any())

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
@@ -49,7 +49,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPut("profile")]
         [ApiPurpose("Update Institute Profile")]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateInstituteProfileDto dto)
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateInstituteProfileDto dto)
         {
             var idString = User.FindFirst("InstituteId")?.Value;
 
@@ -377,14 +377,21 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
-        [HttpGet("attendance/class-history/{classId}")]
+        [HttpGet("attendance/history")]
         [ApiPurpose("Get Class Attendance History")]
-        public async Task<IActionResult> GetClassAttendanceHistory(Guid classId, [FromQuery] int? month, [FromQuery] int? year, [FromQuery] string? searchQuery)
+        public async Task<IActionResult> GetClassAttendanceHistory(
+            [FromQuery] Guid? tutorId, 
+            [FromQuery] Guid? classId, 
+            [FromQuery] int? month, 
+            [FromQuery] int? year, 
+            [FromQuery] string? searchQuery,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             var instituteId = GetInstituteIdFromToken();
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
-            var result = await _instituteService.GetClassAttendanceHistoryAsync(instituteId, classId, year, month, searchQuery);
+            var result = await _instituteService.GetClassAttendanceHistoryAsync(instituteId, tutorId, classId, year, month, searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -397,6 +404,32 @@ namespace Tutorz.Api.Controllers
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
             var result = await _instituteService.GetClassesByDateAsync(instituteId, date);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        // --- REVENUE & SETTINGS ---
+
+        [HttpGet("revenue")]
+        [ApiPurpose("Get Revenue Summary")]
+        public async Task<IActionResult> GetRevenueSummary()
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.GetRevenueSummaryAsync(instituteId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPut("settings/commission")]
+        [ApiPurpose("Update Commission Percentage")]
+        public async Task<IActionResult> UpdateCommission([FromBody] UpdateCommissionRequest request)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.UpdateCommissionAsync(instituteId, request.CommissionPercentage);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

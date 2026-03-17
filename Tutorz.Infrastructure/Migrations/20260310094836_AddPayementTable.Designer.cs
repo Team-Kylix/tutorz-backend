@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310094836_AddPayementTable")]
+    partial class AddPayementTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -401,12 +404,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<bool>("IsSmsEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<string>("ProfileImageUrlLarge")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProfileImageUrlSmall")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("RegistrationNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -616,12 +613,6 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProfileImageUrlLarge")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProfileImageUrlSmall")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("RegistrationNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -671,12 +662,6 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("LastName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProfileImageUrlLarge")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ProfileImageUrlSmall")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RegistrationNumber")

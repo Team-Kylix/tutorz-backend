@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,6 +27,10 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<Class> _classRepository;
         private readonly IGenericRepository<Enrollment> _enrollmentRepository;
         private readonly IAttendanceRepository _attendanceRepository;
+        private readonly IClassPaymentRepository _classPaymentRepository;
+        private readonly IProfilePictureService _profilePictureService;
+        private readonly IGenericRepository<City> _cityRepository;
+        private readonly IGenericRepository<District> _districtRepository;
 
         public InstituteService(
             IInstituteRepository instituteRepository,
@@ -38,7 +42,11 @@ namespace Tutorz.Application.Services
             IInstituteJoinRequestRepository joinRequestRepository,
             IGenericRepository<Class> classRepository,
             IGenericRepository<Enrollment> enrollmentRepository,
-            IAttendanceRepository attendanceRepository)
+            IAttendanceRepository attendanceRepository,
+            IClassPaymentRepository classPaymentRepository,
+            IProfilePictureService profilePictureService,
+            IGenericRepository<City> cityRepository,
+            IGenericRepository<District> districtRepository)
         {
             _instituteRepository = instituteRepository;
             _studentRepository = studentRepository;
@@ -50,6 +58,10 @@ namespace Tutorz.Application.Services
             _classRepository = classRepository;
             _enrollmentRepository = enrollmentRepository;
             _attendanceRepository = attendanceRepository;
+            _classPaymentRepository = classPaymentRepository;
+            _profilePictureService = profilePictureService;
+            _cityRepository = cityRepository;
+            _districtRepository = districtRepository;
         }
 
         public async Task<ServiceResponse<InstituteProfileDto>> GetProfileAsync(Guid instituteId)
@@ -73,8 +85,25 @@ namespace Tutorz.Application.Services
                 Website = institute.Website,
                 Email = (institute.User != null) ? institute.User.Email : "",
                 CityId = (institute.User != null) ? institute.User.CityId : null,
-                IsSmsEnabled = institute.IsSmsEnabled
+                IsSmsEnabled = institute.IsSmsEnabled,
+                CommissionPercentage = institute.CommissionPercentage,
+                ProfileImageUrlSmall = institute.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = institute.ProfileImageUrlLarge
             };
+
+            if (dto.CityId.HasValue)
+            {
+                var city = await _cityRepository.GetAsync(c => c.Id == dto.CityId.Value);
+                if (city != null)
+                {
+                    dto.DistrictId = city.DistrictId;
+                    var district = await _districtRepository.GetAsync(d => d.Id == city.DistrictId);
+                    if (district != null)
+                    {
+                        dto.ProvinceId = district.ProvinceId;
+                    }
+                }
+            }
 
             return new ServiceResponse<InstituteProfileDto> { Success = true, Data = dto };
         }
@@ -95,9 +124,43 @@ namespace Tutorz.Application.Services
             institute.IsSmsEnabled = dto.IsSmsEnabled;
             institute.UpdatedDate = DateTime.UtcNow;
 
+            if (dto.ProfilePicture != null)
+            {
+                try
+                {
+                    var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                        institute.InstituteId,
+                        institute.RegistrationNumber,
+                        "Institute",
+                        dto.ProfilePicture
+                    );
+
+                    institute.ProfileImageUrlSmall = smallUrl;
+                    institute.ProfileImageUrlLarge = largeUrl;
+                }
+                catch (Exception ex)
+                {
+                    return new ServiceResponse<InstituteProfileDto> 
+                    { 
+                        Success = false, 
+                        Message = $"Failed to upload profile picture: {ex.Message}" 
+                    };
+                }
+            }
+
             await _instituteRepository.SaveChangesAsync();
 
-            
+            // Update user City location if provided
+            if (dto.CityId.HasValue && institute.UserId != Guid.Empty)
+            {
+                var user = await _userRepository.GetAsync(u => u.UserId == institute.UserId);
+                if (user != null)
+                {
+                    user.CityId = dto.CityId;
+                    await _userRepository.SaveChangesAsync();
+                }
+            }
+
             return await GetProfileAsync(institute.InstituteId);
         }
 
@@ -435,7 +498,8 @@ namespace Tutorz.Application.Services
                     ExperienceYears = tutor.ExperienceYears,
                     Email = user?.Email,
                     PhoneNumber = user?.PhoneNumber,
-                    ProfileImageUrl = user?.QrCodeUrl, // Or actual profile image
+                    ProfileImageUrlSmall = tutor.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = tutor.ProfileImageUrlLarge,
                     RegistrationNumber = tutor.RegistrationNumber
                 });
             }
@@ -1016,39 +1080,60 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student instantly enrolled successfully." };
         }
 
-        public async Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(Guid instituteId, Guid classId, int? year, int? month, string? searchQuery)
+        public async Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(
+            Guid instituteId, Guid? tutorId, Guid? classId, int? year, int? month, string? searchQuery, int page = 1, int pageSize = 10)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Institute not found." };
 
-            var instituteClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
-            if (instituteClass == null)
-                return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Class not found or does not belong to this institute." };
+            List<Class> targetClasses = new List<Class>();
 
-            // Fetch Attendances for the class and institute
-            var attendances = await _attendanceRepository.GetAllAsync(a => a.ClassId == classId && a.InstituteId == institute.InstituteId);
+            if (classId.HasValue && classId.Value != Guid.Empty)
+            {
+                var instituteClass = await _classRepository.GetAsync(c => c.ClassId == classId.Value && c.InstituteId == institute.InstituteId);
+                if (instituteClass == null)
+                    return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Class not found or does not belong to this institute." };
+                targetClasses.Add(instituteClass);
+            }
+            else if (tutorId.HasValue && tutorId.Value != Guid.Empty)
+            {
+                var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.TutorId == tutorId.Value);
+                if (!classes.Any())
+                    return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "No classes found for this tutor." };
+                targetClasses.AddRange(classes);
+            }
+            else
+            {
+                return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Please select a tutor or class." };
+            }
+
+            var classIds = targetClasses.Select(c => c.ClassId).ToList();
+
+            // Fetch Attendances for the identified classes
+            var attendancesQuery = await _attendanceRepository.GetAllAsync(a => classIds.Contains(a.ClassId) && a.InstituteId == institute.InstituteId);
             
             if (year.HasValue)
-                attendances = attendances.Where(a => a.Date.Year == year.Value);
+                attendancesQuery = attendancesQuery.Where(a => a.Date.Year == year.Value);
             if (month.HasValue)
-                attendances = attendances.Where(a => a.Date.Month == month.Value);
+                attendancesQuery = attendancesQuery.Where(a => a.Date.Month == month.Value);
             
-            var attendancesList = attendances.ToList();
+            var attendancesList = attendancesQuery.ToList();
             var distinctDates = attendancesList.Select(a => a.Date.Date).Distinct().OrderBy(d => d).ToList();
 
-            // Fetch Enrollments for the class
-            var enrollments = await _enrollmentRepository.GetAllAsync(e => e.ClassId == classId && e.Status == EnrollmentStatus.Approved, includeProperties: "Student");
-            var students = enrollments.Select(e => e.Student).ToList();
+            // Fetch Enrollments to get students
+            var enrollments = await _enrollmentRepository.GetAllAsync(e => classIds.Contains(e.ClassId) && e.Status == EnrollmentStatus.Approved, includeProperties: "Student");
+            var distinctStudents = enrollments.Select(e => e.Student).GroupBy(s => s.StudentId).Select(g => g.First()).ToList();
 
             // Fetch User details for students (for email/phone search)
-            var userIds = students.Select(s => s.UserId).Distinct().ToList();
+            var userIds = distinctStudents.Select(s => s.UserId).Distinct().ToList();
             var allUsersQuery = await _userRepository.GetAllAsync();
             var userDict = allUsersQuery.Where(u => userIds.Contains(u.UserId)).ToDictionary(u => u.UserId);
 
-            var rowDtos = new List<StudentAttendanceRowDto>();
+            // Filter Students
+            var matchedStudents = new List<Student>();
 
-            foreach (var student in students)
+            foreach (var student in distinctStudents)
             {
                 userDict.TryGetValue(student.UserId, out var user);
                 string phone = user?.PhoneNumber ?? "";
@@ -1070,30 +1155,75 @@ namespace Tutorz.Application.Services
 
                 if (isMatch)
                 {
-                    var studentAttendances = attendancesList.Where(a => a.StudentId == student.StudentId).ToList();
-                    var attendanceRecord = new Dictionary<DateTime, bool>();
+                    matchedStudents.Add(student);
+                }
+            }
 
-                    foreach (var date in distinctDates)
-                    {
-                        var record = studentAttendances.FirstOrDefault(a => a.Date.Date == date);
-                        attendanceRecord[date] = record != null && record.IsPresent;
-                    }
+            // Pagination
+            int totalCount = matchedStudents.Count;
+            var pagedStudents = matchedStudents
+                .OrderBy(s => s.FirstName)
+                .ThenBy(s => s.LastName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
 
-                    rowDtos.Add(new StudentAttendanceRowDto
-                    {
-                        StudentId = student.StudentId,
-                        Name = $"{student.FirstName} {student.LastName}".Trim(),
-                        RegistrationNumber = student.RegistrationNumber ?? "",
-                        MobileNumber = phone,
-                        AttendanceRecord = attendanceRecord
-                    });
+            var rowDtos = new List<StudentAttendanceRowDto>();
+
+            foreach (var student in pagedStudents)
+            {
+                userDict.TryGetValue(student.UserId, out var user);
+                string phone = user?.PhoneNumber ?? "";
+
+                var studentAttendances = attendancesList.Where(a => a.StudentId == student.StudentId).ToList();
+                var attendanceRecord = new Dictionary<DateTime, bool>();
+
+                foreach (var date in distinctDates)
+                {
+                    var record = studentAttendances.FirstOrDefault(a => a.Date.Date == date);
+                    attendanceRecord[date] = record != null && record.IsPresent;
+                }
+
+                rowDtos.Add(new StudentAttendanceRowDto
+                {
+                    StudentId = student.StudentId,
+                    Name = $"{student.FirstName} {student.LastName}".Trim(),
+                    RegistrationNumber = student.RegistrationNumber ?? "",
+                    MobileNumber = phone,
+                    AttendanceRecord = attendanceRecord
+                });
+            }
+
+            // --- Summary Statistics Calculation ---
+            var matchedStudentIds = matchedStudents.Select(s => s.StudentId).ToList();
+            
+            // Total Received: Sum of payments for these students in these classes within the period
+            decimal totalReceived = await _classPaymentRepository.GetTotalReceivedAsync(classIds, matchedStudentIds, year, month);
+
+            // Total Due: Sum of monthly fees for these students in their respective filtered classes
+            // We'll use the enrollments list we already have to sum the fees of 'targetClasses' for 'matchedStudents'
+            decimal totalDue = 0;
+            if (year.HasValue || month.HasValue)
+            {
+                // Only calculate 'Due' if we have a specific time period context
+                var relevantEnrollments = enrollments.Where(e => matchedStudentIds.Contains(e.StudentId)).ToList();
+                foreach (var enrollment in relevantEnrollments)
+                {
+                    var cls = targetClasses.FirstOrDefault(c => c.ClassId == enrollment.ClassId);
+                    if (cls != null) totalDue += cls.Fee;
                 }
             }
 
             var responseDto = new AttendanceHistoryResponseDto
             {
                 ConductedDates = distinctDates,
-                Students = rowDtos.OrderBy(s => s.Name).ToList()
+                Students = rowDtos,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalStudentCount = totalCount,
+                TotalReceived = totalReceived,
+                TotalDue = totalDue
             };
 
             return new ServiceResponse<AttendanceHistoryResponseDto> { Success = true, Data = responseDto };
@@ -1138,6 +1268,61 @@ namespace Tutorz.Application.Services
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<RevenueSummaryDto>> GetRevenueSummaryAsync(Guid instituteId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<RevenueSummaryDto> { Success = false, Message = "Institute not found." };
+
+            // Fetch all active classes for this institute
+            var classes = await _classRepository.GetAllAsync(
+                c => c.InstituteId == institute.InstituteId && c.IsActive);
+
+            decimal totalGross = 0m;
+
+            foreach (var cls in classes)
+            {
+                // Count only approved (active) enrollments for this class
+                var enrollments = await _enrollmentRepository.GetAllAsync(
+                    e => e.ClassId == cls.ClassId && e.Status == EnrollmentStatus.Approved);
+
+                totalGross += cls.Fee * enrollments.Count();
+            }
+
+            // Payment tracking not yet implemented — TotalReceived is always 0
+            decimal totalReceived = 0m;
+            decimal netRevenue = totalGross * (institute.CommissionPercentage / 100m);
+            decimal totalDue = totalGross - totalReceived;
+
+            var dto = new RevenueSummaryDto
+            {
+                TotalGrossRevenue = totalGross,
+                InstituteNetRevenue = netRevenue,
+                TotalReceived = totalReceived,
+                TotalDue = totalDue,
+                CommissionPercentage = institute.CommissionPercentage
+            };
+
+            return new ServiceResponse<RevenueSummaryDto> { Success = true, Data = dto };
+        }
+
+        public async Task<ServiceResponse<bool>> UpdateCommissionAsync(Guid instituteId, decimal percentage)
+        {
+            if (percentage < 0 || percentage > 100)
+                return new ServiceResponse<bool> { Success = false, Message = "Commission percentage must be between 0 and 100." };
+
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            institute.CommissionPercentage = percentage;
+            institute.UpdatedDate = DateTime.UtcNow;
+
+            await _instituteRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Commission percentage updated successfully." };
         }
     }
 }

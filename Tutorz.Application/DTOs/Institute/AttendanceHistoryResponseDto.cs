@@ -21,5 +21,15 @@ namespace Tutorz.Application.DTOs.Institute
         
         // Rows of student attendance
         public List<StudentAttendanceRowDto> Students { get; set; } = new List<StudentAttendanceRowDto>();
+
+        // Pagination metadata
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+
+        // --- Summary Statistics ---
+        public decimal TotalReceived { get; set; }
+        public decimal TotalDue { get; set; }
+        public int TotalStudentCount { get; set; }
     }
 }

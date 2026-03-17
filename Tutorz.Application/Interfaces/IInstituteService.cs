@@ -42,6 +42,11 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId);
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetClassesByDateAsync(Guid instituteId, DateTime date);
         Task<ServiceResponse<bool>> InstantEnrollStudentAsync(Guid instituteId, Guid studentId, Guid classId);
-        Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(Guid instituteId, Guid classId, int? year, int? month, string? searchQuery);
+        Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(
+            Guid instituteId, Guid? tutorId, Guid? classId, int? year, int? month, string? searchQuery, int page = 1, int pageSize = 10);
+
+        // Revenue & Commission
+        Task<ServiceResponse<RevenueSummaryDto>> GetRevenueSummaryAsync(Guid instituteId);
+        Task<ServiceResponse<bool>> UpdateCommissionAsync(Guid instituteId, decimal percentage);
     }
 }

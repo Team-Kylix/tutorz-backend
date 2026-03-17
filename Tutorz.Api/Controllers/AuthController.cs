@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Tutorz.Application.DTOs.Auth;
 using Tutorz.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
@@ -196,6 +198,136 @@ namespace Tutorz.Api.Controllers
             {
                 await _authService.ResetPasswordAsync(request);
                 return Ok(new { message = "Password reset successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // --- CREDENTIAL UPDATES (Authenticated) ---
+        [HttpPost("request-email-update")]
+        [Authorize]
+        [ApiPurpose("Request Email Update")]
+        public async Task<IActionResult> RequestEmailUpdate([FromBody] RequestCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                await _authService.RequestEmailUpdateAsync(Guid.Parse(userIdClaim), request.NewIdentifier);
+                return Ok(new { message = "OTP sent to new email." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-email-update")]
+        [Authorize]
+        [ApiPurpose("Verify Email Update")]
+        public async Task<IActionResult> VerifyEmailUpdate([FromBody] VerifyCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.VerifyEmailUpdateAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("request-mobile-update")]
+        [Authorize]
+        [ApiPurpose("Request Mobile Update")]
+        public async Task<IActionResult> RequestMobileUpdate([FromBody] RequestCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                await _authService.RequestMobileUpdateAsync(Guid.Parse(userIdClaim), request.NewIdentifier);
+                return Ok(new { message = "OTP sent to new mobile number." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-mobile-update")]
+        [Authorize]
+        [ApiPurpose("Verify Mobile Update")]
+        public async Task<IActionResult> VerifyMobileUpdate([FromBody] VerifyCredentialUpdateDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.VerifyMobileUpdateAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        [ApiPurpose("Change Password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+                var result = await _authService.ChangePasswordAsync(Guid.Parse(userIdClaim), request);
+                if (!result.Success) return BadRequest(new { message = result.Message });
+                return Ok(new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        public class ProfilePictureUploadRequest
+        {
+            public Guid EntityId { get; set; }
+            public string RegistrationNumber { get; set; }
+            public string Role { get; set; }
+            public IFormFile File { get; set; }
+        }
+
+        // --- PROFILE PICTURE UPLOAD ---
+        [HttpPost("profile-picture")]
+        [ApiPurpose("Upload Profile Picture")]
+        public async Task<IActionResult> UploadProfilePicture(
+            [FromForm] ProfilePictureUploadRequest request,
+            [FromServices] IProfilePictureService profilePictureService)
+        {
+            try
+            {
+                var urls = await profilePictureService.UploadProfilePictureAsync(request.EntityId, request.RegistrationNumber, request.Role, request.File);
+                return Ok(new { smallUrl = urls.smallUrl, largeUrl = urls.largeUrl, message = "Profile picture uploaded successfully." });
             }
             catch (Exception ex)
             {

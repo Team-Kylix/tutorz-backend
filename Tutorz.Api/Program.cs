@@ -44,6 +44,9 @@ builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IInstituteService, InstituteService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
+builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.PaymentService>();
+builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
 
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
@@ -120,19 +123,21 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<TutorzDbContext>();
-        var env = services.GetRequiredService<IWebHostEnvironment>();
 
-        // Initialize DB (Roles, etc.)
+        // any new migrations to the Azure database
+        await context.Database.MigrateAsync();
+
+        // Seeds the initial data (Roles, Admin, etc.)
         DbInitializer.Initialize(context);
 
-        // Run Location Seeder
+        var env = services.GetRequiredService<IWebHostEnvironment>();
         var locationSeeder = new LocationSeeder(context, env);
         await locationSeeder.SeedAsync();
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        logger.LogError(ex, "An error occurred during database update.");
     }
 }
 
