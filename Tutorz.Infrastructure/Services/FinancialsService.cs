@@ -296,21 +296,17 @@ namespace Tutorz.Infrastructure.Services
             bool hasBankDetails = t.EncryptedAccountNumber != null;
             return new FinancialSummaryDto
             {
-                HasBankDetails     = hasBankDetails,
+                HasBankDetails      = hasBankDetails,
                 MaskedAccountNumber = t.MaskedAccountNumber,
-                // Safe to decrypt bank name for display (not account number)
-                BankName           = hasBankDetails && t.EncryptedBankName != null
-                                     ? _enc.Decrypt(t.EncryptedBankName) : null,
-                BranchName         = hasBankDetails && t.EncryptedBranchName != null
-                                     ? _enc.Decrypt(t.EncryptedBranchName) : null,
-                AccountHolderName  = hasBankDetails && t.EncryptedAccountHolderName != null
-                                     ? _enc.Decrypt(t.EncryptedAccountHolderName) : null,
-                BankCode           = t.BankCode,
-                BranchCode         = t.BranchCode,
-                HasCard            = t.PayHereToken != null,
-                CardLast4          = t.CardLast4,
-                CardBrand          = t.CardBrand,
-                CardholderName     = t.CardholderName
+                BankName            = hasBankDetails ? SafeDecrypt(t.EncryptedBankName) : null,
+                BranchName          = hasBankDetails ? SafeDecrypt(t.EncryptedBranchName) : null,
+                AccountHolderName   = hasBankDetails ? SafeDecrypt(t.EncryptedAccountHolderName) : null,
+                BankCode            = t.BankCode,
+                BranchCode          = t.BranchCode,
+                HasCard             = t.PayHereToken != null,
+                CardLast4           = t.CardLast4,
+                CardBrand           = t.CardBrand,
+                CardholderName      = t.CardholderName
             };
         }
 
@@ -321,12 +317,9 @@ namespace Tutorz.Infrastructure.Services
             {
                 HasBankDetails      = hasBankDetails,
                 MaskedAccountNumber = i.MaskedAccountNumber,
-                BankName            = hasBankDetails && i.EncryptedBankName != null
-                                      ? _enc.Decrypt(i.EncryptedBankName) : null,
-                BranchName          = hasBankDetails && i.EncryptedBranchName != null
-                                      ? _enc.Decrypt(i.EncryptedBranchName) : null,
-                AccountHolderName   = hasBankDetails && i.EncryptedAccountHolderName != null
-                                      ? _enc.Decrypt(i.EncryptedAccountHolderName) : null,
+                BankName            = hasBankDetails ? SafeDecrypt(i.EncryptedBankName) : null,
+                BranchName          = hasBankDetails ? SafeDecrypt(i.EncryptedBranchName) : null,
+                AccountHolderName   = hasBankDetails ? SafeDecrypt(i.EncryptedAccountHolderName) : null,
                 BankCode            = i.BankCode,
                 BranchCode          = i.BranchCode,
                 HasCard             = i.PayHereToken != null,
@@ -334,6 +327,17 @@ namespace Tutorz.Infrastructure.Services
                 CardBrand           = i.CardBrand,
                 CardholderName      = i.CardholderName
             };
+        }
+
+        /// <summary>
+        /// Decrypts a ciphertext, returning null (instead of throwing) if the value is
+        /// null/empty or if decryption fails (e.g. wrong key, legacy plain-text value).
+        /// </summary>
+        private string? SafeDecrypt(string? cipherText)
+        {
+            if (string.IsNullOrEmpty(cipherText)) return null;
+            var result = _enc.Decrypt(cipherText);
+            return string.IsNullOrEmpty(result) ? null : result;
         }
 
         private static void ClearBankFields(Tutorz.Domain.Entities.Tutor t)

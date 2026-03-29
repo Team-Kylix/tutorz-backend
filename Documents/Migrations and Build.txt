@@ -1,0 +1,9 @@
+dotnet publish Tutorz.Api/Tutorz.Api.csproj -c Release -o ./publish
+
+Add-Migration [Name]
+Creates a new migration script based on changes in your DbContext and entities.
+Example: Add-Migration InitialCreate
+
+Update-Database
+Applies any pending migrations to your SQL Server database.
+Example: Update-Database -TargetMigration "MigrationName" (to roll back or move to a specific version).

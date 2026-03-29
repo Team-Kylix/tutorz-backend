@@ -60,22 +60,43 @@ namespace Tutorz.Infrastructure.Services
         {
             if (string.IsNullOrEmpty(cipherText)) return string.Empty;
 
-            var fullBytes = Convert.FromBase64String(cipherText);
+            try
+            {
+                var fullBytes = Convert.FromBase64String(cipherText);
 
-            using var aes = Aes.Create();
-            aes.Key = _key;
+                // Must have at least 17 bytes: 16 IV + 1 byte ciphertext
+                if (fullBytes.Length <= 16)
+                    return string.Empty;
 
-            // Extract prepended IV (first 16 bytes)
-            var iv = new byte[16];
-            Array.Copy(fullBytes, 0, iv, 0, iv.Length);
-            aes.IV = iv;
+                using var aes = Aes.Create();
+                aes.Key = _key;
 
-            using var decryptor = aes.CreateDecryptor();
-            using var ms = new MemoryStream(fullBytes, iv.Length, fullBytes.Length - iv.Length);
-            using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
-            using var sr = new StreamReader(cs);
+                // Extract prepended IV (first 16 bytes)
+                var iv = new byte[16];
+                Array.Copy(fullBytes, 0, iv, 0, iv.Length);
+                aes.IV = iv;
 
-            return sr.ReadToEnd();
+                using var decryptor = aes.CreateDecryptor();
+                using var ms = new MemoryStream(fullBytes, iv.Length, fullBytes.Length - iv.Length);
+                using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
+                using var sr = new StreamReader(cs);
+
+                return sr.ReadToEnd();
+            }
+            catch (FormatException)
+            {
+                // Input was not valid Base64
+                return string.Empty;
+            }
+            catch (CryptographicException)
+            {
+                // Wrong key, corrupt padding, or truncated ciphertext
+                return string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
         }
 
         public string Mask(string value, int visibleChars = 4)
