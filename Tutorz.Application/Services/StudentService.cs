@@ -14,11 +14,23 @@ namespace Tutorz.Application.Services
     public class StudentService : IStudentService
     {
         private readonly IStudentRepository _studentRepo;
+        private readonly IUserRepository _userRepo;
+        private readonly IProfilePictureService _profilePictureService;
+        private readonly IGenericRepository<City> _cityRepo;
+        private readonly IGenericRepository<District> _districtRepo;
 
-
-        public StudentService(IStudentRepository studentRepo)
+        public StudentService(
+            IStudentRepository studentRepo,
+            IUserRepository userRepo,
+            IProfilePictureService profilePictureService,
+            IGenericRepository<City> cityRepo,
+            IGenericRepository<District> districtRepo)
         {
             _studentRepo = studentRepo;
+            _userRepo = userRepo;
+            _profilePictureService = profilePictureService;
+            _cityRepo = cityRepo;
+            _districtRepo = districtRepo;
         }
 
         public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string grade, string searchTerm)
@@ -89,9 +101,26 @@ namespace Tutorz.Application.Services
                 DateOfBirth = student.DateOfBirth,
                 RegistrationNumber = student.RegistrationNumber,
                 Email = student.User?.Email ?? "",
+                PhoneNumber = student.User?.PhoneNumber ?? "",
                 ProfileImageUrlSmall = student.ProfileImageUrlSmall,
-                ProfileImageUrlLarge = student.ProfileImageUrlLarge
+                ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+                Address = student.Address,
+                CityId = student.User?.CityId
             };
+
+            if (dto.CityId.HasValue)
+            {
+                var city = await _cityRepo.GetAsync(c => c.Id == dto.CityId.Value);
+                if (city != null)
+                {
+                    dto.DistrictId = city.DistrictId;
+                    var district = await _districtRepo.GetAsync(d => d.Id == city.DistrictId);
+                    if (district != null)
+                    {
+                        dto.ProvinceId = district.ProvinceId;
+                    }
+                }
+            }
 
             return new ServiceResponse<StudentProfileDto> { Success = true, Data = dto };
         }
@@ -110,9 +139,45 @@ namespace Tutorz.Application.Services
             student.Grade = dto.Grade;
             student.ParentName = dto.ParentName;
             student.DateOfBirth = dto.DateOfBirth;
+            student.Address = dto.Address;
+
+            if (dto.ProfilePicture != null)
+            {
+                try
+                {
+                    var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                        student.StudentId,
+                        student.RegistrationNumber,
+                        "Student",
+                        dto.ProfilePicture
+                    );
+
+                    student.ProfileImageUrlSmall = smallUrl;
+                    student.ProfileImageUrlLarge = largeUrl;
+                }
+                catch (Exception ex)
+                {
+                    return new ServiceResponse<StudentProfileDto> 
+                    { 
+                        Success = false, 
+                        Message = $"Failed to upload profile picture: {ex.Message}" 
+                    };
+                }
+            }
 
             // Save changes using the Generic Repository method
             await _studentRepo.SaveChangesAsync();
+
+            // Update user City location if provided
+            if (dto.CityId.HasValue && student.UserId != Guid.Empty)
+            {
+                var user = await _userRepo.GetAsync(u => u.UserId == student.UserId);
+                if (user != null)
+                {
+                    user.CityId = dto.CityId;
+                    await _userRepo.SaveChangesAsync();
+                }
+            }
 
             // Return the fresh data
             return await GetProfileAsync(studentId);

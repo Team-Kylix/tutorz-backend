@@ -28,6 +28,8 @@ namespace Tutorz.Domain.Entities
         public string ParentName { get; set; } = string.Empty;
 
         public DateTime DateOfBirth { get; set; }
+        
+        public string? Address { get; set; }
 
         public bool IsPrimary { get; set; } = false;
 
