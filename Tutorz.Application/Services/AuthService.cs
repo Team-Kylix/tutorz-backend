@@ -415,6 +415,18 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.UserId == userId);
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
+            // Fetch all profiles for this user
+            var allStudents = await _studentRepository.GetAllAsync(s => s.UserId == user.UserId);
+            var profiles = allStudents.Select(s => new StudentProfileDto
+            {
+                StudentId = s.StudentId,
+                FirstName = s.FirstName,
+                Grade = s.Grade,
+                IsPrimary = s.IsPrimary,
+                ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = s.ProfileImageUrlLarge
+            }).ToList();
+
             // Generate Token for THIS specific student
             var token = GenerateJwtToken(user, role.Name, student.StudentId, null);
 
@@ -431,7 +443,7 @@ namespace Tutorz.Application.Services
                 RegistrationNumber = student.RegistrationNumber,
                 ProfileImageUrlSmall = student.ProfileImageUrlSmall,
                 ProfileImageUrlLarge = student.ProfileImageUrlLarge,
-                Profiles = new List<StudentProfileDto>()
+                Profiles = profiles
             };
         }
 
