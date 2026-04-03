@@ -28,11 +28,19 @@ namespace Tutorz.Domain.Entities
         public string ParentName { get; set; } = string.Empty;
 
         public DateTime DateOfBirth { get; set; }
+        
+        public string? Address { get; set; }
 
         public bool IsPrimary { get; set; } = false;
 
         public string? ProfileImageUrlSmall { get; set; }
         public string? ProfileImageUrlLarge { get; set; }
+
+        // --- Card / Mock PayHere Token (Students are payers, not payees — card only) ---
+        public string? PayHereToken { get; set; }
+        public string? CardLast4 { get; set; }
+        public string? CardBrand { get; set; }
+        public string? CardholderName { get; set; }
 
         public virtual ICollection<InstituteStudent> InstituteStudents { get; set; } = new List<InstituteStudent>();
     }

@@ -520,7 +520,7 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
 
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
@@ -728,7 +728,7 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Institute not found." };
 
-            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
             if (existingClass == null)
                 return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Class not found or access denied." };
 
@@ -836,11 +836,13 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
 
-            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted);
             if (existingClass == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
 
-            await _classRepository.DeleteAsync(existingClass);
+            // Soft Delete — matches the Hall pattern
+            existingClass.IsDeleted = true;
+            await _classRepository.SaveChangesAsync();
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Class deleted successfully." };
         }
 
@@ -851,7 +853,7 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
 
             var existingClass = await _classRepository.GetAsync(
-                c => c.ClassId == classId && c.InstituteId == institute.InstituteId,
+                c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted,
                 includeProperties: "Tutor");
             if (existingClass == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
@@ -914,7 +916,7 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
             // Find classes for this institute
-            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
 
             // Find enrollments for this student
             var activeEnrollments = await _enrollmentRepository.GetAllAsync(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
@@ -999,7 +1001,7 @@ namespace Tutorz.Application.Services
             var today = DateTime.UtcNow.DayOfWeek.ToString();
             var todayDate = DateTime.UtcNow.Date;
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
 
             // Filter for today
             var classesToday = classes.Where(c => 
@@ -1239,7 +1241,7 @@ namespace Tutorz.Application.Services
             var dateOnly = date.Date;
 
             var allClasses = await _classRepository.GetAllAsync(
-                c => c.InstituteId == institute.InstituteId && c.IsActive,
+                c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted,
                 includeProperties: "Tutor");
 
             // Include recurring classes matching the day-of-week, and one-off classes on that exact date
