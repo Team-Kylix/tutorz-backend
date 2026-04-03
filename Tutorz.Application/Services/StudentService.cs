@@ -108,17 +108,6 @@ namespace Tutorz.Application.Services
                 CityId = student.User?.CityId
             };
 
-            var allStudents = await _studentRepo.GetAllAsync(s => s.UserId == student.UserId);
-            dto.Profiles = allStudents.Select(s => new Tutorz.Application.DTOs.Auth.StudentProfileDto
-            {
-                StudentId = s.StudentId,
-                FirstName = s.FirstName,
-                Grade = s.Grade,
-                IsPrimary = s.IsPrimary,
-                ProfileImageUrlSmall = s.ProfileImageUrlSmall,
-                ProfileImageUrlLarge = s.ProfileImageUrlLarge
-            }).ToList();
-
             if (dto.CityId.HasValue)
             {
                 var city = await _cityRepo.GetAsync(c => c.Id == dto.CityId.Value);
