@@ -142,6 +142,52 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("Attendances");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("BankCode");
+
+                    b.ToTable("Banks");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.Property<int>("BranchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BranchId"));
+
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BranchName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("BranchId");
+
+                    b.HasIndex("BankCode", "BranchCode");
+
+                    b.ToTable("Branches");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
                 {
                     b.Property<int>("Id")
@@ -207,6 +253,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("StartTime")
@@ -381,6 +430,21 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("CommissionPercentage")
                         .HasColumnType("decimal(18,2)");
 
@@ -391,6 +455,18 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("InstituteName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -400,6 +476,12 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<bool>("IsSmsEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
                         .HasColumnType("nvarchar(max)");
@@ -594,6 +676,18 @@ namespace Tutorz.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("datetime2");
 
@@ -614,6 +708,9 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("ParentName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
@@ -649,6 +746,9 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<string>("BankAccountNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
+
                     b.Property<string>("BankName")
                         .HasColumnType("nvarchar(max)");
 
@@ -656,8 +756,32 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ExperienceYears")
                         .HasColumnType("int");
@@ -671,6 +795,12 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("LastName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
@@ -824,6 +954,17 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Institute");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Bank", "Bank")
+                        .WithMany("Branches")
+                        .HasForeignKey("BankCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Bank");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
@@ -1035,6 +1176,11 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasForeignKey("CityId");
 
                     b.Navigation("City");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Navigation("Branches");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>

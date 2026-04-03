@@ -10,6 +10,7 @@ using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
 using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
 using Tutorz.Api.Middlewares;
+using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -47,6 +48,8 @@ builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
 builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.PaymentService>();
 builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
+builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
+builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
 
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
@@ -133,6 +136,11 @@ using (var scope = app.Services.CreateScope())
         var env = services.GetRequiredService<IWebHostEnvironment>();
         var locationSeeder = new LocationSeeder(context, env);
         await locationSeeder.SeedAsync();
+
+        // Seed Sri Lankan Bank + Branch directory from LankaPay xlsx
+        var bankLogger = services.GetRequiredService<ILogger<Tutorz.Infrastructure.Seeders.BankDirectorySeeder>>();
+        var bankSeeder = new Tutorz.Infrastructure.Seeders.BankDirectorySeeder(context, env, bankLogger);
+        await bankSeeder.SeedAsync();
     }
     catch (Exception ex)
     {
@@ -151,7 +159,19 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
     });
 }
 
-app.UseStaticFiles();
+// Serve static files (profile pictures, QR codes, etc.) with cross-origin headers
+// so the PWA Service Worker can load them across origins (e.g. localhost:5173 -> localhost:7010)
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // Allow cross-origin loading by Service Workers and browsers
+        ctx.Context.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+        // Cache images for 1 hour in the browser (reduces repeated fetches)
+        ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=3600";
+    }
+});
+
 
 app.UseHttpsRedirection();
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -38,6 +38,8 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
         public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
         public DbSet<ClassPayment> ClassPayments { get; set; }
+        public DbSet<Bank> Banks { get; set; }
+        public DbSet<Branch> Branches { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -186,6 +188,16 @@ namespace Tutorz.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Bank + Branch Configuration
+            modelBuilder.Entity<Branch>()
+                .HasOne(br => br.Bank)
+                .WithMany(b => b.Branches)
+                .HasForeignKey(br => br.BankCode)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Branch>()
+                .HasIndex(br => new { br.BankCode, br.BranchCode }); // Fast branch lookup
         }
     }
 }

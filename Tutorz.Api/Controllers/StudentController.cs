@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Tutorz.Application.DTOs.Student;
@@ -78,7 +78,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPut("profile")]
         [ApiPurpose("Update Student Profile")]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateStudentProfileDto dto)
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateStudentProfileDto dto)
         {
             // Read the specific "StudentId" claim here too
             var studentIdString = User.FindFirst("StudentId")?.Value;
