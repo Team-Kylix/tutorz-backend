@@ -83,8 +83,11 @@ namespace Tutorz.Application.Services
                 throw new Exception("This phone number is already registered. Please log in.");
 
             // Email Validation
-            if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
-                throw new Exception("User with this email already exists.");
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
+                    throw new Exception("User with this email already exists.");
+            }
 
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
@@ -150,6 +153,7 @@ namespace Tutorz.Application.Services
 
                 await _instituteRepository.AddAsync(new Institute
                 {
+                    InstituteId = Guid.NewGuid(),
                     UserId = user.UserId,
                     RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
@@ -705,6 +709,7 @@ namespace Tutorz.Application.Services
                 {
                     await _instituteRepository.AddAsync(new Institute
                     {
+                        InstituteId = Guid.NewGuid(),
                         UserId = user.UserId,
                         RegistrationNumber = customId,
                         InstituteName = request.InstituteName ?? socialUser.Name,
@@ -854,6 +859,7 @@ namespace Tutorz.Application.Services
 
         public async Task<bool> CheckEmailExistsAsync(string email)
         {
+            if (string.IsNullOrWhiteSpace(email)) return false;
             var user = await _userRepository.GetAsync(u => u.Email == email);
             return user != null;
         }
