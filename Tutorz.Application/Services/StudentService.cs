@@ -122,6 +122,21 @@ namespace Tutorz.Application.Services
                 }
             }
 
+            // Fetch siblings for account switching
+            if (student.UserId != Guid.Empty)
+            {
+                var allStudents = await _studentRepo.GetAllAsync(s => s.UserId == student.UserId);
+                dto.Profiles = allStudents.Select(s => new Tutorz.Application.DTOs.Auth.StudentProfileDto
+                {
+                    StudentId = s.StudentId,
+                    FirstName = s.FirstName,
+                    Grade = s.Grade,
+                    IsPrimary = s.IsPrimary,
+                    ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = s.ProfileImageUrlLarge
+                }).ToList();
+            }
+
             return new ServiceResponse<StudentProfileDto> { Success = true, Data = dto };
         }
         public async Task<ServiceResponse<StudentProfileDto>> UpdateProfileAsync(Guid studentId, UpdateStudentProfileDto dto)

@@ -418,7 +418,19 @@ namespace Tutorz.Application.Services
             // Generate Token for THIS specific student
             var token = GenerateJwtToken(user, role.Name, student.StudentId, null);
 
-            // Return response with new token
+            // Fetch ALL sibling profiles so the switcher remains populated
+            var allStudents = await _studentRepository.GetAllAsync(s => s.UserId == userId);
+            var profiles = allStudents.Select(s => new StudentProfileDto
+            {
+                StudentId = s.StudentId,
+                FirstName = s.FirstName,
+                Grade = s.Grade,
+                IsPrimary = s.IsPrimary,
+                ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = s.ProfileImageUrlLarge
+            }).ToList();
+
+            // Return response with new token and full sibling list
             return new AuthResponse
             {
                 UserId = user.UserId,
@@ -431,7 +443,7 @@ namespace Tutorz.Application.Services
                 RegistrationNumber = student.RegistrationNumber,
                 ProfileImageUrlSmall = student.ProfileImageUrlSmall,
                 ProfileImageUrlLarge = student.ProfileImageUrlLarge,
-                Profiles = new List<StudentProfileDto>()
+                Profiles = profiles
             };
         }
 
