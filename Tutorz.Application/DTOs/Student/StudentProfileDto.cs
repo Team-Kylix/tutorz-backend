@@ -26,6 +26,7 @@ namespace Tutorz.Application.DTOs.Student
         public int? ProvinceId { get; set; }
         public int? DistrictId { get; set; }
         public int? CityId { get; set; }
+        public List<Tutorz.Application.DTOs.Auth.StudentProfileDto> Profiles { get; set; } = new();
     }
 
     public class UpdateStudentProfileDto
