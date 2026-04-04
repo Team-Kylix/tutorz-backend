@@ -18,7 +18,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 //  Register the DbContext
 builder.Services.AddDbContext<TutorzDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null
+        );
+    }));
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();

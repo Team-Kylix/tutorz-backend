@@ -98,5 +98,27 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [HttpGet("classes")]
+        [ApiPurpose("Get Joined Classes")]
+        public async Task<IActionResult> GetClasses()
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+
+            var result = await _studentService.GetJoinedClassesAsync(studentId);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
     }
 }

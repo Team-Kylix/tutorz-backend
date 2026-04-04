@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -104,6 +104,35 @@ namespace Tutorz.Infrastructure.Repositories
             return await db.Students
                 .Include(s => s.User) // Load the User to get the Email
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
+        }
+
+        public async Task<List<StudentClassDto>> GetJoinedClassesAsync(Guid studentId)
+        {
+            var db = _context as TutorzDbContext;
+
+            return await db.Enrollments
+                .Include(e => e.Class)
+                    .ThenInclude(c => c.Tutor)
+                .Include(e => e.Class)
+                    .ThenInclude(c => c.Institute)
+                .Where(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved)
+                .Select(e => new StudentClassDto
+                {
+                    ClassId = e.ClassId,
+                    Subject = e.Class.Subject,
+                    Grade = e.Class.Grade,
+                    ClassName = e.Class.ClassName,
+                    TutorName = e.Class.Tutor.FirstName + " " + e.Class.Tutor.LastName,
+                    InstituteName = e.Class.Institute != null ? e.Class.Institute.InstituteName : null,
+                    ClassType = e.Class.ClassType,
+                    DayOfWeek = e.Class.DayOfWeek,
+                    Date = e.Class.Date,
+                    StartTime = e.Class.StartTime,
+                    EndTime = e.Class.EndTime,
+                    Fee = e.Class.Fee,
+                    Status = e.Class.IsActive ? "active" : "inactive",
+                    EnrolledAt = e.EnrolledAt
+                }).ToListAsync();
         }
     }
 }

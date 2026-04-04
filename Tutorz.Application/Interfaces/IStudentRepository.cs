@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,5 +14,6 @@ namespace Tutorz.Application.Interfaces
         Task<List<ClassSearchDto>> SearchClassesAsync(string grade, string searchTerm);
         Task<string> RequestJoinClassAsync(Guid studentId, Guid classId);
         Task<Student?> GetStudentWithUserAsync(Guid studentId);
+        Task<List<StudentClassDto>> GetJoinedClassesAsync(Guid studentId);
     }
 }

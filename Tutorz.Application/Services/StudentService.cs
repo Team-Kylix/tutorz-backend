@@ -197,5 +197,22 @@ namespace Tutorz.Application.Services
             // Return the fresh data
             return await GetProfileAsync(studentId);
         }
+
+        public async Task<ServiceResponse<List<StudentClassDto>>> GetJoinedClassesAsync(Guid studentId)
+        {
+            var response = new ServiceResponse<List<StudentClassDto>>();
+            try
+            {
+                var classes = await _studentRepo.GetJoinedClassesAsync(studentId);
+                response.Data = classes;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching joined classes: " + ex.Message;
+            }
+            return response;
+        }
     }
 }
