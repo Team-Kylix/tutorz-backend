@@ -21,3 +21,5 @@
 /Tutorz.Api/wwwroot
 /Tutorz.Infrastructure/Migrations
 db_update_error.log
+/Tutorz.Api/Properties/PublishProfiles/FolderProfile.pubxml
+/Tutorz.Api/Properties/PublishProfiles/FolderProfile.pubxml
