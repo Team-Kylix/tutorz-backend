@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Student;
 using Tutorz.Domain.Entities;
@@ -11,11 +9,12 @@ namespace Tutorz.Application.Interfaces
 {
     public interface IStudentRepository : IGenericRepository<Student>
     {
-        Task<List<ClassSearchDto>> SearchClassesAsync(string grade, string searchTerm);
+        Task<List<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm);
         Task<string> RequestJoinClassAsync(Guid studentId, Guid classId);
         Task<string> LeaveClassAsync(Guid studentId, Guid classId);
         Task<List<StudentClassDto>> GetJoinedClassesAsync(Guid studentId);
         Task<IEnumerable<Attendance>> GetAttendancesAsync(Guid studentId);
         Task<StudentAttendanceHistoryResponseDto> GetStudentAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
+        Task<StudentPaymentHistoryResponseDto> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
     }
 }

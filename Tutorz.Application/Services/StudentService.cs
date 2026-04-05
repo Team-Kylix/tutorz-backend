@@ -33,7 +33,7 @@ namespace Tutorz.Application.Services
             _districtRepo = districtRepo;
         }
 
-        public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string grade, string searchTerm)
+        public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm)
         {
             var response = new ServiceResponse<List<ClassSearchDto>>();
             try
@@ -280,6 +280,23 @@ namespace Tutorz.Application.Services
             {
                 response.Success = false;
                 response.Message = "Error fetching attendance history: " + ex.Message;
+            }
+            return response;
+        }
+
+        public async Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize)
+        {
+            var response = new ServiceResponse<StudentPaymentHistoryResponseDto>();
+            try
+            {
+                var data = await _studentRepo.GetStudentPaymentHistoryAsync(studentId, tutorId, classId, monthYear, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching student payment history: " + ex.Message;
             }
             return response;
         }

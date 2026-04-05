@@ -11,13 +11,13 @@ namespace Tutorz.Domain.Entities
     public class Tutor
     {
         public Guid TutorId { get; set; }
-        public string RegistrationNumber { get; set; }
+        public string RegistrationNumber { get; set; } = string.Empty;
         public Guid UserId { get; set; }
         [ForeignKey("UserId")]
-        public virtual User User { get; set; }
-        public String FirstName { get; set; }
-        public String LastName { get; set; }
-        public String Bio { get; set; }
+        public virtual User User { get; set; } = null!;
+        public String FirstName { get; set; } = string.Empty;
+        public String LastName { get; set; } = string.Empty;
+        public String Bio { get; set; } = string.Empty;
         public int ExperienceYears { get; set; }
 
         // --- Financial Details (Field-Level Encrypted via AES-256) ---

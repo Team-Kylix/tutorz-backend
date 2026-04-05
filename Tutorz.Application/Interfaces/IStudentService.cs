@@ -10,7 +10,7 @@ namespace Tutorz.Application.Interfaces
 {
     public interface IStudentService
     {
-        Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string grade, string searchTerm);
+        Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm);
         Task<ServiceResponse<string>> RequestJoinClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId);
@@ -18,5 +18,6 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<List<StudentClassDto>>> GetJoinedClassesAsync(Guid studentId);
         Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date);
         Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
+        Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
     }
 }

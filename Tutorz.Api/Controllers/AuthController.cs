@@ -312,9 +312,9 @@ namespace Tutorz.Api.Controllers
         public class ProfilePictureUploadRequest
         {
             public Guid EntityId { get; set; }
-            public string RegistrationNumber { get; set; }
-            public string Role { get; set; }
-            public IFormFile File { get; set; }
+            public string RegistrationNumber { get; set; } = string.Empty;
+            public string Role { get; set; } = string.Empty;
+            public IFormFile? File { get; set; }
         }
 
         // --- PROFILE PICTURE UPLOAD ---
@@ -326,6 +326,9 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
+                if (request.File == null)
+                    return BadRequest(new { message = "No file was uploaded." });
+
                 var urls = await profilePictureService.UploadProfilePictureAsync(request.EntityId, request.RegistrationNumber, request.Role, request.File);
                 return Ok(new { smallUrl = urls.smallUrl, largeUrl = urls.largeUrl, message = "Profile picture uploaded successfully." });
             }

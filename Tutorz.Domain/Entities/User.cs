@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -13,7 +13,7 @@ namespace Tutorz.Domain.Entities
         public Guid UserId { get; set; }
         public string Email { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
-        public string PasswordHash { get; set; }
+        public string PasswordHash { get; set; } = string.Empty;
         public Guid RoleId { get; set; }
         public string? QrCodeUrl { get; set; }
         public bool IsActive { get; set; } = true;

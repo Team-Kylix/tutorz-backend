@@ -8,6 +8,7 @@ namespace Tutorz.Application.DTOs.Student
         public string Subject { get; set; }
         public string Grade { get; set; }
         public string ClassName { get; set; }
+        public Guid TutorId { get; set; }
         public string TutorName { get; set; }
         public string InstituteName { get; set; }
         public string ClassType { get; set; }

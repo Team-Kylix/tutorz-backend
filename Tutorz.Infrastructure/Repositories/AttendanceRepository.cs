@@ -11,11 +11,8 @@ namespace Tutorz.Infrastructure.Repositories
 {
     public class AttendanceRepository : GenericRepository<Attendance>, IAttendanceRepository
     {
-        private readonly TutorzDbContext _context;
-
         public AttendanceRepository(TutorzDbContext context) : base(context)
         {
-            _context = context;
         }
 
         public async Task<bool> HasAttendanceAsync(Guid studentId, Guid classId, Guid instituteId, DateTime date)

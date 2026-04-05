@@ -68,6 +68,30 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("payment-history")]
+        public async Task<IActionResult> GetStudentPaymentHistory(
+            [FromQuery] Guid? tutorId,
+            [FromQuery] Guid? classId,
+            [FromQuery] string? monthYear,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+
+            var result = await _studentService.GetStudentPaymentHistoryAsync(studentId, tutorId, classId, monthYear, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpGet("profile")]
         [ApiPurpose("Get Student Profile")]
         public async Task<IActionResult> GetProfile()
