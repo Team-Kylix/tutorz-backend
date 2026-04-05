@@ -15,5 +15,6 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId);
         Task<ServiceResponse<StudentProfileDto>> UpdateProfileAsync(Guid studentId, UpdateStudentProfileDto dto);
         Task<ServiceResponse<List<StudentClassDto>>> GetJoinedClassesAsync(Guid studentId);
+        Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date);
     }
 }

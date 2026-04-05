@@ -120,5 +120,27 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
+
+        [HttpGet("timetable")]
+        [ApiPurpose("Get Student Timetable by Date")]
+        public async Task<IActionResult> GetTimetableByDate([FromQuery] DateTime date)
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+
+            var result = await _studentService.GetClassesByDateAsync(studentId, date);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
     }
 }

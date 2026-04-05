@@ -129,6 +129,7 @@ namespace Tutorz.Infrastructure.Repositories
                     Date = e.Class.Date,
                     StartTime = e.Class.StartTime,
                     EndTime = e.Class.EndTime,
+                    HallName = e.Class.HallName,
                     Fee = e.Class.Fee,
                     Status = e.Class.IsActive ? "active" : "inactive",
                     EnrolledAt = e.EnrolledAt

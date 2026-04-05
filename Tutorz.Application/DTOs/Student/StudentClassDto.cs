@@ -15,6 +15,7 @@ namespace Tutorz.Application.DTOs.Student
         public DateTime? Date { get; set; }
         public string StartTime { get; set; }
         public string EndTime { get; set; }
+        public string HallName { get; set; }
         public decimal Fee { get; set; }
         public string Status { get; set; } // "active" or "inactive" depending on Class.IsActive
         public DateTime? EnrolledAt { get; set; }

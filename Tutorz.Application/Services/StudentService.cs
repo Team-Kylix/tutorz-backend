@@ -214,5 +214,32 @@ namespace Tutorz.Application.Services
             }
             return response;
         }
+
+        public async Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date)
+        {
+            var response = new ServiceResponse<IEnumerable<StudentClassDto>>();
+            try
+            {
+                var allClasses = await _studentRepo.GetJoinedClassesAsync(studentId);
+                
+                string dayOfWeek = date.DayOfWeek.ToString();
+                var dateOnly = date.Date;
+
+                var filtered = allClasses.Where(c =>
+                    (c.ClassType == "Class" && c.DayOfWeek != null &&
+                     c.DayOfWeek.Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == dateOnly)
+                ).ToList();
+
+                response.Data = filtered;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching classes by date: " + ex.Message;
+            }
+            return response;
+        }
     }
 }

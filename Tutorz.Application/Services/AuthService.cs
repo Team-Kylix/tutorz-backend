@@ -92,6 +92,9 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
 
+            // Generate Unique Registration ID
+            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
+
             // Create User (WITHOUT RegistrationNumber)
             var user = new User
             {
@@ -103,9 +106,6 @@ namespace Tutorz.Application.Services
                 CityId = request.CityId
             };
             await _userRepository.AddAsync(user);
-
-            // Generate Unique Registration ID
-            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
             // Handle Specific Roles
             Guid? newStudentId = null;
@@ -158,6 +158,7 @@ namespace Tutorz.Application.Services
                     RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
+                    ContactNumber = normalizedPhone
                 });
             }
             // --- Link to Institute if InstituteId is provided in the request ---
