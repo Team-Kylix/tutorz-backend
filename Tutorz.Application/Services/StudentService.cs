@@ -79,6 +79,32 @@ namespace Tutorz.Application.Services
             return response;
         }
 
+        public async Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId)
+        {
+            var response = new ServiceResponse<string>();
+            try
+            {
+                var result = await _studentRepo.LeaveClassAsync(studentId, classId);
+                if (result == "Success")
+                {
+                    response.Success = true;
+                    response.Data = "Left Class";
+                    response.Message = "You have successfully left the class.";
+                }
+                else
+                {
+                    response.Success = false;
+                    response.Message = result;
+                }
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error leaving class: " + ex.Message;
+            }
+            return response;
+        }
+
         public async Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId)
         {
             // This finds the student AND joins the User table to get the Email

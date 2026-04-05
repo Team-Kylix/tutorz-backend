@@ -13,6 +13,7 @@ namespace Tutorz.Application.Interfaces
     {
         Task<List<ClassSearchDto>> SearchClassesAsync(string grade, string searchTerm);
         Task<string> RequestJoinClassAsync(Guid studentId, Guid classId);
+        Task<string> LeaveClassAsync(Guid studentId, Guid classId);
         Task<Student?> GetStudentWithUserAsync(Guid studentId);
         Task<List<StudentClassDto>> GetJoinedClassesAsync(Guid studentId);
     }

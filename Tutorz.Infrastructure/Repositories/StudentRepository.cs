@@ -75,8 +75,17 @@ namespace Tutorz.Infrastructure.Repositories
 
             if (existing != null)
             {
-                if (existing.Status == EnrollmentStatus.Pending) return "Request already pending.";
-                if (existing.Status == EnrollmentStatus.Approved) return "Already enrolled.";
+                if (existing.Status == EnrollmentStatus.Pending)  return "Request already pending.";
+                if (existing.Status == EnrollmentStatus.Approved)  return "Already enrolled.";
+
+                // If previously Dropped or Rejected, allow the student to re-request
+                if (existing.Status == EnrollmentStatus.Dropped || existing.Status == EnrollmentStatus.Rejected)
+                {
+                    existing.Status = EnrollmentStatus.Pending;
+                    existing.RequestedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync();
+                    return "Success";
+                }
 
                 return "Request already processed.";
             }
@@ -92,6 +101,25 @@ namespace Tutorz.Infrastructure.Repositories
             };
 
             db.Enrollments.Add(enrollment);
+            await db.SaveChangesAsync();
+
+            return "Success";
+        }
+
+        public async Task<string> LeaveClassAsync(Guid studentId, Guid classId)
+        {
+            var db = _context as TutorzDbContext;
+
+            var enrollment = await db.Enrollments
+                .FirstOrDefaultAsync(e => e.StudentId == studentId && e.ClassId == classId);
+
+            if (enrollment == null)
+                return "Enrollment not found.";
+
+            if (enrollment.Status == EnrollmentStatus.Dropped)
+                return "Already left this class.";
+
+            enrollment.Status = EnrollmentStatus.Dropped;
             await db.SaveChangesAsync();
 
             return "Success";

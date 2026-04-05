@@ -51,6 +51,23 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpPut("leave-class/{classId}")]
+        [ApiPurpose("Student Leave Class")]
+        public async Task<IActionResult> LeaveClass(Guid classId)
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+            var result = await _studentService.LeaveClassAsync(studentId, classId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpGet("profile")]
         [ApiPurpose("Get Student Profile")]
         public async Task<IActionResult> GetProfile()

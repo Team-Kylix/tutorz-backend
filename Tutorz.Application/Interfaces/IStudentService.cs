@@ -12,6 +12,7 @@ namespace Tutorz.Application.Interfaces
     {
         Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string grade, string searchTerm);
         Task<ServiceResponse<string>> RequestJoinClassAsync(Guid studentId, Guid classId);
+        Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId);
         Task<ServiceResponse<StudentProfileDto>> UpdateProfileAsync(Guid studentId, UpdateStudentProfileDto dto);
         Task<ServiceResponse<List<StudentClassDto>>> GetJoinedClassesAsync(Guid studentId);
