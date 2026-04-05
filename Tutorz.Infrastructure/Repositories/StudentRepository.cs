@@ -163,5 +163,116 @@ namespace Tutorz.Infrastructure.Repositories
                     EnrolledAt = e.EnrolledAt
                 }).ToListAsync();
         }
+
+        public async Task<IEnumerable<Attendance>> GetAttendancesAsync(Guid studentId)
+        {
+            var db = _context as TutorzDbContext;
+            return await db.Attendances
+                .Include(a => a.Class)
+                    .ThenInclude(c => c.Tutor)
+                .Where(a => a.StudentId == studentId)
+                .OrderByDescending(a => a.Date)
+                .ToListAsync();
+        }
+
+        public async Task<StudentAttendanceHistoryResponseDto> GetStudentAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date)
+        {
+            var db = _context as TutorzDbContext;
+
+            // Get valid enrolled classes
+            var enrollmentsQuery = db.Enrollments
+                .Include(e => e.Class)
+                .ThenInclude(c => c.Tutor)
+                .Where(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
+
+            if (classId.HasValue)
+            {
+                enrollmentsQuery = enrollmentsQuery.Where(e => e.ClassId == classId.Value);
+            }
+            if (tutorId.HasValue)
+            {
+                enrollmentsQuery = enrollmentsQuery.Where(e => e.Class.TutorId == tutorId.Value);
+            }
+
+            var enrollments = await enrollmentsQuery.ToListAsync();
+            var enrolledClassIds = enrollments.Select(e => e.ClassId).ToList();
+
+            // All attendances taken for these classes (to compute conducted dates)
+            var classAttendancesQuery = db.Attendances
+                .Where(a => enrolledClassIds.Contains(a.ClassId));
+
+            if (date.HasValue)
+            {
+                classAttendancesQuery = classAttendancesQuery.Where(a => a.Date.Date == date.Value.Date);
+            }
+
+            var classAttendances = await classAttendancesQuery.ToListAsync();
+
+            var distinctConductedDates = classAttendances
+                .Select(a => a.Date.Date)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            var response = new StudentAttendanceHistoryResponseDto
+            {
+                ConductedDates = distinctConductedDates,
+                Classes = new List<StudentHistoryClassRowDto>()
+            };
+
+            int totalDaysHeld = 0;
+            int totalDaysAttended = 0;
+
+            foreach (var enrollment in enrollments)
+            {
+                var cId = enrollment.ClassId;
+                
+                // For this specific class
+                var classSpecificAttendances = classAttendances.Where(a => a.ClassId == cId).ToList();
+                
+                var classConductedDates = classSpecificAttendances
+                    .Select(a => a.Date.Date)
+                    .Distinct()
+                    .ToList();
+
+                var studentClassAttendances = classSpecificAttendances
+                    .Where(a => a.StudentId == studentId && a.IsPresent)
+                    .Select(a => a.Date.Date)
+                    .ToList();
+
+                totalDaysHeld += classConductedDates.Count;
+                totalDaysAttended += studentClassAttendances.Count;
+
+                var row = new StudentHistoryClassRowDto
+                {
+                    Id = cId,
+                    Name = string.IsNullOrEmpty(enrollment.Class.ClassName) ? enrollment.Class.Subject : enrollment.Class.ClassName,
+                    RegNo = $"{enrollment.Class.Tutor.FirstName} {enrollment.Class.Tutor.LastName}",
+                    Mobile = enrollment.Class.ClassType,
+                    AttendanceRecord = new Dictionary<DateTime, bool>()
+                };
+
+                // Map the full requested dates
+                foreach (var d in distinctConductedDates)
+                {
+                    // If the class actually occurred on this date, we see if student was present.
+                    // If the class didn't occur on this date, we just leave it out of the dictionary or set to false.
+                    // The table component expects boolean for dates it displays.
+                    // Let's set it if they were present.
+                    if (studentClassAttendances.Contains(d))
+                    {
+                        row.AttendanceRecord[d] = true;
+                    }
+                }
+
+                response.Classes.Add(row);
+            }
+
+            response.DaysHeld = totalDaysHeld;
+            response.DaysAttended = totalDaysAttended;
+            response.AttendancePercentage = totalDaysHeld > 0 ? Math.Round((decimal)totalDaysAttended / totalDaysHeld * 100, 1) : 0;
+
+            return response;
+        }
     }
 }

@@ -267,5 +267,21 @@ namespace Tutorz.Application.Services
             }
             return response;
         }
+        public async Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date)
+        {
+            var response = new ServiceResponse<StudentAttendanceHistoryResponseDto>();
+            try
+            {
+                var data = await _studentRepo.GetStudentAttendanceHistoryAsync(studentId, tutorId, classId, date);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching attendance history: " + ex.Message;
+            }
+            return response;
+        }
     }
 }
