@@ -193,7 +193,7 @@ namespace Tutorz.Application.Services
                 {
                     try
                     {
-                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorz.azurewebsites.net";
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorzlk.azurewebsites.net";
                         await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
                     }
                     catch (Exception ex)
@@ -587,7 +587,7 @@ namespace Tutorz.Application.Services
                     {
                         try
                         {
-                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorz.azurewebsites.net";
+                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorzlk.azurewebsites.net";
                             await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage, institute.UserId);
                         }
                         catch (Exception ex)
@@ -904,7 +904,7 @@ namespace Tutorz.Application.Services
 
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorz.azurewebsites.net"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorzlk.azurewebsites.net"); } catch { }
             }
         }
 
@@ -957,7 +957,7 @@ namespace Tutorz.Application.Services
 
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorz.azurewebsites.net"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorzlk.azurewebsites.net"); } catch { }
             }
         }
 
