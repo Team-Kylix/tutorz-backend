@@ -35,6 +35,7 @@ namespace Tutorz.Application.Services
         private readonly IInstituteStudentRepository _instituteStudentRepository;
         private readonly IInstituteTutorRepository _instituteTutorRepository;
         private readonly ISmsService _smsService;
+        private readonly INotificationService _notificationService;
 
         public AuthService(
             IUserRepository userRepository,
@@ -48,7 +49,8 @@ namespace Tutorz.Application.Services
             IQrCodeService qrCodeService,
             IInstituteStudentRepository instituteStudentRepository,
             IInstituteTutorRepository instituteTutorRepository,
-            ISmsService smsService)
+            ISmsService smsService,
+            INotificationService notificationService)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -63,6 +65,7 @@ namespace Tutorz.Application.Services
             _instituteStudentRepository = instituteStudentRepository;
             _instituteTutorRepository = instituteTutorRepository;
             _smsService = smsService;
+            _notificationService = notificationService;
         }
 
         // --- REGISTER (First Time User) ---
@@ -200,6 +203,30 @@ namespace Tutorz.Application.Services
                     {
                         Console.WriteLine($"Welcome SMS failed for {normalizedPhone}: {ex.Message}");
                     }
+                }
+
+                // --- Send notification to Institute ---
+                try
+                {
+                    string notifTitle = request.Role == "Tutor"
+                        ? "New Tutor Registered"
+                        : "New Student Registered";
+                    string notifMessage = $"{request.FirstName} {request.LastName} has been registered under your institute.";
+                    string notifType = request.Role == "Tutor" ? "TutorRegistration" : "StudentRegistration";
+                    Guid? relatedId = request.Role == "Tutor" ? newTutorId : newStudentId;
+
+                    await _notificationService.CreateAndPushAsync(
+                        institute.UserId,
+                        notifTitle,
+                        notifMessage,
+                        notifType,
+                        relatedId
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Notification failure must never break registration
+                    Console.WriteLine($"Notification push failed: {ex.Message}");
                 }
             }
 
@@ -594,6 +621,22 @@ namespace Tutorz.Application.Services
                         {
                             Console.WriteLine($"Sibling Welcome SMS failed: {ex.Message}");
                         }
+                    }
+
+                    // --- Send notification to Institute ---
+                    try
+                    {
+                        await _notificationService.CreateAndPushAsync(
+                            institute.UserId,
+                            "New Student Registered",
+                            $"{request.FirstName} {request.LastName} (sibling) has been registered under your institute.",
+                            "StudentRegistration",
+                            newStudent.StudentId
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Sibling notification push failed: {ex.Message}");
                     }
                 }
             }

@@ -584,6 +584,43 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("InstituteTutors");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("RelatedId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>
                 {
                     b.Property<int>("Id")
@@ -1135,6 +1172,17 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Institute");
 
                     b.Navigation("Tutor");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.SmsLog", b =>
