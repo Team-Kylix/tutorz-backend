@@ -445,7 +445,9 @@ namespace Tutorz.Application.Services
                     IsPrimary = student.IsPrimary,
                     RegistrationNumber = student.RegistrationNumber,
                     Email = user?.Email,
-                    PhoneNumber = user?.PhoneNumber
+                    PhoneNumber = user?.PhoneNumber,
+                    ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = student.ProfileImageUrlLarge
                 });
             }
 
