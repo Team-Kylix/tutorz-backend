@@ -299,7 +299,7 @@ namespace Tutorz.Application.Services
                     if ((student.FirstName != null && student.FirstName.ToLower().Contains(query)) ||
                         (student.LastName != null && student.LastName.ToLower().Contains(query)) ||
                         (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -372,7 +372,7 @@ namespace Tutorz.Application.Services
                     if ((tutor.FirstName != null && tutor.FirstName.ToLower().Contains(query)) ||
                         (tutor.LastName != null && tutor.LastName.ToLower().Contains(query)) ||
                         (tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
