@@ -83,6 +83,23 @@ namespace Tutorz.Api.Controllers
             }
         }
 
+        [HttpPost("send-registration-otp")]
+        public async Task<IActionResult> SendRegistrationOtp([FromBody] CheckUserRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(request.PhoneNumber))
+                    return BadRequest(new { message = "Phone number is required." });
+
+                await _authService.SendRegistrationOtpAsync(request.PhoneNumber);
+                return Ok(new { message = "Registration OTP sent successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyUserRequest request)
         {

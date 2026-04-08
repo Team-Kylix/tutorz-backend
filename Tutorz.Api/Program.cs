@@ -105,6 +105,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 // code for Swagger
 builder.Services.AddSwaggerGen(options =>
