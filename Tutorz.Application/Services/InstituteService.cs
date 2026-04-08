@@ -299,7 +299,7 @@ namespace Tutorz.Application.Services
                     if ((student.FirstName != null && student.FirstName.ToLower().Contains(query)) ||
                         (student.LastName != null && student.LastName.ToLower().Contains(query)) ||
                         (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -372,7 +372,7 @@ namespace Tutorz.Application.Services
                     if ((tutor.FirstName != null && tutor.FirstName.ToLower().Contains(query)) ||
                         (tutor.LastName != null && tutor.LastName.ToLower().Contains(query)) ||
                         (tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -445,7 +445,9 @@ namespace Tutorz.Application.Services
                     IsPrimary = student.IsPrimary,
                     RegistrationNumber = student.RegistrationNumber,
                     Email = user?.Email,
-                    PhoneNumber = user?.PhoneNumber
+                    PhoneNumber = user?.PhoneNumber,
+                    ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = student.ProfileImageUrlLarge
                 });
             }
 
@@ -992,19 +994,20 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Attendance marked successfully." };
         }
 
-        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId)
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var today = DateTime.UtcNow.DayOfWeek.ToString();
-            var todayDate = DateTime.UtcNow.Date;
+            // Use the client-supplied local date to get the correct DayOfWeek (avoids UTC offset issues)
+            var today = clientDate.DayOfWeek.ToString(); // e.g. "Monday"
+            var todayDate = clientDate.Date;
 
             var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
 
             // Filter for today
-            var classesToday = classes.Where(c => 
+            var classesToday = classes.Where(c =>
                 (c.ClassType == "Class" && c.DayOfWeek == today) ||
                 (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == todayDate)
             ).ToList();

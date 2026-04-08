@@ -11,6 +11,7 @@ using Tutorz.Infrastructure.Data;
 using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
 using Tutorz.Api.Middlewares;
 using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
+using Tutorz.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -18,7 +19,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 //  Register the DbContext
 builder.Services.AddDbContext<TutorzDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null
+        );
+    }));
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -51,6 +59,14 @@ builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Service
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
 
+// Notification Services
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<INotificationPusher, NotificationPusher>();
+
+// SignalR
+builder.Services.AddSignalR();
+
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
 builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());
@@ -69,6 +85,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing"))),
             ValidateIssuer = false,
             ValidateAudience = false
+        };
+
+        // SignalR WebSocket connections cannot send Authorization headers.
+        // ASP.NET reads the token from the query string for hub connections.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
         };
     });
 
@@ -184,4 +217,5 @@ app.UseAuthorization();
 app.UseApiUsageTracking();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 app.Run();

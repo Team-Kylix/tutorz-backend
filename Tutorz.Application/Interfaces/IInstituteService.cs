@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -39,7 +39,7 @@ namespace Tutorz.Application.Interfaces
         // Attendance
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId);
         Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid instituteId, MarkAttendanceDto dto);
-        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId);
+        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate);
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetClassesByDateAsync(Guid instituteId, DateTime date);
         Task<ServiceResponse<bool>> InstantEnrollStudentAsync(Guid instituteId, Guid studentId, Guid classId);
         Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(

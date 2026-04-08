@@ -355,12 +355,20 @@ namespace Tutorz.Api.Controllers
 
         [HttpGet("attendance/classes-today")]
         [ApiPurpose("Get Classes Today")]
-        public async Task<IActionResult> GetClassesToday()
+        public async Task<IActionResult> GetClassesToday([FromQuery] string? localDate = null)
         {
             var instituteId = GetInstituteIdFromToken();
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
-            var result = await _instituteService.GetInstituteClassesTodayAsync(instituteId);
+            // Parse the local date sent by the client (YYYY-MM-DD) to avoid UTC offset issues
+            // e.g. Sri Lanka is UTC+5:30 — using UtcNow would return the wrong day before 05:30 AM local time
+            DateTime clientDate;
+            if (!string.IsNullOrEmpty(localDate) && DateTime.TryParse(localDate, out DateTime parsed))
+                clientDate = parsed.Date;
+            else
+                clientDate = DateTime.UtcNow.Date; // Fallback if client doesn't send it
+
+            var result = await _instituteService.GetInstituteClassesTodayAsync(instituteId, clientDate);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
