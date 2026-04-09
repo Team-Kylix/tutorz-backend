@@ -516,13 +516,19 @@ namespace Tutorz.Application.Services
 
             return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
         }
-        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", Guid? tutorId = null, int page = 1, int pageSize = 10)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
+            var classesQuery = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
+            var classes = classesQuery.AsEnumerable();
+
+            if (tutorId.HasValue)
+            {
+                classes = classes.Where(c => c.TutorId == tutorId.Value);
+            }
 
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
@@ -531,9 +537,10 @@ namespace Tutorz.Application.Services
                     (c.ClassName != null && c.ClassName.ToLower().Contains(searchQuery)) ||
                     (c.Subject != null && c.Subject.ToLower().Contains(searchQuery)) ||
                     (c.Tutor != null && ((c.Tutor.FirstName != null && c.Tutor.FirstName.ToLower().Contains(searchQuery)) || (c.Tutor.LastName != null && c.Tutor.LastName.ToLower().Contains(searchQuery))))
-                ).ToList();
+                );
             }
 
+            classes = classes.ToList();
             int totalItems = classes.Count();
             var pagedClasses = classes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
