@@ -26,7 +26,7 @@ namespace Tutorz.Infrastructure.Services
         {
             _logger.LogInformation("DailyAggregationWorker starting... Waiting 2 minutes for Azure app to warm up.");
             
-            // Fix: Prevent thread pool starvation on startup by delaying the first run
+            // Prevent thread pool starvation on startup by delaying the first run
             try { await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken); }
             catch (TaskCanceledException) { return; }
 
