@@ -101,6 +101,42 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     context.Token = accessToken;
                 }
                 return System.Threading.Tasks.Task.CompletedTask;
+            },
+
+            // Layer 3: Minimum Token Date enforcement.
+            // After the JWT signature is validated, check whether the token was issued
+            // AFTER the MinTokenDate stored in the database.
+            // If you update MinTokenDate to "now" during a release deploy, every token
+            // issued before that deploy will be rejected on the next API call,
+            // forcing the user to log in again and get a fresh token.
+            OnTokenValidated = async context =>
+            {
+                var db = context.HttpContext.RequestServices
+                    .GetRequiredService<Tutorz.Infrastructure.Data.TutorzDbContext>();
+
+                var setting = await db.AppSettings
+                    .FindAsync("MinTokenDate");
+
+                if (setting != null &&
+                    DateTime.TryParse(setting.Value, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind,
+                        out var minDate) &&
+                    minDate > DateTime.UnixEpoch) // Skip check if still at epoch default
+                {
+                    // Read the "iat" (issued at) claim from the JWT
+                    var iatClaim = context.Principal?.FindFirst(
+                        System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Iat)?.Value;
+
+                    if (long.TryParse(iatClaim, out var iatSeconds))
+                    {
+                        var tokenIssuedAt = DateTimeOffset.FromUnixTimeSeconds(iatSeconds).UtcDateTime;
+                        if (tokenIssuedAt < minDate)
+                        {
+                            // Token is older than the minimum — reject it
+                            context.Fail("Token was issued before the minimum allowed date. Please log in again.");
+                        }
+                    }
+                }
             }
         };
     });

@@ -41,6 +41,8 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Bank> Banks { get; set; }
         public DbSet<Branch> Branches { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        // Global application settings (e.g., MinTokenDate for forced logout on deploy)
+        public DbSet<AppSetting> AppSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

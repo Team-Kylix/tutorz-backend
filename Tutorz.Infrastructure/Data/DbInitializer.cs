@@ -9,6 +9,26 @@ namespace Tutorz.Infrastructure.Data
     {
         public static void Initialize(TutorzDbContext context)
         {
+            // --- Layer 3: Seed MinTokenDate if it doesn't exist ---
+            // This row is the backend enforcement for the "forced logout on deploy" strategy.
+            // All JWT tokens issued BEFORE this date will be rejected with 401.
+            // To force ALL users to re-login: run this SQL against the production DB:
+            //   UPDATE AppSettings SET Value = GETUTCDATE(), UpdatedAt = GETUTCDATE()
+            //   WHERE [Key] = 'MinTokenDate'
+            //
+            // Set to Unix epoch (1970-01-01) by default so that NO tokens are ever
+            // rejected until you deliberately update it on a deploy.
+            if (!context.AppSettings.Any(s => s.Key == "MinTokenDate"))
+            {
+                context.AppSettings.Add(new AppSetting
+                {
+                    Key = "MinTokenDate",
+                    Value = "1970-01-01T00:00:00Z", // Epoch = no tokens rejected by default
+                    UpdatedAt = DateTime.UtcNow
+                });
+                context.SaveChanges();
+            }
+
             // Ensure Database Exists
             //context.Database.EnsureCreated(); When Run database first time, it will create the database and tables based on the models. After that, comment this line to avoid data loss.
 
@@ -61,4 +81,4 @@ namespace Tutorz.Infrastructure.Data
             // ==================================================
         }
     }
-}
+}
