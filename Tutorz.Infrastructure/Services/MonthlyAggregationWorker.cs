@@ -24,7 +24,12 @@ namespace Tutorz.Infrastructure.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("MonthlyAggregationWorker starting...");
+            _logger.LogInformation("MonthlyAggregationWorker starting... Waiting 3 minutes for Azure app to warm up.");
+
+            // Fix: Prevent thread pool starvation on startup by delaying the first run
+            // Staggered 1 minute after the Daily worker to prevent DB query competition
+            try { await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken); }
+            catch (TaskCanceledException) { return; }
 
             while (!stoppingToken.IsCancellationRequested)
             {
