@@ -333,7 +333,7 @@ namespace Tutorz.Infrastructure.Services
             string amount   = "30.00";
             string currency = "LKR";
 
-            string hash = GeneratePayHereHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
+            string hash = GenerateInitiationHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
 
             return Ok<object>(new
             {
@@ -366,10 +366,10 @@ namespace Tutorz.Infrastructure.Services
         public async Task<ServiceResponse<bool>> ProcessPreapprovalNotifyAsync(PreapprovalNotifyDto notify)
         {
             // Verify md5sig to ensure the request is genuinely from PayHere
-            string localHash = GeneratePayHereHash(
+            string localHash = GenerateNotificationHash(
                 notify.merchant_id ?? "", notify.order_id ?? "",
                 notify.payhere_amount ?? "", notify.payhere_currency ?? "",
-                PayHereMerchantSecret, notify.status_code);
+                notify.status_code ?? "", PayHereMerchantSecret);
 
             if (!string.Equals(localHash, notify.md5sig, StringComparison.OrdinalIgnoreCase))
                 return Fail<bool>("Invalid hash signature — preapproval notify rejected.");
@@ -553,7 +553,7 @@ namespace Tutorz.Infrastructure.Services
             _context.ClassPayments.Add(payment);
             await _context.SaveChangesAsync();
 
-            string hash = GeneratePayHereHash(PayHereMerchantId, orderId, formattedAmount, currency, PayHereMerchantSecret);
+            string hash = GenerateInitiationHash(PayHereMerchantId, orderId, formattedAmount, currency, PayHereMerchantSecret);
 
             return Ok<object>(new
             {
@@ -579,10 +579,10 @@ namespace Tutorz.Infrastructure.Services
 
         public async Task<ServiceResponse<bool>> ProcessPayHereWebhookAsync(PayHereNotifyDto dto)
         {
-            string localHash = GeneratePayHereHash(
+            string localHash = GenerateNotificationHash(
                 dto.merchant_id ?? "", dto.order_id ?? "",
                 dto.payhere_amount ?? "", dto.payhere_currency ?? "",
-                PayHereMerchantSecret, dto.status_code);
+                dto.status_code ?? "", PayHereMerchantSecret);
 
             if (!string.Equals(localHash, dto.md5sig, StringComparison.OrdinalIgnoreCase))
                 return Fail<bool>("Invalid hash signature.");
@@ -701,10 +701,17 @@ namespace Tutorz.Infrastructure.Services
         //  Hash Generation
         // ─────────────────────────────────────────────
 
-        private string GeneratePayHereHash(string merchantId, string orderId, string amount, string currency, string merchantSecret, string? statusCode = null)
+        private string GenerateInitiationHash(string merchantId, string orderId, string amount, string currency, string merchantSecret)
         {
             string hashedSecret = CreateMD5(merchantSecret).ToUpper();
-            string data = merchantId + orderId + amount + currency + (statusCode ?? "") + hashedSecret;
+            string data = merchantId + orderId + amount + currency + hashedSecret;
+            return CreateMD5(data).ToUpper();
+        }
+
+        private string GenerateNotificationHash(string merchantId, string orderId, string amount, string currency, string statusCode, string merchantSecret)
+        {
+            string hashedSecret = CreateMD5(merchantSecret).ToUpper();
+            string data = merchantId + orderId + amount + currency + statusCode + hashedSecret;
             return CreateMD5(data).ToUpper();
         }
 
