@@ -45,6 +45,8 @@ namespace Tutorz.Infrastructure.Services
         private string PayHereAppId => _config["PayHere:AppId"] ?? string.Empty;
         private string PayHereAppSecret => _config["PayHere:AppSecret"] ?? string.Empty;
         private string PayHereNotifyUrl => _config["PayHere:NotifyUrl"] ?? string.Empty;
+        private string PayHereReturnUrl => _config["PayHere:ReturnUrl"] ?? "http://localhost:5173/dashboard";
+        private string PayHereCancelUrl => _config["PayHere:CancelUrl"] ?? "http://localhost:5173/dashboard";
 
         public FinancialsService(
             TutorzDbContext context,
@@ -328,30 +330,30 @@ namespace Tutorz.Infrastructure.Services
             if (student == null) return Fail<object>("Student not found.");
 
             string orderId  = $"TZ-PRE-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0, 6)}";
-            // PayHere minimum is LKR 30. We charge 30 to the student as a card registration fee.
-            // Tutorz retains LKR 29; PayHere retains ~LKR 1 as their processing fee.
             string amount   = "30.00";
             string currency = "LKR";
-
-            string hash = GenerateInitiationHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
+            string items           = "Card Registration Fee - Tutorz";
+            string hash            = GenerateInitiationHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
+            string sanitizedPhone  = (student.User?.PhoneNumber ?? "0771234567").Replace("+", "");
+            string fallbackEmail   = !string.IsNullOrWhiteSpace(student.User?.Email) ? student.User.Email : "student@tutorz.com";
 
             return Ok<object>(new
             {
                 sandbox         = true,
                 preapprove      = true,
                 merchant_id     = PayHereMerchantId,
-                return_url      = "https://tutorz.lk/dashboard",
-                cancel_url      = "https://tutorz.lk/dashboard",
+                return_url      = PayHereReturnUrl,
+                cancel_url      = PayHereCancelUrl,
                 notify_url      = $"{PayHereNotifyUrl}/api/financials/preapproval-notify",
                 order_id        = orderId,
-                items           = "Card Registration Fee — Tutorz",
+                items           = items,
                 currency        = currency,
                 amount          = amount,
                 hash            = hash,
                 first_name      = student.FirstName,
                 last_name       = student.LastName,
-                email           = student.User?.Email ?? "student@tutorz.com",
-                phone           = student.User?.PhoneNumber ?? "0771234567",
+                email           = fallbackEmail,
+                phone           = sanitizedPhone,
                 address         = student.Address ?? "Sri Lanka",
                 city            = "Colombo",
                 country         = "Sri Lanka",
@@ -559,17 +561,17 @@ namespace Tutorz.Infrastructure.Services
             {
                 sandbox      = true,
                 merchant_id  = PayHereMerchantId,
-                return_url   = "http://localhost:5173/dashboard/financials",
-                cancel_url   = "http://localhost:5173/dashboard/financials",
+                return_url   = PayHereReturnUrl,
+                cancel_url   = PayHereCancelUrl,
                 notify_url   = $"{PayHereNotifyUrl}/api/financials/payhere-notify",
                 order_id     = orderId,
-                items        = $"{classEntity.Subject} Fee - {request.Month}/{request.Year}",
+                items        = $"{classEntity.Subject} Fee - {request.Month}/{request.Year}".Replace("—", "-"),
                 currency     = currency,
                 amount       = formattedAmount,
                 first_name   = student.FirstName,
                 last_name    = student.LastName,
-                email        = student.User?.Email ?? "student@tutorz.com",
-                phone        = student.User?.PhoneNumber ?? "0771234567",
+                email        = !string.IsNullOrWhiteSpace(student.User?.Email) ? student.User.Email : "student@tutorz.com",
+                phone        = (student.User?.PhoneNumber ?? "0771234567").Replace("+", ""),
                 address      = student.Address ?? "Sri Lanka",
                 city         = "Colombo",
                 country      = "Sri Lanka",
