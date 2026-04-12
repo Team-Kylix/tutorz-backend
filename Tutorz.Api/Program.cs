@@ -59,6 +59,12 @@ builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Service
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
 
+// Named HTTP client for PayHere API calls (Charging API, OAuth)
+builder.Services.AddHttpClient("PayHere", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // Notification Services
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -243,7 +249,10 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowMyReactApp");
 
