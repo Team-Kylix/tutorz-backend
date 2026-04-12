@@ -19,6 +19,9 @@ namespace Tutorz.Application.DTOs.Student
         public string HallName { get; set; }
         public decimal Fee { get; set; }
         public string Status { get; set; } // "active" or "inactive" depending on Class.IsActive
+        public string? TutorRegistrationNumber { get; set; }
+        public string? TutorPhoneNumber { get; set; }
+        public string? TutorProfileImageUrlSmall { get; set; }
         public DateTime? EnrolledAt { get; set; }
     }
 }
