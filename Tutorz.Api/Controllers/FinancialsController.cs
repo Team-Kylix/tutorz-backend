@@ -4,6 +4,7 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Financials;
+using Tutorz.Application.DTOs.Payment;
 using Tutorz.Application.Interfaces;
 using Tutorz.Api.Attributes;
 
@@ -139,6 +140,102 @@ namespace Tutorz.Api.Controllers
             var result = await _financialsService.RemoveCardTokenAsync(ownerId, role);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
+        }
+
+        // ─────────────────────────────────────────────
+        //  ONLINE PAYMENTS (PAYHERE)
+        // ─────────────────────────────────────────────
+
+        // ─────────────────────────────────────────────
+        //  PAYHERE PREAPPROVAL (Card Tokenization)
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns the PayHere SDK preapproval parameters (hash, order_id, etc.).
+        /// The frontend uses these to open window.payhere.startPayment({ preapprove: true }).
+        /// </summary>
+        [HttpPost("initiate-preapproval")]
+        [ApiPurpose("Initiate PayHere Card Preapproval")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> InitiatePreapproval()
+        {
+            var (studentId, role) = GetOwnerContext();
+            if (studentId == Guid.Empty || role != "Student")
+                return Unauthorized("Only students can initiate card preapproval.");
+
+            var result = await _financialsService.InitiatePreapprovalAsync(studentId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// PayHere calls this server-to-server after a successful preapproval.
+        /// Verifies the hash and stores the customer_token on the student's record.
+        /// Must be AllowAnonymous because PayHere does not send a JWT.
+        /// </summary>
+        [HttpPost("preapproval-notify")]
+        [AllowAnonymous]
+        public async Task<IActionResult> PreapprovalNotify([FromForm] PreapprovalNotifyDto notifyDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                var errors = string.Join(" | ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage));
+                Console.WriteLine($"[PayHere Webhook 400 ERROR] Validation Failed: {errors}");
+                return BadRequest(errors);
+            }
+
+            var result = await _financialsService.ProcessPreapprovalNotifyAsync(notifyDto);
+            // Always return 200 OK so PayHere doesn't retry indefinitely
+            return Ok();
+        }
+
+        // ─────────────────────────────────────────────
+        //  ONLINE PAYMENTS (PAYHERE CHARGING)
+        // ─────────────────────────────────────────────
+
+        [HttpGet("student-payment-status")]
+        [ApiPurpose("Get Student Payment Status Month Strip")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> GetStudentPaymentStatus([FromQuery] Guid classId)
+        {
+            var (ownerId, role) = GetOwnerContext();
+            if (ownerId == Guid.Empty || role != "Student") 
+                return Unauthorized("Only students can check fee statuses via this endpoint.");
+
+            var result = await _financialsService.GetStudentPaymentStatusAsync(classId, ownerId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("initiate-payment")]
+        [ApiPurpose("Initiate Online Payment")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> InitiatePayment([FromBody] InitiatePaymentRequestDto request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var (ownerId, role) = GetOwnerContext();
+            if (ownerId == Guid.Empty || role != "Student") 
+                return Unauthorized("Only students can initiate fee payments.");
+
+            var result = await _financialsService.InitiateOnlinePaymentAsync(ownerId, request);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("payhere-notify")]
+        [AllowAnonymous]
+        public async Task<IActionResult> PayHereNotify([FromForm] PayHereNotifyDto notifyDto)
+        {
+            // Webhook payload comes as URL-encoded form data
+            // We ignore failures because PayHere just expects a 200 OK generally
+            var result = await _financialsService.ProcessPayHereWebhookAsync(notifyDto);
+            
+            // Regardless of logic internal failure, we return 200 OK so PayHere doesn't retry infinitely 
+            // unless it's a critical server error. But to be safe, return Ok.
+            return Ok();
         }
 
         // ─────────────────────────────────────────────

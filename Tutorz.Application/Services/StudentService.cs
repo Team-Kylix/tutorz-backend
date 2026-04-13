@@ -33,7 +33,7 @@ namespace Tutorz.Application.Services
             _districtRepo = districtRepo;
         }
 
-        public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string grade, string searchTerm)
+        public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm)
         {
             var response = new ServiceResponse<List<ClassSearchDto>>();
             try
@@ -79,6 +79,32 @@ namespace Tutorz.Application.Services
             return response;
         }
 
+        public async Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId)
+        {
+            var response = new ServiceResponse<string>();
+            try
+            {
+                var result = await _studentRepo.LeaveClassAsync(studentId, classId);
+                if (result == "Success")
+                {
+                    response.Success = true;
+                    response.Data = "Left Class";
+                    response.Message = "You have successfully left the class.";
+                }
+                else
+                {
+                    response.Success = false;
+                    response.Message = result;
+                }
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error leaving class: " + ex.Message;
+            }
+            return response;
+        }
+
         public async Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId)
         {
             // This finds the student AND joins the User table to get the Email
@@ -108,17 +134,6 @@ namespace Tutorz.Application.Services
                 CityId = student.User?.CityId
             };
 
-            var allStudents = await _studentRepo.GetAllAsync(s => s.UserId == student.UserId);
-            dto.Profiles = allStudents.Select(s => new Tutorz.Application.DTOs.Auth.StudentProfileDto
-            {
-                StudentId = s.StudentId,
-                FirstName = s.FirstName,
-                Grade = s.Grade,
-                IsPrimary = s.IsPrimary,
-                ProfileImageUrlSmall = s.ProfileImageUrlSmall,
-                ProfileImageUrlLarge = s.ProfileImageUrlLarge
-            }).ToList();
-
             if (dto.CityId.HasValue)
             {
                 var city = await _cityRepo.GetAsync(c => c.Id == dto.CityId.Value);
@@ -133,6 +148,21 @@ namespace Tutorz.Application.Services
                 }
             }
 
+            // Fetch siblings for account switching
+            if (student.UserId != Guid.Empty)
+            {
+                var allStudents = await _studentRepo.GetAllAsync(s => s.UserId == student.UserId);
+                dto.Profiles = allStudents.Select(s => new Tutorz.Application.DTOs.Auth.StudentProfileDto
+                {
+                    StudentId = s.StudentId,
+                    FirstName = s.FirstName,
+                    Grade = s.Grade,
+                    IsPrimary = s.IsPrimary,
+                    ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = s.ProfileImageUrlLarge
+                }).ToList();
+            }
+
             return new ServiceResponse<StudentProfileDto> { Success = true, Data = dto };
         }
         public async Task<ServiceResponse<StudentProfileDto>> UpdateProfileAsync(Guid studentId, UpdateStudentProfileDto dto)
@@ -143,14 +173,16 @@ namespace Tutorz.Application.Services
             if (student == null)
                 return new ServiceResponse<StudentProfileDto> { Success = false, Message = "Student not found." };
 
-            // Entity Framework tracks these changes automatically
+            // Entity Framework tracks these changes automatically.
+            // Only update a field if a new value was actually provided.
+            // This preserves existing data when (e.g.) only a photo is uploaded.
             student.FirstName = dto.FirstName;
             student.LastName = dto.LastName;
-            student.SchoolName = dto.SchoolName;
-            student.Grade = dto.Grade;
-            student.ParentName = dto.ParentName;
+            if (dto.SchoolName != null) student.SchoolName = dto.SchoolName;
+            if (dto.Grade != null) student.Grade = dto.Grade;
+            if (dto.ParentName != null) student.ParentName = dto.ParentName;
             student.DateOfBirth = dto.DateOfBirth;
-            student.Address = dto.Address;
+            if (dto.Address != null) student.Address = dto.Address;
 
             if (dto.ProfilePicture != null)
             {
@@ -192,6 +224,83 @@ namespace Tutorz.Application.Services
 
             // Return the fresh data
             return await GetProfileAsync(studentId);
+        }
+
+        public async Task<ServiceResponse<List<StudentClassDto>>> GetJoinedClassesAsync(Guid studentId)
+        {
+            var response = new ServiceResponse<List<StudentClassDto>>();
+            try
+            {
+                var classes = await _studentRepo.GetJoinedClassesAsync(studentId);
+                response.Data = classes;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching joined classes: " + ex.Message;
+            }
+            return response;
+        }
+
+        public async Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date)
+        {
+            var response = new ServiceResponse<IEnumerable<StudentClassDto>>();
+            try
+            {
+                var allClasses = await _studentRepo.GetJoinedClassesAsync(studentId);
+                
+                string dayOfWeek = date.DayOfWeek.ToString();
+                var dateOnly = date.Date;
+
+                var filtered = allClasses.Where(c =>
+                    (c.ClassType == "Class" && c.DayOfWeek != null &&
+                     c.DayOfWeek.Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == dateOnly)
+                ).ToList();
+
+                response.Data = filtered;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching classes by date: " + ex.Message;
+            }
+            return response;
+        }
+        public async Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date)
+        {
+            var response = new ServiceResponse<StudentAttendanceHistoryResponseDto>();
+            try
+            {
+                var data = await _studentRepo.GetStudentAttendanceHistoryAsync(studentId, tutorId, classId, date);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching attendance history: " + ex.Message;
+            }
+            return response;
+        }
+
+        public async Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize)
+        {
+            var response = new ServiceResponse<StudentPaymentHistoryResponseDto>();
+            try
+            {
+                var data = await _studentRepo.GetStudentPaymentHistoryAsync(studentId, tutorId, classId, monthYear, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching student payment history: " + ex.Message;
+            }
+            return response;
         }
     }
 }

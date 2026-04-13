@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Tutorz.Application.DTOs.Auth
 {
@@ -22,5 +22,6 @@ namespace Tutorz.Application.DTOs.Auth
         public DateTime? DateOfBirth { get; set; }
         public int? CityId { get; set; }
         public Guid? InstituteId { get; set; }
+        public string? OtpCode { get; set; }
     }
 }

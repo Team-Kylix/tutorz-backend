@@ -11,6 +11,7 @@ using Tutorz.Infrastructure.Data;
 using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
 using Tutorz.Api.Middlewares;
 using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
+using Tutorz.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 //  Get the connection string
@@ -18,7 +19,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 //  Register the DbContext
 builder.Services.AddDbContext<TutorzDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null
+        );
+    }));
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -51,6 +59,20 @@ builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Service
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
 
+// Named HTTP client for PayHere API calls (Charging API, OAuth)
+builder.Services.AddHttpClient("PayHere", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Notification Services
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<INotificationPusher, NotificationPusher>();
+
+// SignalR
+builder.Services.AddSignalR();
+
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
 builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());
@@ -70,8 +92,62 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false,
             ValidateAudience = false
         };
+
+        // SignalR WebSocket connections cannot send Authorization headers.
+        // ASP.NET reads the token from the query string for hub connections.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+                return System.Threading.Tasks.Task.CompletedTask;
+            },
+
+            // Layer 3: Minimum Token Date enforcement.
+            // After the JWT signature is validated, check whether the token was issued
+            // AFTER the MinTokenDate stored in the database.
+            // If you update MinTokenDate to "now" during a release deploy, every token
+            // issued before that deploy will be rejected on the next API call,
+            // forcing the user to log in again and get a fresh token.
+            OnTokenValidated = async context =>
+            {
+                var db = context.HttpContext.RequestServices
+                    .GetRequiredService<Tutorz.Infrastructure.Data.TutorzDbContext>();
+
+                var setting = await db.AppSettings
+                    .FindAsync("MinTokenDate");
+
+                if (setting != null &&
+                    DateTime.TryParse(setting.Value, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind,
+                        out var minDate) &&
+                    minDate > DateTime.UnixEpoch) // Skip check if still at epoch default
+                {
+                    // Read the "iat" (issued at) claim from the JWT
+                    var iatClaim = context.Principal?.FindFirst(
+                        System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Iat)?.Value;
+
+                    if (long.TryParse(iatClaim, out var iatSeconds))
+                    {
+                        var tokenIssuedAt = DateTimeOffset.FromUnixTimeSeconds(iatSeconds).UtcDateTime;
+                        if (tokenIssuedAt < minDate)
+                        {
+                            // Token is older than the minimum — reject it
+                            context.Fail("Token was issued before the minimum allowed date. Please log in again.");
+                        }
+                    }
+                }
+            }
+        };
     });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 // code for Swagger
 builder.Services.AddSwaggerGen(options =>
@@ -173,7 +249,10 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowMyReactApp");
 
@@ -184,4 +263,5 @@ app.UseAuthorization();
 app.UseApiUsageTracking();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 app.Run();

@@ -299,7 +299,7 @@ namespace Tutorz.Application.Services
                     if ((student.FirstName != null && student.FirstName.ToLower().Contains(query)) ||
                         (student.LastName != null && student.LastName.ToLower().Contains(query)) ||
                         (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -372,7 +372,7 @@ namespace Tutorz.Application.Services
                     if ((tutor.FirstName != null && tutor.FirstName.ToLower().Contains(query)) ||
                         (tutor.LastName != null && tutor.LastName.ToLower().Contains(query)) ||
                         (tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -445,7 +445,9 @@ namespace Tutorz.Application.Services
                     IsPrimary = student.IsPrimary,
                     RegistrationNumber = student.RegistrationNumber,
                     Email = user?.Email,
-                    PhoneNumber = user?.PhoneNumber
+                    PhoneNumber = user?.PhoneNumber,
+                    ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = student.ProfileImageUrlLarge
                 });
             }
 
@@ -514,13 +516,19 @@ namespace Tutorz.Application.Services
 
             return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
         }
-        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", Guid? tutorId = null, int page = 1, int pageSize = 10)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
+            var classesQuery = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
+            var classes = classesQuery.AsEnumerable();
+
+            if (tutorId.HasValue)
+            {
+                classes = classes.Where(c => c.TutorId == tutorId.Value);
+            }
 
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
@@ -529,9 +537,10 @@ namespace Tutorz.Application.Services
                     (c.ClassName != null && c.ClassName.ToLower().Contains(searchQuery)) ||
                     (c.Subject != null && c.Subject.ToLower().Contains(searchQuery)) ||
                     (c.Tutor != null && ((c.Tutor.FirstName != null && c.Tutor.FirstName.ToLower().Contains(searchQuery)) || (c.Tutor.LastName != null && c.Tutor.LastName.ToLower().Contains(searchQuery))))
-                ).ToList();
+                );
             }
 
+            classes = classes.ToList();
             int totalItems = classes.Count();
             var pagedClasses = classes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
@@ -992,19 +1001,20 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Attendance marked successfully." };
         }
 
-        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId)
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var today = DateTime.UtcNow.DayOfWeek.ToString();
-            var todayDate = DateTime.UtcNow.Date;
+            // Use the client-supplied local date to get the correct DayOfWeek (avoids UTC offset issues)
+            var today = clientDate.DayOfWeek.ToString(); // e.g. "Monday"
+            var todayDate = clientDate.Date;
 
             var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
 
             // Filter for today
-            var classesToday = classes.Where(c => 
+            var classesToday = classes.Where(c =>
                 (c.ClassType == "Class" && c.DayOfWeek == today) ||
                 (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == todayDate)
             ).ToList();

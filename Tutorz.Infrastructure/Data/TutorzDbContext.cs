@@ -40,6 +40,9 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<ClassPayment> ClassPayments { get; set; }
         public DbSet<Bank> Banks { get; set; }
         public DbSet<Branch> Branches { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+        // Global application settings (e.g., MinTokenDate for forced logout on deploy)
+        public DbSet<AppSetting> AppSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -198,6 +201,17 @@ namespace Tutorz.Infrastructure.Data
 
             modelBuilder.Entity<Branch>()
                 .HasIndex(br => new { br.BankCode, br.BranchCode }); // Fast branch lookup
+
+            // Notification Configuration
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Composite index: fast query of latest notifications per user
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.CreatedAt });
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -32,14 +32,14 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<InstituteClassDto>> UpdateInstituteClassAsync(Guid instituteId, Guid classId, CreateClassRequest request);
         Task<ServiceResponse<bool>> DeleteInstituteClassAsync(Guid instituteId, Guid classId);
         Task<ServiceResponse<bool>> ToggleInstituteClassStatusAsync(Guid instituteId, Guid classId);
-        Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
+        Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", Guid? tutorId = null, int page = 1, int pageSize = 10);
         Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAssignedTutorsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10);
 
         // Attendance
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId);
         Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid instituteId, MarkAttendanceDto dto);
-        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId);
+        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate);
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetClassesByDateAsync(Guid instituteId, DateTime date);
         Task<ServiceResponse<bool>> InstantEnrollStudentAsync(Guid instituteId, Guid studentId, Guid classId);
         Task<ServiceResponse<AttendanceHistoryResponseDto>> GetClassAttendanceHistoryAsync(

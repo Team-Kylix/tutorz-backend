@@ -107,6 +107,25 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("ApiUsageLogs");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AppSettings");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Attendance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -296,6 +315,9 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Hash")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("InstituteId")
                         .HasColumnType("uniqueidentifier");
 
@@ -307,6 +329,15 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PayHerePaymentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -584,6 +615,43 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("InstituteTutors");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("RelatedId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>
                 {
                     b.Property<int>("Id")
@@ -680,6 +748,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardExpiry")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CardLast4")
@@ -844,6 +915,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
 
                     b.Property<string>("OtpCode")
@@ -1135,6 +1209,17 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Institute");
 
                     b.Navigation("Tutor");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.SmsLog", b =>

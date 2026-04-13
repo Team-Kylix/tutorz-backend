@@ -36,11 +36,12 @@ namespace Tutorz.Domain.Entities
         public string? ProfileImageUrlSmall { get; set; }
         public string? ProfileImageUrlLarge { get; set; }
 
-        // --- Card / Mock PayHere Token (Students are payers, not payees — card only) ---
+        // --- Card / PayHere Token (Students are payers, not payees — card only) ---
         public string? PayHereToken { get; set; }
         public string? CardLast4 { get; set; }
         public string? CardBrand { get; set; }
         public string? CardholderName { get; set; }
+        public string? CardExpiry { get; set; }  // MMYY format e.g. "0128"
 
         public virtual ICollection<InstituteStudent> InstituteStudents { get; set; } = new List<InstituteStudent>();
     }

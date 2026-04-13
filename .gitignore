@@ -13,11 +13,18 @@
 
 # Environment files
 .env
-/Tutorz.Infrastructure/Migrations/20251230182812_AddedRegistrationFields.cs
-/Tutorz.Infrastructure/Migrations/20251230182812_AddedRegistrationFields.Designer.cs
-/Tutorz.Infrastructure/Migrations/20251230184701_AddedRegistrationField.cs
-/Tutorz.Infrastructure/Migrations/20251230184701_AddedRegistrationField.Designer.cs
-/Tutorz.Infrastructure/Migrations/TutorzDbContextModelSnapshot.cs
-/Tutorz.Api/wwwroot
-/Tutorz.Infrastructure/Migrations
+
+# Azure Publish Profiles
+/Tutorz.Api/Properties/PublishProfiles/
+
+# Logs
 db_update_error.log
+
+# Static Web Assets (excluding dynamic uploads)
+# We ignore actual user-uploaded content but keep the folder structure
+/Tutorz.Api/wwwroot/profile-pictures/*
+/Tutorz.Api/wwwroot/qr-codes/*
+!/Tutorz.Api/wwwroot/profile-pictures/.gitkeep
+!/Tutorz.Api/wwwroot/qr-codes/.gitkeep
+
+# NOTE: Migrations are NOT ignored. They MUST be tracked by Git.
