@@ -18,5 +18,20 @@ namespace Tutorz.Api.Hubs
     [Authorize]
     public class NotificationHub : Hub
     {
+        private static int _connectedUsers = 0;
+
+        public static int ConnectedUsers => _connectedUsers;
+
+        public override Task OnConnectedAsync()
+        {
+            System.Threading.Interlocked.Increment(ref _connectedUsers);
+            return base.OnConnectedAsync();
+        }
+
+        public override Task OnDisconnectedAsync(Exception? exception)
+        {
+            System.Threading.Interlocked.Decrement(ref _connectedUsers);
+            return base.OnDisconnectedAsync(exception);
+        }
     }
 }
