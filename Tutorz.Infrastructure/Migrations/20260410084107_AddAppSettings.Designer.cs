@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410084107_AddAppSettings")]
+    partial class AddAppSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -315,9 +318,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Hash")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("InstituteId")
                         .HasColumnType("uniqueidentifier");
 
@@ -329,15 +329,6 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("PayHerePaymentId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PaymentMethod")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReferenceId")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -748,9 +739,6 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CardBrand")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CardExpiry")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CardLast4")

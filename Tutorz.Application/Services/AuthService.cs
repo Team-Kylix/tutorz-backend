@@ -13,6 +13,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 using Tutorz.Application.DTOs.Auth;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.Interfaces;
@@ -36,6 +37,7 @@ namespace Tutorz.Application.Services
         private readonly IInstituteTutorRepository _instituteTutorRepository;
         private readonly ISmsService _smsService;
         private readonly INotificationService _notificationService;
+        private readonly IMemoryCache _cache;
 
         public AuthService(
             IUserRepository userRepository,
@@ -50,7 +52,8 @@ namespace Tutorz.Application.Services
             IInstituteStudentRepository instituteStudentRepository,
             IInstituteTutorRepository instituteTutorRepository,
             ISmsService smsService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IMemoryCache cache)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -66,6 +69,7 @@ namespace Tutorz.Application.Services
             _instituteTutorRepository = instituteTutorRepository;
             _smsService = smsService;
             _notificationService = notificationService;
+            _cache = cache;
         }
 
         // --- REGISTER (First Time User) ---
@@ -84,6 +88,12 @@ namespace Tutorz.Application.Services
             string normalizedPhone = "+94" + request.PhoneNumber.Substring(1);
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
+
+            // OTP Verification for Registration
+            if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
+            {
+                throw new Exception("Invalid or expired verification code.");
+            }
 
             // Email Validation
             if (!string.IsNullOrWhiteSpace(request.Email))
@@ -106,7 +116,8 @@ namespace Tutorz.Application.Services
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
                 PhoneNumber = normalizedPhone,
-                CityId = request.CityId
+                CityId = request.CityId,
+                IsVerified = true // Verified via OTP before creation
             };
             await _userRepository.AddAsync(user);
 
@@ -299,6 +310,31 @@ namespace Tutorz.Application.Services
             return response;
         }
 
+        public async Task SendRegistrationOtpAsync(string phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+                throw new Exception("Phone number is required.");
+
+            if (!Regex.IsMatch(phoneNumber, @"^07\d{8}$"))
+                throw new Exception("Invalid phone number format. Must be 10 digits starting with 07 (e.g., 0712345678).");
+
+            string normalizedPhone = "+94" + phoneNumber.Substring(1);
+
+            // Check if phone number is already registered to a VERIFIED user
+            var existingUser = await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone);
+            if (existingUser != null && existingUser.IsVerified)
+                throw new Exception("This phone number is already registered. Please log in.");
+
+            // Generate 6-digit OTP
+            string otp = new Random().Next(100000, 999999).ToString();
+
+            // Store in cache for 10 minutes (Registration Context)
+            _cache.Set($"registration_otp_{normalizedPhone}", otp, TimeSpan.FromMinutes(10));
+
+            // Send via SMS
+            await _smsService.SendSmsAsync(normalizedPhone, $"Your Tutorz Registration Code is {otp}. Valid for 10 minutes.");
+        }
+
         // --- LOGIN (Handles Multiple Profiles) ---
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
@@ -323,6 +359,9 @@ namespace Tutorz.Application.Services
             }
 
             if (user == null) throw new Exception("Invalid email/mobile number or password.");
+            
+            if (!user.IsVerified)
+                throw new Exception("Account not verified. Please verify your phone number via OTP first.");
 
             if (string.IsNullOrEmpty(user.PasswordHash))
                 throw new Exception("This account was created using Google. Please use the 'Continue with Google' button.");
@@ -575,6 +614,9 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == searchIdentifier || u.PhoneNumber == searchIdentifier);
             if (user == null) throw new Exception("Parent account not found.");
 
+            if (!user.IsVerified)
+                throw new Exception("Parent account is not verified. Please verify the parent account first.");
+
             // GENERATE NEW ID FOR THE SIBLING
             string newStudentId = await _idGeneratorService.GenerateNextIdAsync("Student", request.Grade);
 
@@ -716,7 +758,8 @@ namespace Tutorz.Application.Services
                     PasswordHash = "",
                     RoleId = role.RoleId,
                     PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
-                    CityId = request.CityId 
+                    CityId = request.CityId,
+                    IsVerified = true
                 };
 
                 await _userRepository.AddAsync(user);
@@ -1027,9 +1070,10 @@ namespace Tutorz.Application.Services
             if (user.OtpExpires < DateTime.UtcNow)
                 throw new Exception("OTP code has expired.");
 
-            // Clear OTP after success
+            // Clear OTP and mark as verified
             user.OtpCode = null;
             user.OtpExpires = null;
+            user.IsVerified = true;
             await _userRepository.SaveChangesAsync();
 
             // Return the phone number stored in the parent account

@@ -1,5 +1,0 @@
-Add-Migration AddProfilepicturecolum -Project Tutorz.Infrastructure -StartupProject Tutorz.Api
-
-Update-Database -Project Tutorz.Infrastructure -StartupProject Tutorz.Api
-
-dotnet publish Tutorz.Api/Tutorz.Api.csproj -c Release -o ./publish

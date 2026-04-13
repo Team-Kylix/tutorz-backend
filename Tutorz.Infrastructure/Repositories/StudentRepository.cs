@@ -141,6 +141,7 @@ namespace Tutorz.Infrastructure.Repositories
             return await db.Enrollments
                 .Include(e => e.Class)
                     .ThenInclude(c => c.Tutor)
+                        .ThenInclude(t => t.User)
                 .Include(e => e.Class)
                     .ThenInclude(c => c.Institute)
                 .Where(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved)
@@ -152,6 +153,9 @@ namespace Tutorz.Infrastructure.Repositories
                     ClassName = e.Class.ClassName,
                     TutorId = e.Class.Tutor.TutorId,
                     TutorName = e.Class.Tutor.FirstName + " " + e.Class.Tutor.LastName,
+                    TutorRegistrationNumber = e.Class.Tutor.RegistrationNumber,
+                    TutorPhoneNumber = e.Class.Tutor.User.PhoneNumber,
+                    TutorProfileImageUrlSmall = e.Class.Tutor.ProfileImageUrlSmall,
                     InstituteName = e.Class.Institute != null ? e.Class.Institute.InstituteName : null,
                     ClassType = e.Class.ClassType,
                     DayOfWeek = e.Class.DayOfWeek,

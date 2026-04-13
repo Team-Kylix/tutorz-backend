@@ -17,6 +17,7 @@ namespace Tutorz.Domain.Entities
         public Guid RoleId { get; set; }
         public string? QrCodeUrl { get; set; }
         public bool IsActive { get; set; } = true;
+        public bool IsVerified { get; set; } = false;
         public int? CityId { get; set; }
 
         [ForeignKey("CityId")]

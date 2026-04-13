@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406173749_addnotificationtables")]
+    partial class addnotificationtables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -105,25 +108,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ApiUsageLogs");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.AppSetting", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.HasKey("Key");
-
-                    b.ToTable("AppSettings");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Attendance", b =>
@@ -315,9 +299,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Hash")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("InstituteId")
                         .HasColumnType("uniqueidentifier");
 
@@ -329,15 +310,6 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("PayHerePaymentId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PaymentMethod")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReferenceId")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -750,9 +722,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<string>("CardBrand")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("CardExpiry")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("CardLast4")
                         .HasColumnType("nvarchar(max)");
 
@@ -915,9 +884,6 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
 
                     b.Property<string>("OtpCode")

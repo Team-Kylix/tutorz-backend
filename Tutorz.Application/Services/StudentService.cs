@@ -173,14 +173,16 @@ namespace Tutorz.Application.Services
             if (student == null)
                 return new ServiceResponse<StudentProfileDto> { Success = false, Message = "Student not found." };
 
-            // Entity Framework tracks these changes automatically
+            // Entity Framework tracks these changes automatically.
+            // Only update a field if a new value was actually provided.
+            // This preserves existing data when (e.g.) only a photo is uploaded.
             student.FirstName = dto.FirstName;
             student.LastName = dto.LastName;
-            student.SchoolName = dto.SchoolName;
-            student.Grade = dto.Grade;
-            student.ParentName = dto.ParentName;
+            if (dto.SchoolName != null) student.SchoolName = dto.SchoolName;
+            if (dto.Grade != null) student.Grade = dto.Grade;
+            if (dto.ParentName != null) student.ParentName = dto.ParentName;
             student.DateOfBirth = dto.DateOfBirth;
-            student.Address = dto.Address;
+            if (dto.Address != null) student.Address = dto.Address;
 
             if (dto.ProfilePicture != null)
             {

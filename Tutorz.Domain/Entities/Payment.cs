@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -52,6 +52,12 @@ namespace Tutorz.Domain.Entities
 
         /// <summary>Optional note recorded by the institute staff</summary>
         public string? Note { get; set; }
+
+        // --- Online Payment Fields ---
+        public string? ReferenceId { get; set; } // Our internal order ID
+        public string? PayHerePaymentId { get; set; } // ID returned by PayHere
+        public string? PaymentMethod { get; set; } // e.g. "CARD", "VISA"
+        public string? Hash { get; set; } // Hash for verification
 
         // --- Navigation Properties ---
         [ForeignKey("StudentId")]
