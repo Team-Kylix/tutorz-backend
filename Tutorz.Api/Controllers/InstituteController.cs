@@ -300,7 +300,7 @@ namespace Tutorz.Api.Controllers
             var instituteId = GetInstituteIdFromToken();
             if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
 
-            var result = await _instituteService.GetAssignedStudentsAsync(instituteId, searchQuery, page, pageSize);
+            var result = await _instituteService.GetAssignedStudentsAsync   (instituteId, searchQuery, page, pageSize);
             return Ok(result);
         }
 
