@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Tutorz.Application.DTOs.Tutor;
@@ -91,14 +91,14 @@ namespace Tutorz.Api.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
 
-            var profile = await _tutorService.GetTutorProfileAsync(userId);
-            if (profile == null) return NotFound("Profile not found");
-            return Ok(profile);
+            var result = await _tutorService.GetTutorProfileAsync(userId);
+            if (!result.Success) return NotFound(result.Message);
+            return Ok(result);
         }
 
         [HttpPut("profile")]
         [ApiPurpose("Update Tutor Profile")]
-        public async Task<IActionResult> UpdateProfile([FromBody] TutorProfileDto request)
+        public async Task<IActionResult> UpdateProfile([FromForm] UpdateTutorProfileDto request)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();

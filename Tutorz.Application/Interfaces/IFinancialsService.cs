@@ -31,7 +31,7 @@ namespace Tutorz.Application.Interfaces
         /// Generates the PayHere preapproval parameters (hash, order_id, etc.) for the frontend JS SDK.
         /// The frontend uses these to open the PayHere preapproval popup.
         /// </summary>
-        Task<ServiceResponse<object>> InitiatePreapprovalAsync(Guid studentId);
+        Task<ServiceResponse<object>> InitiatePreapprovalAsync(Guid ownerId, string role);
 
         /// <summary>
         /// Handles the PayHere preapproval notify_url callback.

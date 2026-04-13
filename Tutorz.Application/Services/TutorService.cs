@@ -20,6 +20,9 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly IInstituteJoinRequestRepository _joinRequestRepo;
         private readonly IInstituteTutorRepository _instituteTutorRepo;
+        private readonly IProfilePictureService _profilePictureService;
+        private readonly IGenericRepository<City> _cityRepo;
+        private readonly IGenericRepository<District> _districtRepo;
 
         public TutorService(
             ITutorRepository tutorRepo,
@@ -27,7 +30,10 @@ namespace Tutorz.Application.Services
             IStudentRepository studentRepo,
             IUserRepository userRepo,
             IInstituteJoinRequestRepository joinRequestRepo,
-            IInstituteTutorRepository instituteTutorRepo)
+            IInstituteTutorRepository instituteTutorRepo,
+            IProfilePictureService profilePictureService,
+            IGenericRepository<City> cityRepo,
+            IGenericRepository<District> districtRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
@@ -35,6 +41,9 @@ namespace Tutorz.Application.Services
             _userRepo = userRepo;
             _joinRequestRepo = joinRequestRepo;
             _instituteTutorRepo = instituteTutorRepo;
+            _profilePictureService = profilePictureService;
+            _cityRepo = cityRepo;
+            _districtRepo = districtRepo;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -268,11 +277,26 @@ namespace Tutorz.Application.Services
                 return response;
             }
 
+            // Populate Location names and IDs
+            if (profileDto.CityId.HasValue)
+            {
+                var city = await _cityRepo.GetAsync(c => c.Id == profileDto.CityId.Value);
+                if (city != null)
+                {
+                    profileDto.DistrictId = city.DistrictId;
+                    var district = await _districtRepo.GetAsync(d => d.Id == city.DistrictId);
+                    if (district != null)
+                    {
+                        profileDto.ProvinceId = district.ProvinceId;
+                    }
+                }
+            }
+
             response.Data = profileDto;
             return response;
         }
 
-        public async Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, TutorProfileDto request)
+        public async Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, UpdateTutorProfileDto request)
         {
             var response = new ServiceResponse<TutorProfileDto>();
 
@@ -292,25 +316,47 @@ namespace Tutorz.Application.Services
                 return response;
             }
 
+            // Update Tutor entity
             tutor.FirstName = request.FirstName;
             tutor.LastName = request.LastName;
-            tutor.Bio = request.Bio;
-            tutor.BankName = request.BankName;
-            tutor.BankAccountNumber = request.BankAccountNumber;
+            tutor.Bio = request.Bio ?? "";
+            tutor.Address = request.Address;
             tutor.UpdatedDate = DateTime.UtcNow;
 
-            user.PhoneNumber = request.PhoneNumber;
+            // Update User entity
+            if (request.CityId.HasValue)
+            {
+                user.CityId = request.CityId;
+            }
             user.UpdatedDate = DateTime.UtcNow;
+
+            // Handle Profile Picture
+            if (request.ProfilePicture != null)
+            {
+                try
+                {
+                    var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                        tutor.TutorId,
+                        tutor.RegistrationNumber,
+                        "Tutor",
+                        request.ProfilePicture
+                    );
+
+                    tutor.ProfileImageUrlSmall = smallUrl;
+                    tutor.ProfileImageUrlLarge = largeUrl;
+                }
+                catch (Exception ex)
+                {
+                    response.Success = false;
+                    response.Message = $"Image upload failed: {ex.Message}";
+                    return response;
+                }
+            }
 
             await _tutorRepo.SaveChangesAsync();
             await _userRepo.SaveChangesAsync();
 
-            var updatedProfile = await GetTutorProfileAsync(userId);
-            response.Data = updatedProfile.Data;
-            response.Success = true;
-            response.Message = "Profile updated successfully";
-
-            return response;
+            return await GetTutorProfileAsync(userId);
         }
 
         public async Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId)
