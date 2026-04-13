@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
+using Tutorz.Application.DTOs.Common;
 using Tutorz.Infrastructure.Data;
 
 
@@ -18,18 +19,38 @@ namespace Tutorz.Infrastructure.Repositories
         {
         }
 
-        public async Task<List<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm)
+        public async Task<PaginatedResultDto<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
         {
             var db = _context as TutorzDbContext;
 
             var query = db.Classes
                 .Include(c => c.Tutor)
-                .Where(c => c.IsActive);
+                .Include(c => c.Institute)
+                    .ThenInclude(i => i.User)
+                        .ThenInclude(u => u.City)
+                .Where(c => c.IsActive && !c.IsDeleted);
 
             // Filter by Grade
             if (!string.IsNullOrEmpty(grade))
             {
                 query = query.Where(c => c.Grade == grade);
+            }
+
+            // Filter by District
+            if (districtId.HasValue)
+            {
+                query = query.Where(c => c.Institute != null && 
+                                       c.Institute.User != null && 
+                                       c.Institute.User.City != null && 
+                                       c.Institute.User.City.DistrictId == districtId.Value);
+            }
+
+            // Filter by City (Town)
+            if (cityId.HasValue)
+            {
+                query = query.Where(c => c.Institute != null && 
+                                       c.Institute.User != null && 
+                                       c.Institute.User.CityId == cityId.Value);
             }
 
             // Filter by Search Term
@@ -45,25 +66,47 @@ namespace Tutorz.Infrastructure.Repositories
                 );
             }
 
-            // Select into DTO
-            return await query.Select(c => new ClassSearchDto
+            var totalCount = await query.CountAsync();
+
+            // Select into DTO and paginate
+            var items = await query
+                .OrderBy(c => c.CreatedDate) // Ensure deterministic order for paging
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new ClassSearchDto
+                {
+                    Id = c.ClassId,
+                    Subject = c.Subject,
+                    Grade = c.Grade,
+                    // Map names from Tutor
+                    TutorName = c.Tutor.FirstName + " " + c.Tutor.LastName,
+                    // Map the string ID (RegistrationNumber)
+                    TutorId = c.Tutor.RegistrationNumber,
+                    Bio = c.Tutor.Bio,
+                    Fee = c.Fee,
+                    DayOfWeek = c.DayOfWeek,
+                    StartTime = c.StartTime,
+                    EndTime = c.EndTime,
+                    ClassType = c.ClassType,
+                    Status = c.IsActive ? "Active" : "Inactive",
+                    StudentCount = c.Enrollments.Count(e => e.Status == EnrollmentStatus.Approved),
+                    EnrollmentStatus = studentId.HasValue 
+                        ? c.Enrollments.Where(e => e.StudentId == studentId.Value)
+                                    .Select(e => e.Status.ToString())
+                                    .FirstOrDefault() 
+                        : null,
+                    TutorImageUrl = c.Tutor.ProfileImageUrlLarge,
+                    InstituteName = c.Institute != null ? c.Institute.InstituteName : null,
+                    HallName = c.HallName
+                }).ToListAsync();
+
+            return new PaginatedResultDto<ClassSearchDto>
             {
-                Id = c.ClassId,
-                Subject = c.Subject,
-                Grade = c.Grade,
-                // Map names from Tutor
-                TutorName = c.Tutor.FirstName + " " + c.Tutor.LastName,
-                // Map the string ID (RegistrationNumber)
-                TutorId = c.Tutor.RegistrationNumber,
-                Bio = c.Tutor.Bio,
-                Fee = c.Fee,
-                DayOfWeek = c.DayOfWeek,
-                StartTime = c.StartTime,
-                EndTime = c.EndTime,
-                ClassType = c.ClassType,
-                Status = c.IsActive ? "Active" : "Inactive",
-                StudentCount = c.Enrollments.Count(e => e.Status == EnrollmentStatus.Approved)
-            }).ToListAsync();
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
         public async Task<string> RequestJoinClassAsync(Guid studentId, Guid classId)

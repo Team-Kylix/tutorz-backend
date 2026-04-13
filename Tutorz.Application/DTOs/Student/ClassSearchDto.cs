@@ -21,5 +21,9 @@ namespace Tutorz.Application.DTOs.Student
         public string ClassType { get; set; }
         public string Status { get; set; }
         public int StudentCount { get; set; }
+        public string? EnrollmentStatus { get; set; }
+        public string? TutorImageUrl { get; set; }
+        public string? InstituteName { get; set; }
+        public string? HallName { get; set; }
     }
 }

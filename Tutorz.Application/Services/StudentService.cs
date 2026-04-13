@@ -33,13 +33,13 @@ namespace Tutorz.Application.Services
             _districtRepo = districtRepo;
         }
 
-        public async Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm)
+        public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
         {
-            var response = new ServiceResponse<List<ClassSearchDto>>();
+            var response = new ServiceResponse<PaginatedResultDto<ClassSearchDto>>();
             try
             {
-                var classes = await _studentRepo.SearchClassesAsync(grade, searchTerm);
-                response.Data = classes;
+                var paginatedData = await _studentRepo.SearchClassesAsync(grade, searchTerm, studentId, districtId, cityId, page, pageSize);
+                response.Data = paginatedData;
                 response.Success = true;
             }
             catch (Exception ex)
