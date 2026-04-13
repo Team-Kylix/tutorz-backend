@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -160,7 +160,7 @@ namespace Tutorz.Application.Services
         public async Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
-            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId, includeProperties: "Enrollments,Institute");
 
             if (existingClass == null) throw new Exception("Class not found or access denied.");
 
@@ -251,7 +251,7 @@ namespace Tutorz.Application.Services
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             if (tutor == null) throw new Exception("Tutor profile not found.");
 
-            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute");
+            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute,Enrollments");
 
             return classes.Select(c => MapToDto(c)).ToList();
         }
@@ -486,7 +486,7 @@ namespace Tutorz.Application.Services
                 HallName = entity.HallName,
                 Fee = entity.Fee,
                 IsActive = entity.IsActive,
-                StudentCount = 0 
+                StudentCount = entity.Enrollments?.Count(e => e.Status == EnrollmentStatus.Approved) ?? 0
             };
         }
     }

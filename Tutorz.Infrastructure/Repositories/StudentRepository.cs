@@ -61,7 +61,8 @@ namespace Tutorz.Infrastructure.Repositories
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 ClassType = c.ClassType,
-                Status = c.IsActive ? "Active" : "Inactive"
+                Status = c.IsActive ? "Active" : "Inactive",
+                StudentCount = c.Enrollments.Count(e => e.Status == EnrollmentStatus.Approved)
             }).ToListAsync();
         }
 
@@ -165,7 +166,8 @@ namespace Tutorz.Infrastructure.Repositories
                     HallName = e.Class.HallName,
                     Fee = e.Class.Fee,
                     Status = e.Class.IsActive ? "active" : "inactive",
-                    EnrolledAt = e.EnrolledAt
+                    EnrolledAt = e.EnrolledAt,
+                    StudentCount = e.Class.Enrollments.Count(en => en.Status == EnrollmentStatus.Approved)
                 }).ToListAsync();
         }
 

@@ -52,5 +52,7 @@ namespace Tutorz.Domain.Entities
 
         [ForeignKey("InstituteId")]
         public virtual Institute Institute { get; set; }
+    
+        public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
     }
 }

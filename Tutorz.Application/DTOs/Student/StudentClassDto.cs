@@ -23,5 +23,6 @@ namespace Tutorz.Application.DTOs.Student
         public string? TutorPhoneNumber { get; set; }
         public string? TutorProfileImageUrlSmall { get; set; }
         public DateTime? EnrolledAt { get; set; }
+        public int StudentCount { get; set; }
     }
 }
