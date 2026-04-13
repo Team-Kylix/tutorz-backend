@@ -89,10 +89,13 @@ namespace Tutorz.Application.Services
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
 
-            // OTP Verification for Registration
-            if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
+            // OTP Verification for Registration (Bypass if registered by an Institute)
+            if (!request.InstituteId.HasValue)
             {
-                throw new Exception("Invalid or expired verification code.");
+                if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
+                {
+                    throw new Exception("Invalid or expired verification code.");
+                }
             }
 
             // Email Validation
