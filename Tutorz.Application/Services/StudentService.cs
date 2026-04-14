@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Student;
+using Tutorz.Application.DTOs.Institute;
 using Tutorz.Domain.Entities;
 using Tutorz.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -18,19 +19,22 @@ namespace Tutorz.Application.Services
         private readonly IProfilePictureService _profilePictureService;
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
+        private readonly ITutorRepository _tutorRepo;
 
         public StudentService(
             IStudentRepository studentRepo,
             IUserRepository userRepo,
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
-            IGenericRepository<District> districtRepo)
+            IGenericRepository<District> districtRepo,
+            ITutorRepository tutorRepo)
         {
             _studentRepo = studentRepo;
             _userRepo = userRepo;
             _profilePictureService = profilePictureService;
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
+            _tutorRepo = tutorRepo;
         }
 
         public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
@@ -301,6 +305,66 @@ namespace Tutorz.Application.Services
                 response.Message = "Error fetching student payment history: " + ex.Message;
             }
             return response;
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid studentId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower().Trim();
+
+            try
+            {
+                // Get all approved classes the student is in
+                var joinedClasses = await _studentRepo.GetJoinedClassesAsync(studentId);
+                
+                // Extract unique tutors and their user details
+                var results = new List<SearchUserResultDto>();
+                var seenTutorIds = new HashSet<Guid>();
+
+                foreach (var cls in joinedClasses)
+                {
+                    if (cls.TutorId != Guid.Empty && !seenTutorIds.Contains(cls.TutorId))
+                    {
+                        var tutor = await _tutorRepo.GetAsync(
+                            t => t.TutorId == cls.TutorId,
+                            includeProperties: "User"
+                        );
+
+                        if (tutor != null)
+                        {
+                            string fullName = $"{tutor.FirstName} {tutor.LastName}".ToLower();
+                            string regNo = tutor.RegistrationNumber?.ToLower() ?? "";
+                            string phone = tutor.User?.PhoneNumber ?? "";
+                            string email = tutor.User?.Email?.ToLower() ?? "";
+
+                            if (fullName.Contains(query) || regNo.Contains(query) || phone.Contains(query) || email.Contains(query))
+                            {
+                                results.Add(new SearchUserResultDto
+                                {
+                                    UserId = tutor.UserId,
+                                    RoleSpecificId = tutor.TutorId,
+                                    RegistrationNumber = tutor.RegistrationNumber,
+                                    Name = $"{tutor.FirstName} {tutor.LastName}",
+                                    PhoneNumber = phone,
+                                    Email = email,
+                                    ProfileImageUrlSmall = tutor.ProfileImageUrlSmall,
+                                    ProfileImageUrlLarge = tutor.ProfileImageUrlLarge,
+                                    IsAlreadyAssigned = true
+                                });
+                                seenTutorIds.Add(tutor.TutorId);
+                            }
+                        }
+                    }
+                }
+
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Error searching tutors: " + ex.Message };
+            }
         }
     }
 }

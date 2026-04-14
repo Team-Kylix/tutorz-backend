@@ -407,5 +407,15 @@ namespace Tutorz.Infrastructure.Repositories
                 }
             };
         }
+
+        public async Task<IEnumerable<Enrollment>> GetEnrollmentsByClassAsync(Guid classId)
+        {
+            var db = _context as TutorzDbContext;
+            return await db.Enrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.User)
+                .Where(e => e.ClassId == classId)
+                .ToListAsync();
+        }
     }
 }

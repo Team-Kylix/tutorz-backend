@@ -291,7 +291,7 @@ namespace Tutorz.Api.Controllers
 
             var result = await _instituteService.GetInstituteClassesAsync(instituteId, searchQuery, tutorId, page, pageSize);
             return Ok(result);
-        }
+        }   
 
         [HttpGet("students")]
         [ApiPurpose("Get Assigned Students")]

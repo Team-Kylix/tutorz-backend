@@ -535,5 +535,75 @@ namespace Tutorz.Application.Services
                 StudentCount = entity.Enrollments?.Count(e => e.Status == EnrollmentStatus.Approved) ?? 0
             };
         }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid userId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower().Trim();
+
+            try
+            {
+                var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+                if (tutor == null) return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Tutor not found." };
+
+                // Get all classes for this tutor
+                var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId);
+                var classIds = classes.Select(c => c.ClassId).ToList();
+
+                // Get all approved enrollments for these classes
+                var results = new List<SearchUserResultDto>();
+                var seenStudentIds = new HashSet<Guid>();
+
+                foreach (var classId in classIds)
+                {
+                    var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+                    var approvedEnrollments = enrollments.Where(e => e.Status == EnrollmentStatus.Approved);
+
+                    foreach (var enrollment in approvedEnrollments)
+                    {
+                        if (enrollment.StudentId != Guid.Empty && !seenStudentIds.Contains(enrollment.StudentId))
+                        {
+                            var student = enrollment.Student ?? await _studentRepo.GetAsync(
+                                s => s.StudentId == enrollment.StudentId,
+                                includeProperties: "User"
+                            );
+
+                            if (student != null)
+                            {
+                                string fullName = $"{student.FirstName} {student.LastName}".ToLower();
+                                string regNo = student.RegistrationNumber?.ToLower() ?? "";
+                                string phone = student.User?.PhoneNumber ?? "";
+                                string email = student.User?.Email?.ToLower() ?? "";
+
+                                if (fullName.Contains(query) || regNo.Contains(query) || phone.Contains(query) || email.Contains(query))
+                                {
+                                    results.Add(new SearchUserResultDto
+                                    {
+                                        UserId = student.UserId,
+                                        RoleSpecificId = student.StudentId,
+                                        RegistrationNumber = student.RegistrationNumber,
+                                        Name = $"{student.FirstName} {student.LastName}",
+                                        PhoneNumber = phone,
+                                        Email = email,
+                                        ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                                        ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+                                        IsAlreadyAssigned = true
+                                    });
+                                    seenStudentIds.Add(student.StudentId);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Error searching students: " + ex.Message };
+            }
+        }
     }
 }

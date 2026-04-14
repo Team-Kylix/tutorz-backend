@@ -10,6 +10,8 @@ namespace Tutorz.Application.DTOs.Institute
         public string Name { get; set; }
         public string PhoneNumber { get; set; }
         public string Email { get; set; }
+        public string ProfileImageUrlSmall { get; set; }
+        public string ProfileImageUrlLarge { get; set; }
         public bool IsAlreadyAssigned { get; set; } // indicates if they are already in this institute
     }
 }

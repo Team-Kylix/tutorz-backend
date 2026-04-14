@@ -214,5 +214,18 @@ namespace Tutorz.Api.Controllers
             
             return Ok(result); 
         }
+
+        [HttpGet("students/search")]
+        [ApiPurpose("Search Enrolled Students for Tutor")]
+        public async Task<IActionResult> SearchStudents([FromQuery] string query)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.SearchStudentsAsync(userId, query);
+            
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
     }
 }

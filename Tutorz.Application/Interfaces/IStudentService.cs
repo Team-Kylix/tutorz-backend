@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Student;
+using Tutorz.Application.DTOs.Institute;
 
 namespace Tutorz.Application.Interfaces
 {
@@ -19,5 +20,6 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date);
         Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
         Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
+        Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid studentId, string query);
     }
 }
