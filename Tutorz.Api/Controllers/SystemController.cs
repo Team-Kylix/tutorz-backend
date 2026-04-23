@@ -21,15 +21,18 @@ namespace Tutorz.Api.Controllers
         private readonly IConfiguration _configuration;
         private readonly TutorzDbContext _dbContext;
         private readonly INotificationPusher _notificationPusher;
+        private readonly IStudentService _studentService;
 
         public SystemController(
             IConfiguration configuration,
             TutorzDbContext dbContext,
-            INotificationPusher notificationPusher)
+            INotificationPusher notificationPusher,
+            IStudentService studentService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
             _notificationPusher = notificationPusher;
+            _studentService = studentService;
         }
 
         [HttpGet("version")]
@@ -67,6 +70,15 @@ namespace Tutorz.Api.Controllers
             {
                 return StatusCode(500, new { message = "Failed to load dashboard stats.", error = ex.Message });
             }
+        }
+
+        [HttpGet("students")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _studentService.GetAllStudentsAsync(searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
         }
 
         public class ForceLogoutRequest

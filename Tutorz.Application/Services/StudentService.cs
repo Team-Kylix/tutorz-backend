@@ -366,5 +366,22 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Error searching tutors: " + ex.Message };
             }
         }
+
+        public async Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize)
+        {
+            var response = new ServiceResponse<PaginatedResultDto<StudentProfileDto>>();
+            try
+            {
+                var data = await _studentRepo.GetAllStudentsAsync(searchQuery, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching all students: " + ex.Message;
+            }
+            return response;
+        }
     }
 }

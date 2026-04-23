@@ -417,5 +417,53 @@ namespace Tutorz.Infrastructure.Repositories
                 .Where(e => e.ClassId == classId)
                 .ToListAsync();
         }
+
+        public async Task<PaginatedResultDto<StudentProfileDto>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize)
+        {
+            var db = _context as TutorzDbContext;
+
+            var query = db.Students
+                .Include(s => s.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                string term = searchQuery.ToLower();
+                query = query.Where(s =>
+                    s.FirstName.ToLower().Contains(term) ||
+                    s.LastName.ToLower().Contains(term) ||
+                    s.RegistrationNumber.ToLower().Contains(term) ||
+                    (s.User != null && s.User.PhoneNumber.Contains(term)) ||
+                    (s.User != null && s.User.Email != null && s.User.Email.ToLower().Contains(term))
+                );
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(s => s.User != null ? s.User.CreatedDate : DateTime.MinValue)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(s => new StudentProfileDto
+                {
+                    StudentId = s.StudentId,
+                    FirstName = s.FirstName,
+                    LastName = s.LastName,
+                    RegistrationNumber = s.RegistrationNumber,
+                    Grade = s.Grade,
+                    Email = s.User != null ? s.User.Email : "",
+                    PhoneNumber = s.User != null ? s.User.PhoneNumber : "",
+                    ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = s.ProfileImageUrlLarge
+                }).ToListAsync();
+
+            return new PaginatedResultDto<StudentProfileDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
     }
 }

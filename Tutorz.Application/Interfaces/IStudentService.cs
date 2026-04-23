@@ -21,5 +21,6 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
         Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid studentId, string query);
+        Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize);
     }
 }
