@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -18,8 +18,7 @@ namespace Tutorz.Domain.Entities
         public Guid ClassId { get; set; }
         public Guid TutorId { get; set; }
 
-        [Required]
-        public string InstituteName { get; set; } 
+        public Guid? InstituteId { get; set; } 
 
         public string ClassType { get; set; } 
 
@@ -44,10 +43,16 @@ namespace Tutorz.Domain.Entities
         public decimal Fee { get; set; }
 
         public bool IsActive { get; set; } = true;
+        public bool IsDeleted { get; set; } = false;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedDate { get; set; }
 
         [ForeignKey("TutorId")]
         public virtual Tutor Tutor { get; set; }
+
+        [ForeignKey("InstituteId")]
+        public virtual Institute Institute { get; set; }
+    
+        public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
     }
 }

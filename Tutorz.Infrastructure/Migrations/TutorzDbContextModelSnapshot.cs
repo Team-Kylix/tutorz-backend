@@ -22,6 +22,213 @@ namespace Tutorz.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.APIMonthlyUsageSummary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MonthYear")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TotalCalls")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("APIMonthlyUsageSummaries");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ApiDailyUsageSummary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TotalCalls")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ApiDailyUsageSummaries");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ApiUsageLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ApiUsageLogs");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AppSettings");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Attendance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClassId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPresent")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("MarkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassId");
+
+                    b.HasIndex("InstituteId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("Attendances");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("BankCode");
+
+                    b.ToTable("Banks");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.Property<int>("BranchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BranchId"));
+
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BranchName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("BranchId");
+
+                    b.HasIndex("BankCode", "BranchCode");
+
+                    b.ToTable("Branches");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DistrictId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DistrictId");
+
+                    b.ToTable("Cities");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Class", b =>
                 {
                     b.Property<Guid>("ClassId")
@@ -61,11 +268,13 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("InstituteName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<Guid?>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("StartTime")
@@ -84,9 +293,94 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.HasKey("ClassId");
 
+                    b.HasIndex("InstituteId");
+
                     b.HasIndex("TutorId");
 
                     b.ToTable("Classes");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ClassPayment", b =>
+                {
+                    b.Property<Guid>("PaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ClassId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Hash")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayHerePaymentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("PaymentId");
+
+                    b.HasIndex("ClassId");
+
+                    b.HasIndex("InstituteId");
+
+                    b.HasIndex("StudentId", "ClassId", "Month", "Year")
+                        .IsUnique();
+
+                    b.ToTable("ClassPayments");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProvinceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProvinceId");
+
+                    b.ToTable("Districts");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Enrollment", b =>
@@ -120,6 +414,43 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("Enrollments");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Hall", b =>
+                {
+                    b.Property<Guid>("HallId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("HallCode")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("HallId");
+
+                    b.HasIndex("InstituteId");
+
+                    b.ToTable("Halls");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Institute", b =>
                 {
                     b.Property<Guid>("InstituteId")
@@ -130,6 +461,24 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("CommissionPercentage")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("ContactNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -137,12 +486,39 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("InstituteName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsSmsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlLarge")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlSmall")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RegistrationNumber")
                         .IsRequired()
@@ -159,7 +535,138 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.HasKey("InstituteId");
 
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
                     b.ToTable("Institutes");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteJoinRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("InitiatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TutorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstituteId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("TutorId");
+
+                    b.ToTable("InstituteJoinRequests");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteStudent", b =>
+                {
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("InstituteId", "StudentId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("InstituteStudents");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteTutor", b =>
+                {
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TutorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("InstituteId", "TutorId");
+
+                    b.HasIndex("TutorId");
+
+                    b.ToTable("InstituteTutors");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("RelatedId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Provinces");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Role", b =>
@@ -190,11 +697,67 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("Roles");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.SmsLog", b =>
+                {
+                    b.Property<Guid>("SmsLogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MessageContent")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiverPhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("SenderUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("SmsLogId");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.ToTable("SmsLogs");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Student", b =>
                 {
                     b.Property<Guid>("StudentId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardExpiry")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("datetime2");
@@ -216,6 +779,15 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("ParentName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlLarge")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlSmall")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RegistrationNumber")
@@ -242,8 +814,14 @@ namespace Tutorz.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("BankAccountNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
 
                     b.Property<string>("BankName")
                         .HasColumnType("nvarchar(max)");
@@ -252,8 +830,32 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ExperienceYears")
                         .HasColumnType("int");
@@ -269,6 +871,18 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlLarge")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlSmall")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("RegistrationNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -281,7 +895,8 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.HasKey("TutorId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique();
 
                     b.ToTable("Tutors");
                 });
@@ -292,6 +907,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("CityId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
@@ -300,6 +918,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
 
                     b.Property<string>("OtpCode")
@@ -318,6 +939,9 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("QrCodeUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("ResetTokenExpires")
                         .HasColumnType("datetime2");
 
@@ -328,6 +952,8 @@ namespace Tutorz.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("UserId");
+
+                    b.HasIndex("CityId");
 
                     b.ToTable("Users");
                 });
@@ -348,26 +974,151 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("UserSequences");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.APIMonthlyUsageSummary", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ApiDailyUsageSummary", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ApiUsageLog", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Attendance", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Class", "Class")
+                        .WithMany()
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Bank", "Bank")
+                        .WithMany("Branches")
+                        .HasForeignKey("BankCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Bank");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.District", "District")
+                        .WithMany("Cities")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("District");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Class", b =>
                 {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId");
+
                     b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
                         .WithMany()
                         .HasForeignKey("TutorId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Institute");
+
                     b.Navigation("Tutor");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.ClassPayment", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Class", "Class")
+                        .WithMany()
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Province", "Province")
+                        .WithMany("Districts")
+                        .HasForeignKey("ProvinceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Province");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Enrollment", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.Class", "Class")
-                        .WithMany()
+                        .WithMany("Enrollments")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Tutorz.Domain.Entities.User", "Student")
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -378,12 +1129,118 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.Student", b =>
+            modelBuilder.Entity("Tutorz.Domain.Entities.Hall", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Institute");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Institute", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithOne()
+                        .HasForeignKey("Tutorz.Domain.Entities.Institute", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteJoinRequest", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
+                        .WithMany()
+                        .HasForeignKey("TutorId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("Tutor");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteStudent", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany("InstituteStudents")
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
+                        .WithMany("InstituteStudents")
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.InstituteTutor", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany("InstituteTutors")
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
+                        .WithMany("InstituteTutors")
+                        .HasForeignKey("TutorId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Tutor");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.SmsLog", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "SenderUser")
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("SenderUser");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Student", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany("Students")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
@@ -392,12 +1249,65 @@ namespace Tutorz.Infrastructure.Migrations
             modelBuilder.Entity("Tutorz.Domain.Entities.Tutor", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
+                        .WithOne("Tutor")
+                        .HasForeignKey("Tutorz.Domain.Entities.Tutor", "UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.User", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.City", "City")
+                        .WithMany()
+                        .HasForeignKey("CityId");
+
+                    b.Navigation("City");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Navigation("Branches");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Class", b =>
+                {
+                    b.Navigation("Enrollments");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
+                {
+                    b.Navigation("Cities");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Institute", b =>
+                {
+                    b.Navigation("InstituteStudents");
+
+                    b.Navigation("InstituteTutors");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>
+                {
+                    b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Student", b =>
+                {
+                    b.Navigation("InstituteStudents");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Tutor", b =>
+                {
+                    b.Navigation("InstituteTutors");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.User", b =>
+                {
+                    b.Navigation("Students");
+
+                    b.Navigation("Tutor");
                 });
 #pragma warning restore 612, 618
         }

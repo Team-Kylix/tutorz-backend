@@ -8,6 +8,6 @@ namespace Tutorz.Application.DTOs.Auth
 {
     public class ForgotPasswordRequest
     {
-        public string Email { get; set; }
+        public string Identifier { get; set; }
     }
 }

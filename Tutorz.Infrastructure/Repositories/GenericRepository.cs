@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -65,6 +65,7 @@ namespace Tutorz.Infrastructure.Repositories
 
         public async Task DeleteAsync(T entity)
         {
+
             _context.Set<T>().Remove(entity);
             await _context.SaveChangesAsync();
         }

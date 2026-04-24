@@ -1,21 +1,23 @@
-﻿using Microsoft.Extensions.Configuration;
+using BCrypt.Net;
+using Google.Apis.Auth;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Tutorz.Application.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 using Tutorz.Application.DTOs.Auth;
+using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
-using BCrypt.Net;
-using Google.Apis.Auth;
-using System.Text.Json;
-using System.Net.Http;
-using System.Security.Cryptography;
 
 namespace Tutorz.Application.Services
 {
@@ -30,6 +32,12 @@ namespace Tutorz.Application.Services
         private readonly HttpClient _httpClient;
         private readonly IEmailService _emailService;
         private readonly IIdGeneratorService _idGeneratorService;
+        private readonly IQrCodeService _qrCodeService;
+        private readonly IInstituteStudentRepository _instituteStudentRepository;
+        private readonly IInstituteTutorRepository _instituteTutorRepository;
+        private readonly ISmsService _smsService;
+        private readonly INotificationService _notificationService;
+        private readonly IMemoryCache _cache;
 
         public AuthService(
             IUserRepository userRepository,
@@ -39,7 +47,13 @@ namespace Tutorz.Application.Services
             IRoleRepository roleRepository,
             IConfiguration configuration,
             IEmailService emailService,
-            IIdGeneratorService idGeneratorService)
+            IIdGeneratorService idGeneratorService,
+            IQrCodeService qrCodeService,
+            IInstituteStudentRepository instituteStudentRepository,
+            IInstituteTutorRepository instituteTutorRepository,
+            ISmsService smsService,
+            INotificationService notificationService,
+            IMemoryCache cache)
         {
             _userRepository = userRepository;
             _tutorRepository = tutorRepository;
@@ -49,7 +63,13 @@ namespace Tutorz.Application.Services
             _configuration = configuration;
             _emailService = emailService;
             _idGeneratorService = idGeneratorService;
+            _qrCodeService = qrCodeService;
             _httpClient = new HttpClient();
+            _instituteStudentRepository = instituteStudentRepository;
+            _instituteTutorRepository = instituteTutorRepository;
+            _smsService = smsService;
+            _notificationService = notificationService;
+            _cache = cache;
         }
 
         // --- REGISTER (First Time User) ---
@@ -69,12 +89,27 @@ namespace Tutorz.Application.Services
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
 
+            // OTP Verification for Registration (Bypass if registered by an Institute)
+            if (!request.InstituteId.HasValue)
+            {
+                if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
+                {
+                    throw new Exception("Invalid or expired verification code.");
+                }
+            }
+
             // Email Validation
-            if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
-                throw new Exception("User with this email already exists.");
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
+                    throw new Exception("User with this email already exists.");
+            }
 
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
+
+            // Generate Unique Registration ID
+            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
             // Create User (WITHOUT RegistrationNumber)
             var user = new User
@@ -83,29 +118,32 @@ namespace Tutorz.Application.Services
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
-                PhoneNumber = normalizedPhone
+                PhoneNumber = normalizedPhone,
+                CityId = request.CityId,
+                IsVerified = true // Verified via OTP before creation
             };
             await _userRepository.AddAsync(user);
 
-            // Generate Unique Registration ID
-            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
-
             // Handle Specific Roles
             Guid? newStudentId = null;
+            Guid? newTutorId = null;
 
             if (request.Role == "Tutor")
             {
-                await _tutorRepository.AddAsync(new Tutor
+                var tutor = new Tutor
                 {
+                    TutorId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId, // Assigned to Tutor
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     Bio = request.Bio,
                     BankAccountNumber = request.BankAccountNumber,
                     BankName = request.BankName,
                     ExperienceYears = request.ExperienceYears
-                });
+                };
+                newTutorId = tutor.TutorId;
+                await _tutorRepository.AddAsync(tutor);
             }
             else if (request.Role == "Student")
             {
@@ -113,7 +151,7 @@ namespace Tutorz.Application.Services
                 {
                     StudentId = Guid.NewGuid(),
                     UserId = user.UserId,
-                    RegistrationNumber = customId, // Assigned to Student
+                    RegistrationNumber = customId,
                     FirstName = request.FirstName,
                     LastName = request.LastName,
                     SchoolName = request.SchoolName,
@@ -132,18 +170,120 @@ namespace Tutorz.Application.Services
 
                 await _instituteRepository.AddAsync(new Institute
                 {
+                    InstituteId = Guid.NewGuid(),
                     UserId = user.UserId,
                     RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
-                    ContactNumber = request.PhoneNumber
+                    ContactNumber = normalizedPhone
                 });
             }
+            // --- Link to Institute if InstituteId is provided in the request ---
+            if (request.InstituteId.HasValue)
+            {
+                // Verify institute exists
+                var institute = await _instituteRepository.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (institute == null)
+                    throw new Exception("Provided Institute ID does not exist.");
+
+                if (request.Role == "Tutor" && newTutorId.HasValue)
+                {
+                    await _instituteTutorRepository.AddAsync(new InstituteTutor
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        TutorId = newTutorId.Value,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                }
+                else if (request.Role == "Student" && newStudentId.HasValue)
+                {
+                    await _instituteStudentRepository.AddAsync(new InstituteStudent
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        StudentId = newStudentId.Value,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                }
+
+                // Send Welcome SMS
+                if (institute.IsSmsEnabled)
+                {
+                    try
+                    {
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: https://tutorzlk.azurewebsites.net";
+                        await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Welcome SMS failed for {normalizedPhone}: {ex.Message}");
+                    }
+                }
+
+                // --- Send notification to Institute ---
+                try
+                {
+                    string notifTitle = request.Role == "Tutor"
+                        ? "New Tutor Registered"
+                        : "New Student Registered";
+                    string notifMessage = $"{request.FirstName} {request.LastName} has been registered under your institute.";
+                    string notifType = request.Role == "Tutor" ? "TutorRegistration" : "StudentRegistration";
+                    Guid? relatedId = request.Role == "Tutor" ? newTutorId : newStudentId;
+
+                    await _notificationService.CreateAndPushAsync(
+                        institute.UserId,
+                        notifTitle,
+                        notifMessage,
+                        notifType,
+                        relatedId
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Notification failure must never break registration
+                    Console.WriteLine($"Notification push failed: {ex.Message}");
+                }
+            }
+
+            // QR Code Generation Logic
+            // Determine Name for QR based on role
+            string qrName = request.FirstName;
+            if (request.Role == "Student") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Tutor") qrName = $"{request.FirstName} {request.LastName}";
+            if (request.Role == "Institute") qrName = request.InstituteName ?? request.FirstName;
+
+            // Generate QR and get Path
+            string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
+
+            // Update User Entity with QR Path
+            user.QrCodeUrl = qrPath;
 
             await _userRepository.SaveChangesAsync();
 
+            // Fetch InstituteId if role is Institute
+            Guid? instituteId = null;
+            if (request.Role == "Institute")
+            {
+                 // We need to fetch the Institute created above. 
+                 // Since we didn't capture the ID during AddAsync (it returns Task, not entity with ID populated immediately unless EF tracks it... 
+                 // actually EF populates the ID on the entity instance after SaveChangesAsync).
+                 // However, we created 'new Institute { ... }' inside AddAsync call directly without a variable reference in the implementation above.
+                 // Wait, looking at the code: 
+                 // await _instituteRepository.AddAsync(new Institute { ... });
+                 
+                 // We need to fix the Register logic to capture the institute entity first.
+                 // Correcting this block requires finding the institute by UserId since we just saved it.
+                 var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                 instituteId = inst?.InstituteId;
+            }
+
             // Pass the newStudentId if it exists
-            var token = GenerateJwtToken(user, role.Name, newStudentId);
+            var token = GenerateJwtToken(user, role.Name, newStudentId, instituteId);
+
+            // Determine firstName and lastName based on role
+            string firstName = request.Role == "Institute"
+                ? (request.InstituteName ?? request.FirstName)
+                : request.FirstName;
+            string lastName = request.Role == "Institute" ? "" : request.LastName;
 
             var response = new AuthResponse
             {
@@ -152,6 +292,9 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = newStudentId,
+                FirstName = firstName,
+                LastName = lastName,
+                RegistrationNumber = customId,
                 Profiles = new List<StudentProfileDto>()
             };
 
@@ -168,6 +311,31 @@ namespace Tutorz.Application.Services
             }
 
             return response;
+        }
+
+        public async Task SendRegistrationOtpAsync(string phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+                throw new Exception("Phone number is required.");
+
+            if (!Regex.IsMatch(phoneNumber, @"^07\d{8}$"))
+                throw new Exception("Invalid phone number format. Must be 10 digits starting with 07 (e.g., 0712345678).");
+
+            string normalizedPhone = "+94" + phoneNumber.Substring(1);
+
+            // Check if phone number is already registered to a VERIFIED user
+            var existingUser = await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone);
+            if (existingUser != null && existingUser.IsVerified)
+                throw new Exception("This phone number is already registered. Please log in.");
+
+            // Generate 6-digit OTP
+            string otp = new Random().Next(100000, 999999).ToString();
+
+            // Store in cache for 10 minutes (Registration Context)
+            _cache.Set($"registration_otp_{normalizedPhone}", otp, TimeSpan.FromMinutes(10));
+
+            // Send via SMS
+            await _smsService.SendSmsAsync(normalizedPhone, $"Your Tutorz Registration Code is {otp}. Valid for 10 minutes.");
         }
 
         // --- LOGIN (Handles Multiple Profiles) ---
@@ -194,6 +362,9 @@ namespace Tutorz.Application.Services
             }
 
             if (user == null) throw new Exception("Invalid email/mobile number or password.");
+            
+            if (!user.IsVerified)
+                throw new Exception("Account not verified. Please verify your phone number via OTP first.");
 
             if (string.IsNullOrEmpty(user.PasswordHash))
                 throw new Exception("This account was created using Google. Please use the 'Continue with Google' button.");
@@ -220,7 +391,9 @@ namespace Tutorz.Application.Services
                         StudentId = s.StudentId,
                         FirstName = s.FirstName,
                         Grade = s.Grade,
-                        IsPrimary = s.IsPrimary
+                        IsPrimary = s.IsPrimary,
+                        ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                        ProfileImageUrlLarge = s.ProfileImageUrlLarge
                     }).ToList();
 
                     // Default to Primary, otherwise first available
@@ -229,8 +402,60 @@ namespace Tutorz.Application.Services
                 }
             }
 
-            // Generate token with the selected StudentId
-            var token = GenerateJwtToken(user, role.Name, currentStudentId);
+            // Fetch InstituteId for token if Institute
+            Guid? instituteId = null;
+            if (role.Name == "Institute")
+            {
+                var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                instituteId = inst?.InstituteId;
+            }
+
+            // Generate token with the selected StudentId and InstituteId
+            var token = GenerateJwtToken(user, role.Name, currentStudentId, instituteId);
+
+            // Fetch role-specific data for firstName, lastName, and registrationNumber
+            string firstName = null;
+            string lastName = null;
+            string registrationNumber = null;
+            string profileImageUrlSmall = null;
+            string profileImageUrlLarge = null;
+
+            if (role.Name == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null)
+                {
+                    firstName = tutor.FirstName;
+                    lastName = tutor.LastName;
+                    registrationNumber = tutor.RegistrationNumber;
+                    profileImageUrlSmall = tutor.ProfileImageUrlSmall;
+                    profileImageUrlLarge = tutor.ProfileImageUrlLarge;
+                }
+            }
+            else if (role.Name == "Student" && currentStudentId.HasValue)
+            {
+                var student = await _studentRepository.GetAsync(s => s.StudentId == currentStudentId.Value);
+                if (student != null)
+                {
+                    firstName = student.FirstName;
+                    lastName = student.LastName;
+                    registrationNumber = student.RegistrationNumber;
+                    profileImageUrlSmall = student.ProfileImageUrlSmall;
+                    profileImageUrlLarge = student.ProfileImageUrlLarge;
+                }
+            }
+            else if (role.Name == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null)
+                {
+                    firstName = institute.InstituteName;
+                    lastName = "";
+                    registrationNumber = institute.RegistrationNumber;
+                    profileImageUrlSmall = institute.ProfileImageUrlSmall;
+                    profileImageUrlLarge = institute.ProfileImageUrlLarge;
+                }
+            }
 
             return new AuthResponse
             {
@@ -239,6 +464,11 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = currentStudentId,
+                FirstName = firstName,
+                LastName = lastName,
+                RegistrationNumber = registrationNumber,
+                ProfileImageUrlSmall = profileImageUrlSmall,
+                ProfileImageUrlLarge = profileImageUrlLarge,
                 Profiles = profiles
             };
         }
@@ -256,9 +486,21 @@ namespace Tutorz.Application.Services
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
 
             // Generate Token for THIS specific student
-            var token = GenerateJwtToken(user, role.Name, student.StudentId);
+            var token = GenerateJwtToken(user, role.Name, student.StudentId, null);
 
-            // Return response with new token
+            // Fetch ALL sibling profiles so the switcher remains populated
+            var allStudents = await _studentRepository.GetAllAsync(s => s.UserId == userId);
+            var profiles = allStudents.Select(s => new StudentProfileDto
+            {
+                StudentId = s.StudentId,
+                FirstName = s.FirstName,
+                Grade = s.Grade,
+                IsPrimary = s.IsPrimary,
+                ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = s.ProfileImageUrlLarge
+            }).ToList();
+
+            // Return response with new token and full sibling list
             return new AuthResponse
             {
                 UserId = user.UserId,
@@ -266,30 +508,98 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = student.StudentId,
-                Profiles = new List<StudentProfileDto>() 
+                FirstName = student.FirstName,
+                LastName = student.LastName,
+                RegistrationNumber = student.RegistrationNumber,
+                ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+                Profiles = profiles
             };
         }
 
         // --- CHECK USER STATUS ---
-        public async Task<string> CheckUserStatusAsync(string identifier)
+        public async Task<ServiceResponse<CheckUserResponse>> CheckUserStatusAsync(CheckUserRequest request)
         {
-            User user;
-            if (identifier.Contains("@"))
-                user = await _userRepository.GetAsync(u => u.Email == identifier);
-            else
+            var response = new ServiceResponse<CheckUserResponse>();
+            User user = null;
+
+            // Check Specific Email
+            if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                // Simple phone normalization for check
-                string cleanPhone = identifier.StartsWith("0") ? "+94" + identifier.Substring(1) : identifier;
+                user = await _userRepository.GetAsync(u => u.Email == request.Email);
+            }
+
+            // Check Specific Phone (if user not found yet)
+            if (user == null && !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                string cleanPhone = NormalizePhone(request.PhoneNumber);
                 user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
             }
 
-            if (user == null) return "NOT_FOUND";
+            // Legacy "Identifier" Check (if user still not found)
+            if (user == null && !string.IsNullOrWhiteSpace(request.Identifier))
+            {
+                if (request.Identifier.Contains("@"))
+                {
+                    user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+                }
+                else
+                {
+                    string cleanPhone = NormalizePhone(request.Identifier);
+                    user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+                }
+            }
 
+            // --- RESULT PROCESSING (Same as before) ---
+            if (user == null)
+            {
+                response.Success = true;
+                response.Data = new CheckUserResponse { Exists = false, Message = "User does not exist." };
+                return response;
+            }
+
+            // Fetch Details
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
+            string name = "Unknown User";
 
-            if (role.Name == "Student") return "EXISTS_AS_STUDENT";
+            if (role.Name == "Student")
+            {
+                var student = (await _studentRepository.GetAllAsync(s => s.UserId == user.UserId))
+                              .OrderByDescending(s => s.IsPrimary).FirstOrDefault();
+                if (student != null) name = $"{student.FirstName} {student.LastName}";
+            }
+            else if (role.Name == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null) name = $"{tutor.FirstName} {tutor.LastName}";
+            }
+            else if (role.Name == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null) name = institute.InstituteName;
+            }
 
-            return "EXISTS_OTHER_ROLE";
+            response.Success = true;
+            response.Data = new CheckUserResponse
+            {
+                Exists = true,
+                UserId = user.UserId,
+                Name = name,
+                Role = role.Name,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber
+            };
+
+            return response;
+        }
+
+        // Helper method to keep code clean
+        private string NormalizePhone(string phone)
+        {
+            string clean = phone.Replace(" ", "").Replace("-", "");
+            if (clean.StartsWith("0")) return "+94" + clean.Substring(1);
+            if (!clean.StartsWith("+")) return "+94" + clean;
+            return clean;
         }
 
         // --- REGISTER SIBLING ---
@@ -307,6 +617,9 @@ namespace Tutorz.Application.Services
             var user = await _userRepository.GetAsync(u => u.Email == searchIdentifier || u.PhoneNumber == searchIdentifier);
             if (user == null) throw new Exception("Parent account not found.");
 
+            if (!user.IsVerified)
+                throw new Exception("Parent account is not verified. Please verify the parent account first.");
+
             // GENERATE NEW ID FOR THE SIBLING
             string newStudentId = await _idGeneratorService.GenerateNextIdAsync("Student", request.Grade);
 
@@ -314,7 +627,7 @@ namespace Tutorz.Application.Services
             var newStudent = new Student
             {
                 StudentId = Guid.NewGuid(),
-                UserId = user.UserId, 
+                UserId = user.UserId,
                 RegistrationNumber = newStudentId,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
@@ -327,6 +640,51 @@ namespace Tutorz.Application.Services
 
             await _studentRepository.AddAsync(newStudent);
             await _studentRepository.SaveChangesAsync();
+
+            // Link to Institute if registered via Institute Dashboard
+            if (request.InstituteId.HasValue)
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (institute != null)
+                {
+                    await _instituteStudentRepository.AddAsync(new InstituteStudent
+                    {
+                        InstituteId = request.InstituteId.Value,
+                        StudentId = newStudent.StudentId,
+                        AssignedDate = DateTime.UtcNow
+                    });
+                    await _instituteStudentRepository.SaveChangesAsync();
+                    
+                    if (institute.IsSmsEnabled && !string.IsNullOrEmpty(user.PhoneNumber))
+                    {
+                        try
+                        {
+                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: https://tutorzlk.azurewebsites.net";
+                            await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage, institute.UserId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Sibling Welcome SMS failed: {ex.Message}");
+                        }
+                    }
+
+                    // --- Send notification to Institute ---
+                    try
+                    {
+                        await _notificationService.CreateAndPushAsync(
+                            institute.UserId,
+                            "New Student Registered",
+                            $"{request.FirstName} {request.LastName} (sibling) has been registered under your institute.",
+                            "StudentRegistration",
+                            newStudent.StudentId
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Sibling notification push failed: {ex.Message}");
+                    }
+                }
+            }
 
             // Auto-Login Response logic
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
@@ -342,7 +700,7 @@ namespace Tutorz.Application.Services
             }).ToList();
 
             // Generate token for the NEW student specifically
-            var token = GenerateJwtToken(user, role.Name, newStudent.StudentId);
+            var token = GenerateJwtToken(user, role.Name, newStudent.StudentId, null);
 
             return new AuthResponse
             {
@@ -351,6 +709,9 @@ namespace Tutorz.Application.Services
                 Role = role.Name,
                 Token = token,
                 CurrentStudentId = newStudent.StudentId,
+                FirstName = newStudent.FirstName,
+                LastName = newStudent.LastName,
+                RegistrationNumber = newStudent.RegistrationNumber,
                 Profiles = profiles
             };
         }
@@ -399,7 +760,9 @@ namespace Tutorz.Application.Services
                     Email = socialUser.Email,
                     PasswordHash = "",
                     RoleId = role.RoleId,
-                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null
+                    PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
+                    CityId = request.CityId,
+                    IsVerified = true
                 };
 
                 await _userRepository.AddAsync(user);
@@ -411,7 +774,7 @@ namespace Tutorz.Application.Services
                     {
                         StudentId = Guid.NewGuid(),
                         UserId = user.UserId,
-                        RegistrationNumber = customId, 
+                        RegistrationNumber = customId,
                         FirstName = request.FirstName ?? socialUser.Name.Split(' ')[0],
                         LastName = request.LastName ?? (socialUser.Name.Contains(' ') ? socialUser.Name.Split(' ')[1] : ""),
                         SchoolName = request.SchoolName,
@@ -436,9 +799,9 @@ namespace Tutorz.Application.Services
                     await _tutorRepository.AddAsync(new Tutor
                     {
                         UserId = user.UserId,
-                        RegistrationNumber = customId, 
+                        RegistrationNumber = customId,
                         FirstName = request.FirstName ?? socialUser.Name,
-                        LastName = request.LastName,  
+                        LastName = request.LastName,
                         Bio = request.Bio,
                         BankAccountNumber = request.BankAccountNumber,
                         BankName = request.BankName
@@ -448,6 +811,7 @@ namespace Tutorz.Application.Services
                 {
                     await _instituteRepository.AddAsync(new Institute
                     {
+                        InstituteId = Guid.NewGuid(),
                         UserId = user.UserId,
                         RegistrationNumber = customId,
                         InstituteName = request.InstituteName ?? socialUser.Name,
@@ -456,6 +820,17 @@ namespace Tutorz.Application.Services
                     });
                 }
 
+                await _userRepository.SaveChangesAsync();
+
+                // QR Code Generation Logic for Social Login
+                string qrName = request.FirstName;
+                if (roleName == "Institute") qrName = request.InstituteName ?? request.FirstName;
+                else qrName = $"{request.FirstName} {request.LastName}";
+
+                string phoneForQr = user.PhoneNumber ?? "N/A";
+
+                string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, phoneForQr, roleName);
+                user.QrCodeUrl = qrPath;
                 await _userRepository.SaveChangesAsync();
             }
             else
@@ -474,7 +849,9 @@ namespace Tutorz.Application.Services
                             StudentId = s.StudentId,
                             FirstName = s.FirstName,
                             Grade = s.Grade,
-                            IsPrimary = s.IsPrimary
+                            IsPrimary = s.IsPrimary,
+                            ProfileImageUrlSmall = s.ProfileImageUrlSmall,
+                            ProfileImageUrlLarge = s.ProfileImageUrlLarge
                         }).ToList();
 
                         var activeStudent = students.FirstOrDefault(s => s.IsPrimary) ?? students.FirstOrDefault();
@@ -483,7 +860,58 @@ namespace Tutorz.Application.Services
                 }
             }
 
-            var token = GenerateJwtToken(user, roleName, currentStudentId);
+            Guid? instituteId = null;
+            if (roleName == "Institute")
+            {
+                var inst = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                instituteId = inst?.InstituteId;
+            }
+
+            var token = GenerateJwtToken(user, roleName, currentStudentId, instituteId);
+
+            // Fetch role-specific data for firstName, lastName, and registrationNumber
+            string firstName = null;
+            string lastName = null;
+            string registrationNumber = null;
+            string profileImageUrlSmall = null;
+            string profileImageUrlLarge = null;
+
+            if (roleName == "Tutor")
+            {
+                var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
+                if (tutor != null)
+                {
+                    firstName = tutor.FirstName;
+                    lastName = tutor.LastName;
+                    registrationNumber = tutor.RegistrationNumber;
+                    profileImageUrlSmall = tutor.ProfileImageUrlSmall;
+                    profileImageUrlLarge = tutor.ProfileImageUrlLarge;
+                }
+            }
+            else if (roleName == "Student" && currentStudentId.HasValue)
+            {
+                var student = await _studentRepository.GetAsync(s => s.StudentId == currentStudentId.Value);
+                if (student != null)
+                {
+                    firstName = student.FirstName;
+                    lastName = student.LastName;
+                    registrationNumber = student.RegistrationNumber;
+                    profileImageUrlSmall = student.ProfileImageUrlSmall;
+                    profileImageUrlLarge = student.ProfileImageUrlLarge;
+                }
+            }
+            else if (roleName == "Institute")
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
+                if (institute != null)
+                {
+                    firstName = institute.InstituteName;
+                    lastName = "";
+                    registrationNumber = institute.RegistrationNumber;
+                    profileImageUrlSmall = institute.ProfileImageUrlSmall;
+                    profileImageUrlLarge = institute.ProfileImageUrlLarge;
+                }
+            }
 
             return new AuthResponse
             {
@@ -492,10 +920,15 @@ namespace Tutorz.Application.Services
                 Role = roleName,
                 Token = token,
                 CurrentStudentId = currentStudentId,
+                FirstName = firstName,
+                LastName = lastName,
+                RegistrationNumber = registrationNumber,
+                ProfileImageUrlSmall = profileImageUrlSmall,
+                ProfileImageUrlLarge = profileImageUrlLarge,
                 Profiles = profiles
             };
         }
-        private string GenerateJwtToken(User user, string roleName, Guid? studentId = null)
+        private string GenerateJwtToken(User user, string roleName, Guid? studentId = null, Guid? instituteId = null)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -512,6 +945,12 @@ namespace Tutorz.Application.Services
                 claims.Add(new Claim("StudentId", studentId.Value.ToString()));
             }
 
+            // ADDED: Include InstituteId claim if role is Institute
+            if (instituteId.HasValue)
+            {
+                claims.Add(new Claim("InstituteId", instituteId.Value.ToString()));
+            }
+
             var token = new JwtSecurityToken(
                 claims: claims,
                 expires: DateTime.Now.AddDays(7),
@@ -522,28 +961,73 @@ namespace Tutorz.Application.Services
 
         public async Task<bool> CheckEmailExistsAsync(string email)
         {
+            if (string.IsNullOrWhiteSpace(email)) return false;
             var user = await _userRepository.GetAsync(u => u.Email == email);
             return user != null;
         }
 
-        public async Task ForgotPasswordAsync(string email)
+        public async Task ForgotPasswordAsync(string identifier)
         {
-            var user = await _userRepository.GetAsync(u => u.Email == email);
-            if (user == null) throw new Exception("This email address is not registered.");
+            User user = null;
+            if (identifier.Contains("@"))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == identifier);
+            }
+            else
+            {
+                string cleanPhone = NormalizePhone(identifier);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
 
-            var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
-            user.PasswordResetToken = token;
+            if (user == null) throw new Exception("This account is not registered.");
+
+            var otp = new Random().Next(100000, 999999).ToString();
+            user.PasswordResetToken = otp; // Store 6-digit OTP instead of token
             user.ResetTokenExpires = DateTime.UtcNow.AddHours(1);
 
             await _userRepository.SaveChangesAsync();
 
-            string resetLink = $"http://localhost:5173/reset-password?token={token}";
-            _emailService.SendEmail(user.Email, "Reset Password", $"Click here to reset your password: <a href='{resetLink}'>Reset Link</a>");
+            string subject = "Reset Password";
+            string body = $"<h3>Your password reset code is: <span style='color:blue'>{otp}</span></h3><p>Enter this code on the password reset page.</p>";
+            try { _emailService.SendEmail(user.Email, subject, body); } catch { }
+
+            if (!string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: https://tutorzlk.azurewebsites.net"); } catch { }
+            }
         }
 
-        public async Task SendOtpAsync(string identifier)
+        public async Task SendOtpAsync(CheckUserRequest request)
         {
-            var user = await _userRepository.GetAsync(u => u.Email == identifier);
+            User user = null;
+
+            // Check Email
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == request.Email);
+            }
+
+            // Check Phone
+            if (user == null && !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                string cleanPhone = NormalizePhone(request.PhoneNumber);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
+            // Check Identifier
+            if (user == null && !string.IsNullOrWhiteSpace(request.Identifier))
+            {
+                if (request.Identifier.Contains("@"))
+                {
+                    user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+                }
+                else
+                {
+                    string cleanPhone = NormalizePhone(request.Identifier);
+                    user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+                }
+            }
+
             if (user == null) throw new Exception("User not found.");
 
             // 1. Generate 6-digit Code
@@ -558,13 +1042,27 @@ namespace Tutorz.Application.Services
             string subject = "Tutorz Family Verification Code";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your sibling account.</p>";
 
-            _emailService.SendEmail(user.Email, subject, body);
+            try { _emailService.SendEmail(user.Email, subject, body); } catch { }
+
+            if (!string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: https://tutorzlk.azurewebsites.net"); } catch { }
+            }
         }
 
         // Updated VerifyOtpAsync to return the Phone Number
         public async Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request)
         {
-            var user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+            User user = null;
+            if (request.Identifier.Contains("@"))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+            }
+            else
+            {
+                string cleanPhone = NormalizePhone(request.Identifier);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
 
             if (user == null)
                 throw new Exception("User not found.");
@@ -575,9 +1073,10 @@ namespace Tutorz.Application.Services
             if (user.OtpExpires < DateTime.UtcNow)
                 throw new Exception("OTP code has expired.");
 
-            // Clear OTP after success
+            // Clear OTP and mark as verified
             user.OtpCode = null;
             user.OtpExpires = null;
+            user.IsVerified = true;
             await _userRepository.SaveChangesAsync();
 
             // Return the phone number stored in the parent account
@@ -603,6 +1102,92 @@ namespace Tutorz.Application.Services
             user.ResetTokenExpires = null;
 
             await _userRepository.SaveChangesAsync();
+        }
+
+        // --- CREDENTIAL UPDATES ---
+        public async Task RequestEmailUpdateAsync(Guid userId, string newEmail)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) throw new Exception("User not found.");
+
+            if (await _userRepository.GetAsync(u => u.Email == newEmail && u.UserId != userId) != null)
+                throw new Exception("This email is already in use by another account.");
+
+            string otp = new Random().Next(100000, 999999).ToString();
+            user.OtpCode = otp;
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
+            await _userRepository.SaveChangesAsync();
+
+            string subject = "Tutorz Email Update Verification";
+            string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your new email address.</p>";
+            try { _emailService.SendEmail(newEmail, subject, body); } catch { }
+        }
+
+        public async Task<ServiceResponse<bool>> VerifyEmailUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (user.OtpCode != request.Otp || user.OtpExpires < DateTime.UtcNow)
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid or expired OTP." };
+
+            user.Email = request.NewIdentifier;
+            user.OtpCode = null;
+            user.OtpExpires = null;
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Email updated successfully.", Data = true };
+        }
+
+        public async Task RequestMobileUpdateAsync(Guid userId, string newMobile)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) throw new Exception("User not found.");
+
+            string cleanPhone = NormalizePhone(newMobile);
+
+            if (await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone && u.UserId != userId) != null)
+                throw new Exception("This mobile number is already in use by another account.");
+
+            string otp = new Random().Next(100000, 999999).ToString();
+            user.OtpCode = otp;
+            user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
+            await _userRepository.SaveChangesAsync();
+
+            try { await _smsService.SendSmsAsync(cleanPhone, $"Your Tutorz Verification Code is {otp}", userId); } catch { }
+        }
+
+        public async Task<ServiceResponse<bool>> VerifyMobileUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
+        {
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (user.OtpCode != request.Otp || user.OtpExpires < DateTime.UtcNow)
+                return new ServiceResponse<bool> { Success = false, Message = "Invalid or expired OTP." };
+
+            user.PhoneNumber = NormalizePhone(request.NewIdentifier);
+            user.OtpCode = null;
+            user.OtpExpires = null;
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Mobile number updated successfully.", Data = true };
+        }
+
+        public async Task<ServiceResponse<bool>> ChangePasswordAsync(Guid userId, ChangePasswordDto request)
+        {
+            if (request.NewPassword.Length < 6 || request.NewPassword.Length > 10)
+                return new ServiceResponse<bool> { Success = false, Message = "New password must be between 6 and 10 characters." };
+
+            var user = await _userRepository.GetAsync(u => u.UserId == userId);
+            if (user == null) return new ServiceResponse<bool> { Success = false, Message = "User not found." };
+
+            if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return new ServiceResponse<bool> { Success = false, Message = "Incorrect current password." };
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _userRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Message = "Password changed successfully.", Data = true };
         }
 
         // Private helper for Google

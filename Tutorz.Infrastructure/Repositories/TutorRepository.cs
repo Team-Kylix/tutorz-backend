@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,11 +12,10 @@ namespace Tutorz.Infrastructure.Repositories
 {
     public class TutorRepository : GenericRepository<Tutor>, ITutorRepository
     {
-        private readonly TutorzDbContext _context;
+
 
         public TutorRepository(TutorzDbContext context) : base(context)
         {
-            _context = context;
         }
 
         public async Task<TutorProfileDto> GetTutorProfileAsync(Guid userId)
@@ -28,14 +27,21 @@ namespace Tutorz.Infrastructure.Repositories
                           where t.UserId == userId
                           select new TutorProfileDto
                           {
-                              FirstName = t.FirstName,
-                              LastName = t.LastName,
-                              Bio = t.Bio,
-                              BankAccountNumber = t.BankAccountNumber,
-                              BankName = t.BankName,
-                              RegistrationNumber = t.RegistrationNumber,
-                              Email = u.Email,
-                              PhoneNumber = u.PhoneNumber
+                              UserId               = t.UserId,
+                              TutorId              = t.TutorId,
+                              FirstName            = t.FirstName,
+                              LastName             = t.LastName,
+                              Bio                  = t.Bio,
+                              BankAccountNumber    = t.BankAccountNumber,
+                              BankName             = t.BankName,
+                              RegistrationNumber   = t.RegistrationNumber,
+                              ExperienceYears      = t.ExperienceYears,
+                              Address              = t.Address,
+                              CityId               = u.CityId,
+                              Email                = u.Email,
+                              PhoneNumber          = u.PhoneNumber,
+                              ProfileImageUrlSmall = t.ProfileImageUrlSmall,
+                              ProfileImageUrlLarge = t.ProfileImageUrlLarge
                           }).FirstOrDefaultAsync();
         }
 
