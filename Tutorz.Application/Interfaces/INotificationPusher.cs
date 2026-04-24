@@ -15,5 +15,12 @@ namespace Tutorz.Application.Interfaces
         /// If the user is offline, this is a silent no-op.
         /// </summary>
         Task PushToUserAsync(string userId, object notification);
+
+        /// <summary>
+        /// Pushes a serialized notification to all active connections.
+        /// Useful for system-wide alerts and forced logouts.
+        /// </summary>
+        /// <param name="notification">The notification object to send</param>
+        Task BroadcastToAllAsync(object notification);
     }
 }

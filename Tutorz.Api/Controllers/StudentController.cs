@@ -22,10 +22,27 @@ namespace Tutorz.Api.Controllers
 
         [HttpGet("search-classes")]
         [ApiPurpose("Search Classes")]
-        public async Task<IActionResult> SearchClasses([FromQuery] string? grade, [FromQuery] string? query)
+        public async Task<IActionResult> SearchClasses(
+            [FromQuery] string? grade, 
+            [FromQuery] string? query, 
+            [FromQuery] int? districtId, 
+            [FromQuery] int? cityId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            // StudentService.SearchClassesAsync already handles null/empty checks using string.IsNullOrEmpty().
-            var result = await _studentService.SearchClassesAsync(grade, query);
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            Guid? studentId = null;
+            if (!string.IsNullOrEmpty(studentIdString))
+            {
+                studentId = Guid.Parse(studentIdString);
+            }
+
+            var result = await _studentService.SearchClassesAsync(grade, query, studentId, districtId, cityId, page, pageSize);
 
             if (!result.Success) return BadRequest(result);
 
@@ -203,6 +220,26 @@ namespace Tutorz.Api.Controllers
 
             if (!result.Success) return BadRequest(result);
             return Ok(result);
+        }
+
+        [HttpGet("tutors/search")]
+        [ApiPurpose("Search Tutors for Student")]
+        public async Task<IActionResult> SearchTutors([FromQuery] string query)
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+            {
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+            var result = await _studentService.SearchTutorsAsync(studentId, query);
+            
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
         }
     }
 }

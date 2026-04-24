@@ -565,7 +565,8 @@ namespace Tutorz.Application.Services
                     EndTime = c.EndTime,
                     HallName = c.HallName,
                     Fee = c.Fee,
-                    StudentRegisteredCount = enrollments.Count()
+                    StudentRegisteredCount = enrollments.Count(),
+                    StudentCount = enrollments.Count()
                 });
             }
 
@@ -725,7 +726,8 @@ namespace Tutorz.Application.Services
                 EndTime = newClass.EndTime,
                 HallName = newClass.HallName,
                 Fee = newClass.Fee,
-                StudentRegisteredCount = 0
+                StudentRegisteredCount = 0,
+                StudentCount = 0
             };
 
             return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class created successfully." };
@@ -833,7 +835,8 @@ namespace Tutorz.Application.Services
                 EndTime = existingClass.EndTime,
                 HallName = existingClass.HallName,
                 Fee = existingClass.Fee,
-                StudentRegisteredCount = enrollments.Count()
+                StudentRegisteredCount = enrollments.Count(),
+                StudentCount = enrollments.Count()
             };
 
             return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class updated successfully." };
@@ -925,7 +928,7 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
             // Find classes for this institute
-            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
+            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor,Enrollments");
 
             // Find enrollments for this student
             var activeEnrollments = await _enrollmentRepository.GetAllAsync(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
@@ -948,7 +951,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -1011,7 +1016,7 @@ namespace Tutorz.Application.Services
             var today = clientDate.DayOfWeek.ToString(); // e.g. "Monday"
             var todayDate = clientDate.Date;
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor");
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor,Enrollments");
 
             // Filter for today
             var classesToday = classes.Where(c =>
@@ -1034,7 +1039,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -1252,7 +1259,7 @@ namespace Tutorz.Application.Services
 
             var allClasses = await _classRepository.GetAllAsync(
                 c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted,
-                includeProperties: "Tutor");
+                includeProperties: "Tutor,Enrollments");
 
             // Include recurring classes matching the day-of-week, and one-off classes on that exact date
             var filtered = allClasses.Where(c =>
@@ -1276,7 +1283,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };

@@ -5,12 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Student;
+using Tutorz.Application.DTOs.Institute;
 
 namespace Tutorz.Application.Interfaces
 {
     public interface IStudentService
     {
-        Task<ServiceResponse<List<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm);
+        Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10);
         Task<ServiceResponse<string>> RequestJoinClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId);
@@ -19,5 +20,7 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<IEnumerable<StudentClassDto>>> GetClassesByDateAsync(Guid studentId, DateTime date);
         Task<ServiceResponse<StudentAttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
         Task<ServiceResponse<StudentPaymentHistoryResponseDto>> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
+        Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid studentId, string query);
+        Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize);
     }
 }

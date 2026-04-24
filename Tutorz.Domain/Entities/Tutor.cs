@@ -17,6 +17,7 @@ namespace Tutorz.Domain.Entities
         public virtual User User { get; set; } = null!;
         public String FirstName { get; set; } = string.Empty;
         public String LastName { get; set; } = string.Empty;
+        public string? Address { get; set; }
         public String Bio { get; set; } = string.Empty;
         public int ExperienceYears { get; set; }
 

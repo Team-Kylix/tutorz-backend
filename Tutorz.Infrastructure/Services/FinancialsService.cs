@@ -322,20 +322,52 @@ namespace Tutorz.Infrastructure.Services
         /// Builds the parameters required by the PayHere JS SDK preapproval popup.
         /// The frontend calls this to get a valid hash, then opens window.payhere.startPayment().
         /// </summary>
-        public async Task<ServiceResponse<object>> InitiatePreapprovalAsync(Guid studentId)
+        public async Task<ServiceResponse<object>> InitiatePreapprovalAsync(Guid ownerId, string role)
         {
-            var student = await _context.Students
-                .Include(s => s.User)
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
-            if (student == null) return Fail<object>("Student not found.");
+            string firstName = "", lastName = "", email = "", phone = "", address = "";
+
+            switch (role.ToLower())
+            {
+                case "tutor":
+                    var tutor = await _context.Tutors.Include(t => t.User).FirstOrDefaultAsync(t => t.TutorId == ownerId || t.UserId == ownerId);
+                    if (tutor == null) return Fail<object>("Tutor not found.");
+                    firstName = tutor.FirstName; lastName = tutor.LastName;
+                    email = tutor.User?.Email ?? "tutor@tutorz.com";
+                    phone = tutor.User?.PhoneNumber ?? "0771234567";
+                    address = tutor.Address ?? "Sri Lanka";
+                    ownerId = tutor.TutorId;
+                    break;
+
+                case "institute":
+                    var institute = await _context.Institutes.Include(i => i.User).FirstOrDefaultAsync(i => i.InstituteId == ownerId || i.UserId == ownerId);
+                    if (institute == null) return Fail<object>("Institute not found.");
+                    firstName = institute.InstituteName; lastName = "(Institute)";
+                    email = institute.User?.Email ?? "institute@tutorz.com";
+                    phone = institute.User?.PhoneNumber ?? "0771234567";
+                    address = institute.Address ?? "Sri Lanka";
+                    ownerId = institute.InstituteId;
+                    break;
+
+                case "student":
+                    var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.StudentId == ownerId || s.UserId == ownerId);
+                    if (student == null) return Fail<object>("Student not found.");
+                    firstName = student.FirstName; lastName = student.LastName;
+                    email = student.User?.Email ?? "student@tutorz.com";
+                    phone = student.User?.PhoneNumber ?? "0771234567";
+                    address = student.Address ?? "Sri Lanka";
+                    ownerId = student.StudentId;
+                    break;
+
+                default:
+                    return Fail<object>("Unsupported role for preapproval.");
+            }
 
             string orderId  = $"TZ-PRE-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0, 6)}";
             string amount   = "30.00";
             string currency = "LKR";
-            string items           = "Card Registration Fee - Tutorz";
-            string hash            = GenerateInitiationHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
-            string sanitizedPhone  = (student.User?.PhoneNumber ?? "0771234567").Replace("+", "");
-            string fallbackEmail   = !string.IsNullOrWhiteSpace(student.User?.Email) ? student.User.Email : "student@tutorz.com";
+            string items    = "Card Registration Fee - Tutorz";
+            string hash     = GenerateInitiationHash(PayHereMerchantId, orderId, amount, currency, PayHereMerchantSecret);
+            string sanitizedPhone = phone.Replace("+", "");
 
             return Ok<object>(new
             {
@@ -350,14 +382,15 @@ namespace Tutorz.Infrastructure.Services
                 currency        = currency,
                 amount          = amount,
                 hash            = hash,
-                first_name      = student.FirstName,
-                last_name       = student.LastName,
-                email           = fallbackEmail,
+                first_name      = firstName,
+                last_name       = lastName,
+                email           = email,
                 phone           = sanitizedPhone,
-                address         = student.Address ?? "Sri Lanka",
+                address         = address,
                 city            = "Colombo",
                 country         = "Sri Lanka",
-                custom_1        = studentId.ToString() // So the notify_url knows which student to update
+                custom_1        = ownerId.ToString(),
+                custom_2        = role.ToLower()
             });
         }
 
@@ -383,26 +416,44 @@ namespace Tutorz.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(notify.customer_token))
                 return Fail<bool>("customer_token missing in preapproval notify.");
 
-            // custom_1 holds the studentId we passed during initiation
-            if (!Guid.TryParse(notify.custom_1, out var studentId))
-                return Fail<bool>("Could not parse studentId from custom_1.");
+            // custom_1 holds the ownerId, custom_2 holds the role
+            if (!Guid.TryParse(notify.custom_1, out var ownerId))
+                return Fail<bool>("Could not parse ownerId from custom_1.");
 
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
-            if (student == null) return Fail<bool>("Student not found.");
+            string role = (notify.custom_2 ?? "student").ToLower();
 
-            // Extract last4 from masked card_no (e.g. "************4242" => "4242")
-            string last4 = notify.card_no?.Length >= 4
-                ? notify.card_no.Substring(notify.card_no.Length - 4)
-                : "";
-
-            // Normalise brand: PayHere returns "VISA", "MASTER", etc.
+            // Card details
+            string last4 = notify.card_no?.Length >= 4 ? notify.card_no.Substring(notify.card_no.Length - 4) : "";
             string brand = NormaliseBrand(notify.method);
+            string encryptedToken = _enc.Encrypt(notify.customer_token ?? "");
 
-            student.PayHereToken   = _enc.Encrypt(notify.customer_token ?? "");
-            student.CardLast4      = last4;
-            student.CardBrand      = brand;
-            student.CardholderName = notify.card_holder_name;
-            student.CardExpiry     = notify.card_expiry; // MMYY e.g. "0128"
+            switch (role)
+            {
+                case "tutor":
+                    var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.TutorId == ownerId);
+                    if (tutor == null) return Fail<bool>("Tutor not found.");
+                    tutor.PayHereToken = encryptedToken; tutor.CardLast4 = last4;
+                    tutor.CardBrand = brand; tutor.CardholderName = notify.card_holder_name;
+                    break;
+
+                case "institute":
+                    var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.InstituteId == ownerId);
+                    if (institute == null) return Fail<bool>("Institute not found.");
+                    institute.PayHereToken = encryptedToken; institute.CardLast4 = last4;
+                    institute.CardBrand = brand; institute.CardholderName = notify.card_holder_name;
+                    break;
+
+                case "student":
+                    var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == ownerId);
+                    if (student == null) return Fail<bool>("Student not found.");
+                    student.PayHereToken = encryptedToken; student.CardLast4 = last4;
+                    student.CardBrand = brand; student.CardholderName = notify.card_holder_name;
+                    student.CardExpiry = notify.card_expiry;
+                    break;
+
+                default:
+                    return Fail<bool>("Unsupported role in notification.");
+            }
 
             await _context.SaveChangesAsync();
             return Ok(true, "Card preapproval successful — token saved.");

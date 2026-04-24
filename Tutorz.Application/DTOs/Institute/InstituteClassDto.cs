@@ -19,5 +19,6 @@ namespace Tutorz.Application.DTOs.Institute
         public string HallName { get; set; }
         public decimal Fee { get; set; }
         public int StudentRegisteredCount { get; set; }
+        public int StudentCount { get; set; }
     }
 }

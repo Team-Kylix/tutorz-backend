@@ -156,14 +156,13 @@ namespace Tutorz.Api.Controllers
         /// </summary>
         [HttpPost("initiate-preapproval")]
         [ApiPurpose("Initiate PayHere Card Preapproval")]
-        [Authorize(Roles = "Student")]
         public async Task<IActionResult> InitiatePreapproval()
         {
-            var (studentId, role) = GetOwnerContext();
-            if (studentId == Guid.Empty || role != "Student")
-                return Unauthorized("Only students can initiate card preapproval.");
+            var (ownerId, role) = GetOwnerContext();
+            if (ownerId == Guid.Empty)
+                return Unauthorized();
 
-            var result = await _financialsService.InitiatePreapprovalAsync(studentId);
+            var result = await _financialsService.InitiatePreapprovalAsync(ownerId, role);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

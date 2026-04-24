@@ -18,5 +18,10 @@ namespace Tutorz.Api.Hubs
             // Use SignalR to push the notification specifically to this user
             await _hubContext.Clients.User(userId).SendAsync("ReceiveNotification", notification);
         }
+
+        public async Task BroadcastToAllAsync(object notification)
+        {
+            await _hubContext.Clients.All.SendAsync("ForceLogout", notification);
+        }
     }
 }
