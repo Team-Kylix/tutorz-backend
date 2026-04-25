@@ -28,3 +28,4 @@ db_update_error.log
 !/Tutorz.Api/wwwroot/qr-codes/.gitkeep
 
 # NOTE: Migrations are NOT ignored. They MUST be tracked by Git.
+/Tutorz.Api/wwwroot/dispute-screenshots

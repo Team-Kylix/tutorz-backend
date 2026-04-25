@@ -59,6 +59,10 @@ builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Service
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
 
+// Dispute / Ticketing System
+builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
+builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
+
 // Named HTTP client for PayHere API calls (Charging API, OAuth)
 builder.Services.AddHttpClient("PayHere", client =>
 {

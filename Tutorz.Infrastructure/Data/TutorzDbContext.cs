@@ -43,6 +43,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Notification> Notifications { get; set; }
         // Global application settings (e.g., MinTokenDate for forced logout on deploy)
         public DbSet<AppSetting> AppSettings { get; set; }
+        public DbSet<Dispute> Disputes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -212,6 +213,20 @@ namespace Tutorz.Infrastructure.Data
             // Composite index: fast query of latest notifications per user
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => new { n.UserId, n.CreatedAt });
+
+            // Dispute Configuration
+            modelBuilder.Entity<Dispute>()
+                .HasOne(d => d.RaisedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.RaisedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => d.DisputeNumber)
+                .IsUnique(); // Fast, guaranteed-unique lookups
+
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => new { d.RaisedByUserId, d.CreatedAt }); // Fast per-user queries
         }
     }
 }
