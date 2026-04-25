@@ -22,17 +22,20 @@ namespace Tutorz.Api.Controllers
         private readonly TutorzDbContext _dbContext;
         private readonly INotificationPusher _notificationPusher;
         private readonly IStudentService _studentService;
+        private readonly ITutorService _tutorService;
 
         public SystemController(
             IConfiguration configuration,
             TutorzDbContext dbContext,
             INotificationPusher notificationPusher,
-            IStudentService studentService)
+            IStudentService studentService,
+            ITutorService tutorService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
             _notificationPusher = notificationPusher;
             _studentService = studentService;
+            _tutorService = tutorService;
         }
 
         [HttpGet("version")]
@@ -77,6 +80,15 @@ namespace Tutorz.Api.Controllers
         public async Task<IActionResult> GetStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _studentService.GetAllStudentsAsync(searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("tutors")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetTutors([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _tutorService.GetAllTutorsAsync(searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
         }

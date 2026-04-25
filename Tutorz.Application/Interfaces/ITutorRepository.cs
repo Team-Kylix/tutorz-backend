@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Tutorz.Domain.Entities;
 using Tutorz.Application.DTOs.Tutor;
+using Tutorz.Application.DTOs.Common;
 
 namespace Tutorz.Application.Interfaces
 {
@@ -13,5 +14,6 @@ namespace Tutorz.Application.Interfaces
         Task<List<Enrollment>> GetEnrollmentsByIdsAsync(List<Guid> enrollmentIds);
         Task UpdateEnrollmentsAsync(List<Enrollment> enrollments);
         Task<StudentFullProfileDto> GetStudentProfileForTutorAsync(Guid studentId);
+        Task<PaginatedResultDto<TutorProfileDto>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize);
     }
 }
