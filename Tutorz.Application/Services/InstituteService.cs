@@ -1345,5 +1345,22 @@ namespace Tutorz.Application.Services
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Commission percentage updated successfully." };
         }
+
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteProfileDto>>> GetAllInstitutesAsync(string? searchQuery, int page, int pageSize)
+        {
+            var response = new ServiceResponse<PaginatedResultDto<InstituteProfileDto>>();
+            try
+            {
+                var data = await _instituteRepository.GetAllInstitutesAsync(searchQuery, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching all institutes: " + ex.Message;
+            }
+            return response;
+        }
     }
 }

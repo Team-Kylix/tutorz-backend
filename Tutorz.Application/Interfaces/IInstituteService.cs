@@ -26,6 +26,7 @@ namespace Tutorz.Application.Interfaces
         // Searching
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid instituteId, string query);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchTutorsAsync(Guid instituteId, string query);
+        Task<ServiceResponse<PaginatedResultDto<InstituteProfileDto>>> GetAllInstitutesAsync(string? searchQuery, int page, int pageSize);
 
         // Get Assigned Users (Paginated & Searched)
         Task<ServiceResponse<InstituteClassDto>> CreateInstituteClassAsync(Guid instituteId, CreateClassRequest request);

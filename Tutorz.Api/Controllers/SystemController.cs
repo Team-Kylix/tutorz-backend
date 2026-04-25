@@ -23,19 +23,22 @@ namespace Tutorz.Api.Controllers
         private readonly INotificationPusher _notificationPusher;
         private readonly IStudentService _studentService;
         private readonly ITutorService _tutorService;
+        private readonly IInstituteService _instituteService;
 
         public SystemController(
             IConfiguration configuration,
             TutorzDbContext dbContext,
             INotificationPusher notificationPusher,
             IStudentService studentService,
-            ITutorService tutorService)
+            ITutorService tutorService,
+            IInstituteService instituteService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
             _notificationPusher = notificationPusher;
             _studentService = studentService;
             _tutorService = tutorService;
+            _instituteService = instituteService;
         }
 
         [HttpGet("version")]
@@ -67,7 +70,8 @@ namespace Tutorz.Api.Controllers
             try
             {
                 var totalUsers = await _dbContext.Users.CountAsync();
-                return Ok(new { totalUsers });
+                var totalInstitutes = await _dbContext.Institutes.CountAsync();
+                return Ok(new { totalUsers, totalInstitutes });
             }
             catch (Exception ex)
             {
@@ -89,6 +93,15 @@ namespace Tutorz.Api.Controllers
         public async Task<IActionResult> GetTutors([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _tutorService.GetAllTutorsAsync(searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("institutes")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetInstitutes([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _instituteService.GetAllInstitutesAsync(searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
         }
