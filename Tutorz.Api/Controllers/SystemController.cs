@@ -71,7 +71,8 @@ namespace Tutorz.Api.Controllers
             {
                 var totalUsers = await _dbContext.Users.CountAsync();
                 var totalInstitutes = await _dbContext.Institutes.CountAsync();
-                return Ok(new { totalUsers, totalInstitutes });
+                var totalTutors = await _dbContext.Tutors.CountAsync();
+                return Ok(new { totalUsers, totalInstitutes, totalTutors });
             }
             catch (Exception ex)
             {
