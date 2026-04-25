@@ -10,6 +10,9 @@ using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Disputes;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
+using Tutorz.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace Tutorz.Infrastructure.Services
 {
@@ -18,15 +21,21 @@ namespace Tutorz.Infrastructure.Services
         private readonly IDisputeRepository _disputeRepository;
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _configuration;
+        private readonly INotificationService _notificationService;
+        private readonly TutorzDbContext _dbContext;
 
         public DisputeService(
             IDisputeRepository disputeRepository,
             IWebHostEnvironment env,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            INotificationService notificationService,
+            TutorzDbContext dbContext)
         {
-            _disputeRepository = disputeRepository;
-            _env               = env;
-            _configuration     = configuration;
+            _disputeRepository   = disputeRepository;
+            _env                 = env;
+            _configuration       = configuration;
+            _notificationService = notificationService;
+            _dbContext           = dbContext;
         }
 
         public async Task<ServiceResponse<DisputeResponseDto>> CreateDisputeAsync(Guid userId, CreateDisputeDto dto)
@@ -64,6 +73,36 @@ namespace Tutorz.Infrastructure.Services
                 await _disputeRepository.SaveChangesAsync();
 
                 var result = await _disputeRepository.GetDisputeByIdAsync(dispute.Id);
+
+                // --- Trigger Notifications ---
+                try
+                {
+                    // 1. Notify the Submitter
+                    await _notificationService.CreateAndPushAsync(
+                        userId, 
+                        $"Complaint Submitted ({disputeNumber})", 
+                        "Your complaint has been successfully submitted and is pending review.", 
+                        "Dispute");
+
+                    // 2. Notify all Admins
+                    var adminUserIds = await _dbContext.Users
+                        .Where(u => _dbContext.Roles.Any(r => r.RoleId == u.RoleId && r.Name == "Admin"))
+                        .Select(u => u.UserId)
+                        .ToListAsync();
+
+                    foreach(var adminId in adminUserIds)
+                    {
+                        await _notificationService.CreateAndPushAsync(
+                            adminId,
+                            "New Complaint Logged",
+                            $"A new complaint ({disputeNumber}) has been logged and requires review.",
+                            "Dispute");
+                    }
+                }
+                catch (Exception hookEx)
+                {
+                    // Non-fatal, just log in real system
+                }
 
                 return new ServiceResponse<DisputeResponseDto>
                 {
@@ -107,6 +146,26 @@ namespace Tutorz.Infrastructure.Services
             var updated = await _disputeRepository.UpdateStatusAsync(disputeId, dto);
             if (!updated)
                 return Fail<bool>("Dispute not found.");
+
+            try
+            {
+                var disputeDetails = await _disputeRepository.GetDisputeByIdAsync(disputeId);
+                if (disputeDetails != null)
+                {
+                    var title = $"Complaint Update ({disputeDetails.DisputeNumber})";
+                    var msg = $"Your complaint status has been updated to {disputeDetails.StatusLabel}.";
+                    if (!string.IsNullOrWhiteSpace(disputeDetails.AdminNote)) {
+                        msg += " An admin has left a note regarding your complaint.";
+                    }
+
+                    await _notificationService.CreateAndPushAsync(
+                        disputeDetails.RaisedByUserId,
+                        title,
+                        msg,
+                        "Dispute");
+                }
+            }
+            catch { /* Ignore notification failures */ }
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Status updated successfully." };
         }
