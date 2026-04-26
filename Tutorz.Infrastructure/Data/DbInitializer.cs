@@ -38,45 +38,46 @@ namespace Tutorz.Infrastructure.Data
                 return;
             }
 
+            var roleSuperAdmin = new Role { RoleId = Guid.NewGuid(), Name = "SuperAdmin", Description = "Super Administrator" };
             var roleAdmin = new Role { RoleId = Guid.NewGuid(), Name = "Admin", Description = "System Administrator" };
             var roleTutor = new Role { RoleId = Guid.NewGuid(), Name = "Tutor", Description = "Registered Tutor" };
             var roleStudent = new Role { RoleId = Guid.NewGuid(), Name = "Student", Description = "Student or Parent" };
             var roleInstitute = new Role { RoleId = Guid.NewGuid(), Name = "Institute", Description = "Educational Institute" };
 
-            context.Roles.AddRange(roleAdmin, roleTutor, roleStudent, roleInstitute);
+            context.Roles.AddRange(roleSuperAdmin, roleAdmin, roleTutor, roleStudent, roleInstitute);
             context.SaveChanges();
 
             // Use Fully Qualified Name
             string dummyHash = BCrypt.Net.BCrypt.HashPassword("Test@123");
 
             // ==================================================
-            // 1. ADMIN ACCOUNT (Added)
+            // 1. SUPER ADMIN ACCOUNT (Added)
             // ==================================================
             var userAdmin = new User
             {
                 UserId = Guid.NewGuid(),
                 Email = "admin@tutorz.com",
-                PhoneNumber = "0112223344",
+                PhoneNumber = "+94712223344",
                 PasswordHash = dummyHash, // Password is: Test@123
-                RoleId = roleAdmin.RoleId,
-                IsActive = true
+                RoleId = roleSuperAdmin.RoleId,
+                RegistrationNumber = "SAD000000001",
+                IsActive = true,
+                IsVerified = true
             };
 
-            // Note: If you have a separate 'Admin' entity/table for profile details (like Tutor/Student),
-            // uncomment the lines below and ensure 'Admins' DbSet exists in your context.
-            /*
             var adminProfile = new Admin
             {
                 AdminId = Guid.NewGuid(),
                 UserId = userAdmin.UserId,
+                RegistrationNumber = "SAD000000001",
                 FirstName = "System",
-                LastName = "Administrator"
+                LastName = "Administrator",
+                CreatedDate = DateTime.UtcNow
             };
-            context.Admins.Add(adminProfile);
-            */
 
-            // Add Admin to the Users dbset
+            // Add Admin to the Users and Admins dbset
             context.Users.Add(userAdmin);
+            context.Admins.Add(adminProfile);
             context.SaveChanges();
             // ==================================================
         }

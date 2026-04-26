@@ -51,6 +51,7 @@ builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IInstituteService, InstituteService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();

@@ -15,7 +15,7 @@ namespace Tutorz.Domain.Entities
         public string? PhoneNumber { get; set; }
         public string PasswordHash { get; set; } = string.Empty;
         public Guid RoleId { get; set; }
-        public string? QrCodeUrl { get; set; }
+        public string? RegistrationNumber { get; set; }
         public bool IsActive { get; set; } = true;
         public bool IsVerified { get; set; } = false;
         public int? CityId { get; set; }
@@ -30,5 +30,6 @@ namespace Tutorz.Domain.Entities
         public DateTime UpdatedDate { get; set; }
         public virtual ICollection<Student> Students { get; set; } = new List<Student>();
         public virtual Tutor? Tutor { get; set; }
+        public virtual Admin? Admin { get; set; }
     }
 }

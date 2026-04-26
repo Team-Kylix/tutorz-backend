@@ -38,6 +38,7 @@ namespace Tutorz.Application.Services
         private readonly ISmsService _smsService;
         private readonly INotificationService _notificationService;
         private readonly IMemoryCache _cache;
+        private readonly IGenericRepository<Admin> _adminRepository;
 
         public AuthService(
             IUserRepository userRepository,
@@ -53,9 +54,11 @@ namespace Tutorz.Application.Services
             IInstituteTutorRepository instituteTutorRepository,
             ISmsService smsService,
             INotificationService notificationService,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IGenericRepository<Admin> adminRepository)
         {
             _userRepository = userRepository;
+            _adminRepository = adminRepository;
             _tutorRepository = tutorRepository;
             _studentRepository = studentRepository;
             _instituteRepository = instituteRepository;
@@ -111,7 +114,7 @@ namespace Tutorz.Application.Services
             // Generate Unique Registration ID
             string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
-            // Create User (WITHOUT RegistrationNumber)
+            // Create User
             var user = new User
             {
                 UserId = Guid.NewGuid(),
@@ -120,6 +123,7 @@ namespace Tutorz.Application.Services
                 RoleId = role.RoleId,
                 PhoneNumber = normalizedPhone,
                 CityId = request.CityId,
+                RegistrationNumber = customId,
                 IsVerified = true // Verified via OTP before creation
             };
             await _userRepository.AddAsync(user);
@@ -244,19 +248,6 @@ namespace Tutorz.Application.Services
                 }
             }
 
-            // QR Code Generation Logic
-            // Determine Name for QR based on role
-            string qrName = request.FirstName;
-            if (request.Role == "Student") qrName = $"{request.FirstName} {request.LastName}";
-            if (request.Role == "Tutor") qrName = $"{request.FirstName} {request.LastName}";
-            if (request.Role == "Institute") qrName = request.InstituteName ?? request.FirstName;
-
-            // Generate QR and get Path
-            string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, normalizedPhone, request.Role);
-
-            // Update User Entity with QR Path
-            user.QrCodeUrl = qrPath;
-
             await _userRepository.SaveChangesAsync();
 
             // Fetch InstituteId if role is Institute
@@ -311,6 +302,71 @@ namespace Tutorz.Application.Services
             }
 
             return response;
+        }
+
+        public async Task<ServiceResponse<bool>> CreateAdminAsync(Tutorz.Application.DTOs.System.CreateAdminDto request)
+        {
+            // Phone Number Validation
+            string normalizedPhone = NormalizePhone(request.PhoneNumber);
+            if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
+                throw new Exception("This phone number is already registered.");
+
+            // Email Validation
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                if (await _userRepository.GetAsync(u => u.Email == request.Email) != null)
+                    throw new Exception("User with this email already exists.");
+            }
+
+            var role = await _roleRepository.GetAsync(r => r.Name == "Admin");
+            if (role == null) throw new Exception("Role 'Admin' does not exist.");
+
+            // Generate Unique Registration ID
+            string customId = await _idGeneratorService.GenerateNextIdAsync("Admin");
+
+            // Default password: last 6 digits of mobile
+            string rawPassword = request.PhoneNumber.Substring(request.PhoneNumber.Length - 6);
+
+            // Create User
+            var user = new User
+            {
+                UserId = Guid.NewGuid(),
+                Email = string.IsNullOrWhiteSpace(request.Email) ? $"admin.{normalizedPhone.Replace("+", "")}@tutorz.lk" : request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(rawPassword),
+                RoleId = role.RoleId,
+                PhoneNumber = normalizedPhone,
+                RegistrationNumber = customId,
+                IsVerified = true
+            };
+            
+            await _userRepository.AddAsync(user);
+
+            var admin = new Admin
+            {
+                AdminId = Guid.NewGuid(),
+                UserId = user.UserId,
+                RegistrationNumber = customId,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                CreatedDate = DateTime.UtcNow
+            };
+
+            await _adminRepository.AddAsync(admin);
+
+            await _userRepository.SaveChangesAsync();
+
+            // Send Welcome SMS
+            try
+            {
+                string welcomeMessage = $"Hi {request.FirstName},\nYou've been added as an Admin. Registration ID: {customId}, Default password: {rawPassword}\nURL: https://www.tutorz.lk";
+                await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, user.UserId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Admin Welcome SMS failed: {ex.Message}");
+            }
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Admin created successfully." };
         }
 
         public async Task SendRegistrationOtpAsync(string phoneNumber)
@@ -456,6 +512,16 @@ namespace Tutorz.Application.Services
                     profileImageUrlLarge = institute.ProfileImageUrlLarge;
                 }
             }
+            else if (role.Name == "Admin")
+            {
+                var admin = await _adminRepository.GetAsync(a => a.UserId == user.UserId);
+                if (admin != null)
+                {
+                    firstName = admin.FirstName;
+                    lastName = admin.LastName;
+                    registrationNumber = admin.RegistrationNumber;
+                }
+            }
 
             return new AuthResponse
             {
@@ -577,6 +643,11 @@ namespace Tutorz.Application.Services
             {
                 var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
                 if (institute != null) name = institute.InstituteName;
+            }
+            else if (role.Name == "Admin")
+            {
+                var admin = await _adminRepository.GetAsync(a => a.UserId == user.UserId);
+                if (admin != null) name = $"{admin.FirstName} {admin.LastName}";
             }
 
             response.Success = true;
@@ -762,6 +833,7 @@ namespace Tutorz.Application.Services
                     RoleId = role.RoleId,
                     PhoneNumber = !string.IsNullOrEmpty(request.PhoneNumber) ? ("+94" + request.PhoneNumber.Substring(1)) : null,
                     CityId = request.CityId,
+                    RegistrationNumber = customId,
                     IsVerified = true
                 };
 
@@ -820,17 +892,6 @@ namespace Tutorz.Application.Services
                     });
                 }
 
-                await _userRepository.SaveChangesAsync();
-
-                // QR Code Generation Logic for Social Login
-                string qrName = request.FirstName;
-                if (roleName == "Institute") qrName = request.InstituteName ?? request.FirstName;
-                else qrName = $"{request.FirstName} {request.LastName}";
-
-                string phoneForQr = user.PhoneNumber ?? "N/A";
-
-                string qrPath = await _qrCodeService.GenerateUserQrCodeAsync(customId, qrName, phoneForQr, roleName);
-                user.QrCodeUrl = qrPath;
                 await _userRepository.SaveChangesAsync();
             }
             else
@@ -910,6 +971,16 @@ namespace Tutorz.Application.Services
                     registrationNumber = institute.RegistrationNumber;
                     profileImageUrlSmall = institute.ProfileImageUrlSmall;
                     profileImageUrlLarge = institute.ProfileImageUrlLarge;
+                }
+            }
+            else if (roleName == "Admin")
+            {
+                var admin = await _adminRepository.GetAsync(a => a.UserId == user.UserId);
+                if (admin != null)
+                {
+                    firstName = admin.FirstName;
+                    lastName = admin.LastName;
+                    registrationNumber = admin.RegistrationNumber;
                 }
             }
 

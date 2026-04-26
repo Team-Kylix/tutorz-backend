@@ -24,6 +24,8 @@ namespace Tutorz.Api.Controllers
         private readonly IStudentService _studentService;
         private readonly ITutorService _tutorService;
         private readonly IInstituteService _instituteService;
+        private readonly IAuthService _authService;
+        private readonly IAdminService _adminService;
 
         public SystemController(
             IConfiguration configuration,
@@ -31,7 +33,9 @@ namespace Tutorz.Api.Controllers
             INotificationPusher notificationPusher,
             IStudentService studentService,
             ITutorService tutorService,
-            IInstituteService instituteService)
+            IInstituteService instituteService,
+            IAuthService authService,
+            IAdminService adminService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
@@ -39,6 +43,8 @@ namespace Tutorz.Api.Controllers
             _studentService = studentService;
             _tutorService = tutorService;
             _instituteService = instituteService;
+            _authService = authService;
+            _adminService = adminService;
         }
 
         [HttpGet("version")]
@@ -162,6 +168,49 @@ namespace Tutorz.Api.Controllers
             {
                 return StatusCode(500, new { message = "Failed to force logout.", error = ex.Message });
             }
+        }
+
+        [HttpPost("admin")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> CreateAdmin([FromBody] Tutorz.Application.DTOs.System.CreateAdminDto request)
+        {
+            try
+            {
+                var result = await _authService.CreateAdminAsync(request);
+                if (!result.Success) return BadRequest(result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to create admin.", error = ex.Message });
+            }
+        }
+        [HttpGet("admin/profile")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetAdminProfile()
+        {
+            var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+            if (!Guid.TryParse(idClaim, out var userId)) return Unauthorized();
+
+            var result = await _adminService.GetAdminProfileAsync(userId);
+            if (!result.Success) return NotFound(result.Message);
+            return Ok(result);
+        }
+
+        [HttpPut("admin/profile")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> UpdateAdminProfile([FromForm] Tutorz.Application.DTOs.Admin.UpdateAdminProfileDto request)
+        {
+            var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+            if (!Guid.TryParse(idClaim, out var userId)) return Unauthorized();
+
+            var result = await _adminService.UpdateAdminProfileAsync(userId, request);
+            if (!result.Success) return BadRequest(result.Message);
+            return Ok(result.Data);
         }
     }
 }

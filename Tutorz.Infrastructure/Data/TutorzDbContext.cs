@@ -44,6 +44,7 @@ namespace Tutorz.Infrastructure.Data
         // Global application settings (e.g., MinTokenDate for forced logout on deploy)
         public DbSet<AppSetting> AppSettings { get; set; }
         public DbSet<Dispute> Disputes { get; set; }
+        public DbSet<Admin> Admins { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -60,6 +61,12 @@ namespace Tutorz.Infrastructure.Data
                 .WithMany(u => u.Students)
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Admin>()
+                .HasOne(a => a.User)
+                .WithOne(u => u.Admin)
+                .HasForeignKey<Admin>(a => a.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Class>()
                 .Property(c => c.Fee)
