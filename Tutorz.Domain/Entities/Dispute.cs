@@ -32,11 +32,20 @@ namespace Tutorz.Domain.Entities
 
         public Guid RaisedByUserId { get; set; }
 
+        /// <summary>
+        /// The UserId of the admin who first changed the status away from Pending.
+        /// Once set, only this admin (or SuperAdmin) can update the dispute.
+        /// </summary>
+        public Guid? AssignedAdminUserId { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // --- Navigation ---
         public User RaisedByUser { get; set; } = null!;
+
+        /// <summary>Navigation to the admin assigned to this dispute (nullable).</summary>
+        public User? AssignedAdmin { get; set; }
     }
 }

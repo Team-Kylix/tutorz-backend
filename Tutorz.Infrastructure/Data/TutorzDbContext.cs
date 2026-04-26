@@ -228,12 +228,24 @@ namespace Tutorz.Infrastructure.Data
                 .HasForeignKey(d => d.RaisedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // AssignedAdmin: nullable FK — SetNull so deleting an admin keeps dispute history
+            modelBuilder.Entity<Dispute>()
+                .HasOne(d => d.AssignedAdmin)
+                .WithMany()
+                .HasForeignKey(d => d.AssignedAdminUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
             modelBuilder.Entity<Dispute>()
                 .HasIndex(d => d.DisputeNumber)
                 .IsUnique(); // Fast, guaranteed-unique lookups
 
             modelBuilder.Entity<Dispute>()
                 .HasIndex(d => new { d.RaisedByUserId, d.CreatedAt }); // Fast per-user queries
+
+            // Index for fast admin scoped query
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => d.AssignedAdminUserId);
         }
     }
 }

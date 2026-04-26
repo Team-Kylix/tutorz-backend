@@ -10,9 +10,24 @@ namespace Tutorz.Application.Interfaces
     public interface IDisputeRepository : IGenericRepository<Dispute>
     {
         Task<DisputeResponseDto?> GetDisputeByIdAsync(int disputeId);
-        Task<PaginatedResultDto<DisputeResponseDto>> GetAllDisputesAsync(string? searchQuery, int page, int pageSize);
+
+        /// <summary>
+        /// Gets disputes scoped to the caller:
+        /// SuperAdmin sees all; regular Admin sees Pending + their own assigned disputes.
+        /// </summary>
+        Task<PaginatedResultDto<DisputeResponseDto>> GetAllDisputesAsync(
+            string? searchQuery, int page, int pageSize,
+            Guid callerAdminUserId, bool isSuperAdmin);
+
         Task<PaginatedResultDto<DisputeResponseDto>> GetDisputesByUserIdAsync(Guid userId, int page, int pageSize);
         Task<string> GenerateDisputeNumberAsync();
-        Task<bool> UpdateStatusAsync(int disputeId, UpdateDisputeStatusDto dto);
+
+        /// <summary>
+        /// Updates status and assigns the calling admin if not yet assigned.
+        /// Returns false if the dispute is locked by a different admin (and caller is not SuperAdmin).
+        /// </summary>
+        Task<(bool Success, string? Error)> UpdateStatusAsync(
+            int disputeId, UpdateDisputeStatusDto dto,
+            Guid callerAdminUserId, bool isSuperAdmin);
     }
 }

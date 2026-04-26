@@ -28,7 +28,8 @@ namespace Tutorz.Api.Controllers
             return Guid.TryParse(idClaim, out var id) ? id : Guid.Empty;
         }
 
-        private bool IsAdmin() => User.IsInRole("Admin");
+        private bool IsAdmin() => User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+        private bool IsSuperAdmin() => User.IsInRole("SuperAdmin");
 
         // ─────────────────────────────────────────────────────────────────────
         // POST api/dispute  —  Any authenticated user raises a complaint
@@ -81,31 +82,45 @@ namespace Tutorz.Api.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // GET api/dispute  —  Admin: all disputes with optional search
+        // GET api/dispute  —  Admin/SuperAdmin: scoped disputes with optional search
+        //   Regular Admin  → sees Pending + own assigned disputes
+        //   SuperAdmin     → sees all disputes
         // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [ApiPurpose("Get All Disputes (Admin)")]
         public async Task<IActionResult> GetAllDisputes(
             [FromQuery] string? searchQuery = null,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
-            var result = await _disputeService.GetAllDisputesAsync(searchQuery, page, pageSize);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _disputeService.GetAllDisputesAsync(
+                searchQuery, page, pageSize, userId, IsSuperAdmin());
+
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(result.Data);
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // PATCH api/dispute/{id}/status  —  Admin: update dispute status
+        // PATCH api/dispute/{id}/status  —  Admin/SuperAdmin: update dispute status
+        //   Auto-assigns the dispute to the calling admin on first status change.
+        //   SuperAdmin can update any dispute regardless of assignment.
         // ─────────────────────────────────────────────────────────────────────
         [HttpPatch("{id:int}/status")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         [ApiPurpose("Update Dispute Status (Admin)")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateDisputeStatusDto dto)
         {
-            var result = await _disputeService.UpdateDisputeStatusAsync(id, dto);
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _disputeService.UpdateDisputeStatusAsync(
+                id, dto, userId, IsSuperAdmin());
+
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { message = result.Message });

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -12,7 +13,6 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
 using Tutorz.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
 namespace Tutorz.Infrastructure.Services
 {
@@ -48,7 +48,6 @@ namespace Tutorz.Infrastructure.Services
                 if (string.IsNullOrWhiteSpace(dto.Description))
                     return Fail<DisputeResponseDto>("Description is required.");
 
-                // Generate sequential dispute number BEFORE saving so the blob name is consistent
                 var disputeNumber = await _disputeRepository.GenerateDisputeNumberAsync();
 
                 string? screenshotUrl = null;
@@ -79,18 +78,20 @@ namespace Tutorz.Infrastructure.Services
                 {
                     // 1. Notify the Submitter
                     await _notificationService.CreateAndPushAsync(
-                        userId, 
-                        $"Complaint Submitted ({disputeNumber})", 
-                        "Your complaint has been successfully submitted and is pending review.", 
+                        userId,
+                        $"Complaint Submitted ({disputeNumber})",
+                        "Your complaint has been successfully submitted and is pending review.",
                         "Dispute");
 
-                    // 2. Notify all Admins
+                    // 2. Notify all Admins (regular + super)
                     var adminUserIds = await _dbContext.Users
-                        .Where(u => _dbContext.Roles.Any(r => r.RoleId == u.RoleId && r.Name == "Admin"))
+                        .Where(u => _dbContext.Roles.Any(r =>
+                            r.RoleId == u.RoleId &&
+                            (r.Name == "Admin" || r.Name == "SuperAdmin")))
                         .Select(u => u.UserId)
                         .ToListAsync();
 
-                    foreach(var adminId in adminUserIds)
+                    foreach (var adminId in adminUserIds)
                     {
                         await _notificationService.CreateAndPushAsync(
                             adminId,
@@ -99,10 +100,7 @@ namespace Tutorz.Infrastructure.Services
                             "Dispute");
                     }
                 }
-                catch (Exception hookEx)
-                {
-                    // Non-fatal, just log in real system
-                }
+                catch { /* Non-fatal */ }
 
                 return new ServiceResponse<DisputeResponseDto>
                 {
@@ -135,34 +133,55 @@ namespace Tutorz.Infrastructure.Services
             return new ServiceResponse<PaginatedResultDto<DisputeResponseDto>> { Success = true, Data = result };
         }
 
-        public async Task<ServiceResponse<PaginatedResultDto<DisputeResponseDto>>> GetAllDisputesAsync(string? searchQuery, int page, int pageSize)
+        public async Task<ServiceResponse<PaginatedResultDto<DisputeResponseDto>>> GetAllDisputesAsync(
+            string? searchQuery, int page, int pageSize,
+            Guid callerAdminUserId, bool isSuperAdmin)
         {
-            var result = await _disputeRepository.GetAllDisputesAsync(searchQuery, page, pageSize);
+            var result = await _disputeRepository.GetAllDisputesAsync(
+                searchQuery, page, pageSize, callerAdminUserId, isSuperAdmin);
             return new ServiceResponse<PaginatedResultDto<DisputeResponseDto>> { Success = true, Data = result };
         }
 
-        public async Task<ServiceResponse<bool>> UpdateDisputeStatusAsync(int disputeId, UpdateDisputeStatusDto dto)
+        public async Task<ServiceResponse<bool>> UpdateDisputeStatusAsync(
+            int disputeId, UpdateDisputeStatusDto dto,
+            Guid callerAdminUserId, bool isSuperAdmin)
         {
-            var updated = await _disputeRepository.UpdateStatusAsync(disputeId, dto);
-            if (!updated)
-                return Fail<bool>("Dispute not found.");
+            var (success, error) = await _disputeRepository.UpdateStatusAsync(
+                disputeId, dto, callerAdminUserId, isSuperAdmin);
 
+            if (!success)
+                return Fail<bool>(error ?? "Failed to update dispute.");
+
+            // --- Notify the user ---
             try
             {
                 var disputeDetails = await _disputeRepository.GetDisputeByIdAsync(disputeId);
                 if (disputeDetails != null)
                 {
+                    // Resolve admin name for notification message
+                    var adminEntity = await _dbContext.Admins
+                        .FirstOrDefaultAsync(a => a.UserId == callerAdminUserId);
+                    var adminName = adminEntity != null
+                        ? $"{adminEntity.FirstName} {adminEntity.LastName}".Trim()
+                        : "an admin";
+
                     var title = $"Complaint Update ({disputeDetails.DisputeNumber})";
-                    var msg = $"Your complaint status has been updated to {disputeDetails.StatusLabel}.";
-                    if (!string.IsNullOrWhiteSpace(disputeDetails.AdminNote)) {
-                        msg += " An admin has left a note regarding your complaint.";
+                    string msg;
+
+                    if (dto.Status == Tutorz.Domain.Enums.DisputeStatus.UnderReview)
+                    {
+                        msg = $"Your problem ({disputeDetails.DisputeNumber}) is now under review by {adminName}.";
+                    }
+                    else
+                    {
+                        msg = $"Your complaint ({disputeDetails.DisputeNumber}) status has been updated to \"{disputeDetails.StatusLabel}\" by {adminName}.";
                     }
 
+                    if (!string.IsNullOrWhiteSpace(disputeDetails.AdminNote))
+                        msg += " An admin has left a note regarding your complaint.";
+
                     await _notificationService.CreateAndPushAsync(
-                        disputeDetails.RaisedByUserId,
-                        title,
-                        msg,
-                        "Dispute");
+                        disputeDetails.RaisedByUserId, title, msg, "Dispute");
                 }
             }
             catch { /* Ignore notification failures */ }
@@ -187,34 +206,19 @@ namespace Tutorz.Infrastructure.Services
             await file.CopyToAsync(stream);
             stream.Position = 0;
 
-            if (_env.IsDevelopment())
-            {
-                var folder = Path.Combine(
-                    _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"),
-                    "dispute-screenshots");
-                Directory.CreateDirectory(folder);
+            var connectionString = _configuration.GetConnectionString("AzureBlobStorage");
+            if (string.IsNullOrEmpty(connectionString))
+                throw new Exception("AzureBlobStorage connection string is not configured.");
 
-                using var fs = new FileStream(Path.Combine(folder, fileName), FileMode.Create);
-                await stream.CopyToAsync(fs);
+            var containerName   = "screenshot";
+            var blobService     = new BlobServiceClient(connectionString);
+            var containerClient = blobService.GetBlobContainerClient(containerName);
+            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-                return $"/dispute-screenshots/{fileName}";
-            }
-            else
-            {
-                var connectionString = _configuration.GetConnectionString("AzureBlobStorage");
-                if (string.IsNullOrEmpty(connectionString))
-                    throw new Exception("AzureBlobStorage connection string is not configured.");
-
-                var containerName   = "dispute-screenshots";
-                var blobService     = new BlobServiceClient(connectionString);
-                var containerClient = blobService.GetBlobContainerClient(containerName);
-                await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
-
-                var blobClient = containerClient.GetBlobClient(fileName);
-                stream.Position = 0;
-                await blobClient.UploadAsync(stream, new BlobHttpHeaders { ContentType = file.ContentType });
-                return blobClient.Uri.ToString();
-            }
+            var blobClient = containerClient.GetBlobClient(fileName);
+            stream.Position = 0;
+            await blobClient.UploadAsync(stream, new BlobHttpHeaders { ContentType = file.ContentType });
+            return blobClient.Uri.ToString();
         }
 
         // ─── Helper ─────────────────────────────────────────────────────────────

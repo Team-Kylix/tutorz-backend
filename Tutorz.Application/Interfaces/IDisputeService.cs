@@ -17,10 +17,21 @@ namespace Tutorz.Application.Interfaces
         /// <summary>Get paginated disputes raised by the current user.</summary>
         Task<ServiceResponse<PaginatedResultDto<DisputeResponseDto>>> GetMyDisputesAsync(Guid userId, int page, int pageSize);
 
-        /// <summary>Admin: get all disputes with optional search.</summary>
-        Task<ServiceResponse<PaginatedResultDto<DisputeResponseDto>>> GetAllDisputesAsync(string? searchQuery, int page, int pageSize);
+        /// <summary>
+        /// Admin: get disputes scoped to the caller.
+        /// SuperAdmin sees all; regular Admin sees Pending + their own assigned.
+        /// </summary>
+        Task<ServiceResponse<PaginatedResultDto<DisputeResponseDto>>> GetAllDisputesAsync(
+            string? searchQuery, int page, int pageSize,
+            Guid callerAdminUserId, bool isSuperAdmin);
 
-        /// <summary>Admin: update the status and optionally add a note.</summary>
-        Task<ServiceResponse<bool>> UpdateDisputeStatusAsync(int disputeId, UpdateDisputeStatusDto dto);
+        /// <summary>
+        /// Admin: update the status and optionally add a note.
+        /// Automatically assigns the dispute to the calling admin on first status change.
+        /// Returns failure if the dispute is locked by a different admin.
+        /// </summary>
+        Task<ServiceResponse<bool>> UpdateDisputeStatusAsync(
+            int disputeId, UpdateDisputeStatusDto dto,
+            Guid callerAdminUserId, bool isSuperAdmin);
     }
 }

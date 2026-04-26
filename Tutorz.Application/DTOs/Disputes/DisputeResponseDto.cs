@@ -22,6 +22,10 @@ namespace Tutorz.Application.DTOs.Disputes
         public string RaisedByRole { get; set; } = string.Empty;
         public string RaisedByPhone { get; set; } = string.Empty;
 
+        // Assignment info
+        public Guid? AssignedAdminUserId { get; set; }
+        public string? AssignedAdminName { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
