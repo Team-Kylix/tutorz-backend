@@ -537,7 +537,8 @@ namespace Tutorz.Application.Services
             {
                 InstituteId = a.Institute.InstituteId,
                 Name = a.Institute.InstituteName,
-                City = a.Institute.User?.City?.Name
+                City = a.Institute.User?.City?.Name,
+                CommissionPercentage = a.Institute.CommissionPercentage
             });
 
             return new ServiceResponse<IEnumerable<InstituteDto>> { Success = true, Data = dtos };
@@ -561,6 +562,7 @@ namespace Tutorz.Application.Services
                 HallName = entity.HallName,
                 Fee = entity.Fee,
                 IsActive = entity.IsActive,
+                InstituteCommissionRate = entity.InstituteCommissionRate,
                 StudentCount = entity.Enrollments?.Count(e => e.Status == EnrollmentStatus.Approved) ?? 0
             };
         }

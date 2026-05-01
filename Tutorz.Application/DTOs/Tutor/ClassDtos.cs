@@ -21,6 +21,9 @@ namespace Tutorz.Application.DTOs.Tutor
         public string InstituteName { get; set; }
         public string ClassType { get; set; }
         public DateTime? Date { get; set; }
+
+        /// <summary>Snapshot of the institute commission rate at the time of class creation.</summary>
+        public decimal InstituteCommissionRate { get; set; }
     }
 
     public class CreateClassRequest

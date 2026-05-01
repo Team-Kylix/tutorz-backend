@@ -179,7 +179,8 @@ namespace Tutorz.Application.Services
                     RegistrationNumber = customId, // Assigned to Institute
                     InstituteName = request.InstituteName ?? request.FirstName,
                     Address = request.Address,
-                    ContactNumber = normalizedPhone
+                    ContactNumber = normalizedPhone,
+                    CommissionPercentage = 25 // Default 25% commission rate for new institutes
                 });
             }
             // --- Link to Institute if InstituteId is provided in the request ---
@@ -888,7 +889,8 @@ namespace Tutorz.Application.Services
                         RegistrationNumber = customId,
                         InstituteName = request.InstituteName ?? socialUser.Name,
                         Address = request.Address,
-                        ContactNumber = user.PhoneNumber
+                        ContactNumber = user.PhoneNumber,
+                        CommissionPercentage = 25 // Default 25% commission rate for new institutes
                     });
                 }
 
