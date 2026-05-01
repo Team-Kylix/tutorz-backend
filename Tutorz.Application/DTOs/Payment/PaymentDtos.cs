@@ -19,7 +19,7 @@ namespace Tutorz.Application.DTOs.Payment
         public Guid PaymentId { get; set; }
         public Guid StudentId { get; set; }
         public Guid ClassId { get; set; }
-        public Guid InstituteId { get; set; }
+        public Guid? InstituteId { get; set; }
         public int Month { get; set; }
         public int Year { get; set; }
         public decimal AmountPaid { get; set; }

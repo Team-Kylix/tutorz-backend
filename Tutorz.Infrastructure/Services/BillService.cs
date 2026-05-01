@@ -182,11 +182,13 @@ namespace Tutorz.Infrastructure.Services
             var config = (await GetBillingConfigAsync()).Data;
             dto.PlatformCommissionRate = config?.PlatformCommissionRate ?? 1.00m;
 
-            // Fetch all payments for this user's role in the specified month/year
+            // Fetch all payments for this user linked to this bill
+            // For the rolling bill model, we fetch ALL ClassPayments for this user
+            // that were paid on or after the bill's start date.
             IQueryable<ClassPayment> paymentQuery = _context.ClassPayments
                 .Include(p => p.Class)
                 .ThenInclude(c => c.Institute)
-                .Where(p => p.Month == bill.Month && p.Year == bill.Year);
+                .Where(p => p.PaidAt >= bill.BillStartDate.ToUniversalTime());
 
             if (bill.UserRole == "Tutor")
             {
@@ -362,59 +364,74 @@ namespace Tutorz.Infrastructure.Services
 
         private async Task<Bill?> GetOrCreateBillAsync(Guid userId, int month, int year)
         {
-            // Only find an active (Unpaid) bill for this month. 
-            // If the user already paid their bill for this month, we create a new one.
+            // ROLLING BILL MODEL:
+            // There is only ever ONE open (Unpaid) bill per user at a time.
+            // When a class payment arrives, we always add it to the single open bill.
+            // A new bill is only created when the previous one was paid (cleared).
+            // The month/year parameters are kept for API compatibility but are no longer
+            // used to enforce month-based bucketing.
+
+            // 1. Find the single open (Unpaid) bill for this user, regardless of month
             var bill = await _context.Bills
-                .FirstOrDefaultAsync(b => b.UserId == userId && b.Month == month && b.Year == year && b.Status == BillStatus.Unpaid.ToString());
+                .FirstOrDefaultAsync(b => b.UserId == userId && b.Status == BillStatus.Unpaid.ToString());
 
-            if (bill == null)
+            if (bill != null)
             {
-                var user = await _context.Users.FindAsync(userId);
-                if (user == null) return null;
-
-                var startDateLkt = new DateTime(year, month, 1);
-                var endDateLkt = startDateLkt.AddMonths(1).AddSeconds(-1);
-
-                var existingBillsCount = await _context.Bills.CountAsync(b => b.UserId == userId && b.Month == month && b.Year == year);
-                var suffix = existingBillsCount > 0 ? $"-{(existingBillsCount + 1):D2}" : "";
-
-                bill = new Bill
+                // Update the month/year to the latest payment's period so the reference stays current
+                if (bill.Month != month || bill.Year != year)
                 {
-                    UserId = userId,
-                    Month = month,
-                    Year = year,
-                    UserRole = "Unknown",
-                    BillReference = $"TZ-{year}-{month:D2}-{userId.ToString().Substring(0, 4).ToUpper()}{suffix}",
-                    MonthYear = $"{year}-{month:D2}",
-                    BillStartDate = startDateLkt,
-                    BillEndDate = endDateLkt,
-                    GeneratedAt = DateTime.UtcNow,
-                    Status = BillStatus.Unpaid.ToString()
-                };
-
-                var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.UserId == userId);
-                var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == userId);
-                if (institute != null) bill.UserRole = "Institute";
-                else if (tutor != null) bill.UserRole = "Tutor";
-                else bill.UserRole = "Student";
-
-                var previousMonth = month == 1 ? 12 : month - 1;
-                var previousYear = month == 1 ? year - 1 : year;
-                var previousBill = await _context.Bills
-                    .FirstOrDefaultAsync(b => b.UserId == userId && b.Month == previousMonth && b.Year == previousYear);
-
-                if (previousBill != null && (previousBill.Status == BillStatus.Unpaid.ToString() || previousBill.Status == BillStatus.Overdue.ToString()))
-                {
-                    bill.PreviousOverdueAmount = previousBill.PayableAmount;
-                    if (previousBill.Status == BillStatus.Unpaid.ToString())
-                    {
-                        previousBill.Status = BillStatus.Overdue.ToString();
-                    }
+                    bill.Month = month;
+                    bill.Year = year;
+                    bill.MonthYear = $"{year}-{month:D2}";
                 }
-
-                _context.Bills.Add(bill);
+                return bill;
             }
 
+            // 2. No open bill — create a fresh one.
+            // Start date = the PaidAt of the last paid bill (rolling window).
+            // If this is the user's very first bill, start from today.
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return null;
+
+            var lastPaidBill = await _context.Bills
+                .Where(b => b.UserId == userId && b.Status == BillStatus.Paid.ToString())
+                .OrderByDescending(b => b.PaidAt)
+                .FirstOrDefaultAsync();
+
+            // BillStartDate = when the last bill was paid (LKT), or now if first bill
+            var nowLkt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SriLankaTimeZone);
+            DateTime startDateLkt = lastPaidBill?.PaidAt != null
+                ? TimeZoneInfo.ConvertTimeFromUtc(lastPaidBill.PaidAt.Value, SriLankaTimeZone)
+                : nowLkt;
+
+            // BillEndDate is dynamic (always recalculated at view time), store a placeholder
+            DateTime endDateLkt = nowLkt;
+
+            // Bill reference uses the current payment's month/year for readability
+            var existingBillsCount = await _context.Bills.CountAsync(b => b.UserId == userId && b.Month == month && b.Year == year);
+            var suffix = existingBillsCount > 0 ? $"-{(existingBillsCount + 1):D2}" : "";
+
+            bill = new Bill
+            {
+                UserId = userId,
+                Month = month,
+                Year = year,
+                UserRole = "Unknown",
+                BillReference = $"TZ-{year}-{month:D2}-{userId.ToString().Substring(0, 4).ToUpper()}{suffix}",
+                MonthYear = $"{year}-{month:D2}",
+                BillStartDate = startDateLkt,
+                BillEndDate = endDateLkt,
+                GeneratedAt = DateTime.UtcNow,
+                Status = BillStatus.Unpaid.ToString()
+            };
+
+            var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.UserId == userId);
+            var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == userId);
+            if (institute != null) bill.UserRole = "Institute";
+            else if (tutor != null) bill.UserRole = "Tutor";
+            else bill.UserRole = "Student";
+
+            _context.Bills.Add(bill);
             return bill;
         }
 

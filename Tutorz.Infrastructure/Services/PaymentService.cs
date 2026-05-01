@@ -164,7 +164,8 @@ namespace Tutorz.Infrastructure.Services
                 PaymentId = Guid.NewGuid(),
                 StudentId = request.StudentId,
                 ClassId = request.ClassId,
-                InstituteId = instituteId,
+                // Null for tutor own-place classes (no institute)
+                InstituteId = instituteId == Guid.Empty ? null : instituteId,
                 Month = request.Month,
                 Year = request.Year,
                 AmountPaid = request.AmountPaid,
@@ -184,7 +185,11 @@ namespace Tutorz.Infrastructure.Services
             await _context.SaveChangesAsync();
 
             // Fire real-time bill update incrementally
-            await _billService.IncrementPlatformCommissionAsync(instituteId, cls.TutorId, instituteCommission, tutorCommission, request.Month, request.Year);
+            // Only pass a real instituteId — Guid.Empty means own-place class (no institute bill)
+            await _billService.IncrementPlatformCommissionAsync(
+                instituteId == Guid.Empty ? Guid.Empty : instituteId,
+                cls.TutorId, instituteCommission, tutorCommission,
+                request.Month, request.Year);
 
             var dto = new ClassPaymentDto
             {

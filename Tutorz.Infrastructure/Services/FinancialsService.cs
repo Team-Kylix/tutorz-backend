@@ -37,6 +37,7 @@ namespace Tutorz.Infrastructure.Services
         private readonly IEncryptionService _enc;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IBillService _billService;
 
         // PayHere config — loaded from appsettings PayHere section
         private string PayHereBaseUrl => _config["PayHere:BaseUrl"] ?? "https://sandbox.payhere.lk";
@@ -52,12 +53,14 @@ namespace Tutorz.Infrastructure.Services
             TutorzDbContext context,
             IEncryptionService enc,
             IConfiguration config,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IBillService billService)
         {
             _context = context;
             _enc = enc;
             _config = config;
             _httpClientFactory = httpClientFactory;
+            _billService = billService;
         }
 
         // ─────────────────────────────────────────────
@@ -564,22 +567,42 @@ namespace Tutorz.Infrastructure.Services
                     return Fail<object>(errMsg);
                 }
 
-                // 3. Record the payment
+                // 3. Calculate commissions (same formula as manual RecordPaymentAsync)
+                var (instAmt, tutAmt, instComm, tutComm, totalComm, commPct) =
+                    await CalculateCommissionsAsync(classEntity, request.Amount);
+
+                // 4. Record the payment with all commission fields populated
                 _context.ClassPayments.Add(new Tutorz.Domain.Entities.ClassPayment
                 {
-                    StudentId        = studentId,
-                    ClassId          = request.ClassId,
-                    InstituteId      = classEntity.InstituteId ?? Guid.Empty,
-                    Month            = request.Month,
-                    Year             = request.Year,
-                    AmountPaid       = request.Amount,
-                    Status           = "Paid",
-                    ReferenceId      = orderId,
-                    PaymentMethod    = student.CardBrand ?? "SAVED_CARD",
-                    PayHerePaymentId = chargeResult.Data?.payment_id.ToString(),
-                    PaidAt           = DateTime.UtcNow
+                    StudentId                    = studentId,
+                    ClassId                      = request.ClassId,
+                    InstituteId                  = classEntity.InstituteId,
+                    Month                        = request.Month,
+                    Year                         = request.Year,
+                    AmountPaid                   = request.Amount,
+                    Status                       = "Paid",
+                    ReferenceId                  = orderId,
+                    PaymentMethod                = student.CardBrand ?? "SAVED_CARD",
+                    PayHerePaymentId             = chargeResult.Data?.payment_id.ToString(),
+                    PaidAt                       = DateTime.UtcNow,
+                    InstituteCommissionPercentage = commPct,
+                    InstituteAmount              = instAmt,
+                    TuitionAmount                = tutAmt,
+                    InstituteCommission          = instComm,
+                    TutorCommission              = tutComm,
+                    TotalPlatformAmount          = totalComm
                 });
                 await _context.SaveChangesAsync();
+
+                // 5. Fire real-time bill update
+                if (classEntity.InstituteId.HasValue)
+                    await _billService.IncrementPlatformCommissionAsync(
+                        classEntity.InstituteId.Value, classEntity.TutorId,
+                        instComm, tutComm, request.Month, request.Year);
+                else
+                    await _billService.IncrementPlatformCommissionAsync(
+                        Guid.Empty, classEntity.TutorId,
+                        instComm, tutComm, request.Month, request.Year);
 
                 return Ok<object>(new
                 {
@@ -589,18 +612,28 @@ namespace Tutorz.Infrastructure.Services
                 });
             }
 
-            // ── STANDARD CHECKOUT PATH ────────────────────────────────────────────────
+            // ── STANDARD CHECKOUT PATH: create PENDING payment with commissions pre-calculated ──
+            // Commissions are locked in at initiation so the webhook only needs to flip the status.
+            var (instAmt2, tutAmt2, instComm2, tutComm2, totalComm2, commPct2) =
+                await CalculateCommissionsAsync(classEntity, request.Amount);
+
             var payment = new Tutorz.Domain.Entities.ClassPayment
             {
-                StudentId     = studentId,
-                ClassId       = request.ClassId,
-                InstituteId   = classEntity.InstituteId ?? Guid.Empty,
-                Month         = request.Month,
-                Year          = request.Year,
-                AmountPaid    = request.Amount,
-                Status        = "PENDING",
-                ReferenceId   = orderId,
-                PaymentMethod = "PAYHERE_CHECKOUT"
+                StudentId                    = studentId,
+                ClassId                      = request.ClassId,
+                InstituteId                  = classEntity.InstituteId,
+                Month                        = request.Month,
+                Year                         = request.Year,
+                AmountPaid                   = request.Amount,
+                Status                       = "PENDING",
+                ReferenceId                  = orderId,
+                PaymentMethod                = "PAYHERE_CHECKOUT",
+                InstituteCommissionPercentage = commPct2,
+                InstituteAmount              = instAmt2,
+                TuitionAmount                = tutAmt2,
+                InstituteCommission          = instComm2,
+                TutorCommission              = tutComm2,
+                TotalPlatformAmount          = totalComm2
             };
 
             _context.ClassPayments.Add(payment);
@@ -651,6 +684,23 @@ namespace Tutorz.Infrastructure.Services
                 payment.PaymentMethod    = dto.method;
                 payment.PaidAt           = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
+
+                // Fire bill update now that payment is confirmed
+                // Load the class to get TutorId + InstituteId
+                var cls = await _context.Classes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ClassId == payment.ClassId);
+                if (cls != null)
+                {
+                    await _billService.IncrementPlatformCommissionAsync(
+                        cls.InstituteId ?? Guid.Empty,
+                        cls.TutorId,
+                        payment.InstituteCommission ?? 0m,
+                        payment.TutorCommission ?? 0m,
+                        payment.Month,
+                        payment.Year);
+                }
+
                 return Ok(true, "Payment successful.");
             }
             else if (dto.status_code == "-1" || dto.status_code == "-2" || dto.status_code == "-3")
@@ -781,6 +831,37 @@ namespace Tutorz.Infrastructure.Services
         // ─────────────────────────────────────────────
         //  Private Helpers
         // ─────────────────────────────────────────────
+
+        // ─────────────────────────────────────────────
+        //  Commission Calculator (shared by all online payment paths)
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Calculates the full commission breakdown for a class payment.
+        /// Returns (InstituteAmount, TuitionAmount, InstituteCommission, TutorCommission,
+        ///          TotalPlatformAmount, InstituteCommissionPercentage).
+        /// Uses the same formula as <see cref="PaymentService.RecordPaymentAsync"/>.
+        /// </summary>
+        private async Task<(decimal instAmt, decimal tutAmt, decimal instComm, decimal tutComm, decimal totalComm, decimal commPct)>
+            CalculateCommissionsAsync(Tutorz.Domain.Entities.Class classEntity, decimal amountPaid)
+        {
+            // 1. Determine commission rate from the class entity (snapshot set at class creation)
+            decimal commPct = classEntity.InstituteCommissionRate;
+
+            // 2. Split the fee
+            decimal instAmt = Math.Round(amountPaid * (commPct / 100m), 2);
+            decimal tutAmt  = amountPaid - instAmt;
+
+            // 3. Apply platform levy (default 1%) on each party's share
+            var configResponse = await _billService.GetBillingConfigAsync();
+            decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
+
+            decimal instComm  = Math.Round(instAmt * platformRate, 2);
+            decimal tutComm   = Math.Round(tutAmt  * platformRate, 2);
+            decimal totalComm = instComm + tutComm;
+
+            return (instAmt, tutAmt, instComm, tutComm, totalComm, commPct);
+        }
 
         private decimal CalculatePayHereTotal(decimal baseFee)
         {

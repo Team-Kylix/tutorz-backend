@@ -25,8 +25,8 @@ namespace Tutorz.Domain.Entities
         [Required]
         public Guid ClassId { get; set; }
 
-        [Required]
-        public Guid InstituteId { get; set; }
+        /// <summary>Null for tutor own-place classes with no institute</summary>
+        public Guid? InstituteId { get; set; }
 
         /// <summary>Calendar month (1–12)</summary>
         [Required]
@@ -92,6 +92,6 @@ namespace Tutorz.Domain.Entities
         public virtual Class Class { get; set; }
 
         [ForeignKey("InstituteId")]
-        public virtual Institute Institute { get; set; }
+        public virtual Institute? Institute { get; set; }
     }
 }
