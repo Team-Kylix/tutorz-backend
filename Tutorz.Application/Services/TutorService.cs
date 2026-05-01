@@ -20,6 +20,7 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly IInstituteJoinRequestRepository _joinRequestRepo;
         private readonly IInstituteTutorRepository _instituteTutorRepo;
+        private readonly IInstituteRepository _instituteRepo;
         private readonly IProfilePictureService _profilePictureService;
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
@@ -31,6 +32,7 @@ namespace Tutorz.Application.Services
             IUserRepository userRepo,
             IInstituteJoinRequestRepository joinRequestRepo,
             IInstituteTutorRepository instituteTutorRepo,
+            IInstituteRepository instituteRepo,
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
             IGenericRepository<District> districtRepo)
@@ -41,6 +43,7 @@ namespace Tutorz.Application.Services
             _userRepo = userRepo;
             _joinRequestRepo = joinRequestRepo;
             _instituteTutorRepo = instituteTutorRepo;
+            _instituteRepo = instituteRepo;
             _profilePictureService = profilePictureService;
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
@@ -141,11 +144,21 @@ namespace Tutorz.Application.Services
             }
 
 
+            decimal instituteCommissionRate = 0;
+            if (request.InstituteId.HasValue)
+            {
+                var inst = await _instituteRepo.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (inst != null)
+                {
+                    instituteCommissionRate = inst.CommissionPercentage;
+                }
+            }
+
             var newClass = new Class
             {
                 ClassId = Guid.NewGuid(),
                 TutorId = tutor.TutorId,
-                    InstituteId = request.InstituteId,
+                InstituteId = request.InstituteId,
                 ClassType = request.ClassType,
                 Subject = request.Subject,
                 Grade = request.Grade,
@@ -156,6 +169,7 @@ namespace Tutorz.Application.Services
                 EndTime = request.EndTime,
                 HallName = request.HallName,
                 Fee = request.Fee,
+                InstituteCommissionRate = instituteCommissionRate,
                 IsActive = request.IsActive,
                 CreatedDate = DateTime.UtcNow
             };
@@ -185,6 +199,21 @@ namespace Tutorz.Application.Services
             existingClass.HallName = request.HallName;
             existingClass.Fee = request.Fee;
             existingClass.IsActive = request.IsActive;
+            
+            // Tutors cannot edit the commission rate, but we refresh it if the institute changed
+            if (request.InstituteId.HasValue)
+            {
+                var inst = await _instituteRepo.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (inst != null)
+                {
+                    existingClass.InstituteCommissionRate = inst.CommissionPercentage;
+                }
+            }
+            else
+            {
+                existingClass.InstituteCommissionRate = 0;
+            }
+
             existingClass.UpdatedDate = DateTime.UtcNow;
 
             // ── Hall Conflict Check on Update (same institute + hall, exclude self) ──

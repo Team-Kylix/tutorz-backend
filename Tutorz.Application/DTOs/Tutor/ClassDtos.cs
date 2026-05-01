@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -49,6 +49,12 @@ namespace Tutorz.Application.DTOs.Tutor
         public string HallName { get; set; }
         public decimal Fee { get; set; }
         public bool IsActive { get; set; } = true;
+
+        /// <summary>
+        /// Optional override of the institute commission rate for this class.
+        /// When null, the institute's default CommissionPercentage is used.
+        /// </summary>
+        public decimal? InstituteCommissionRate { get; set; }
     }
 
     public class AddStudentRequest

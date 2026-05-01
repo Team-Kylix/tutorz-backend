@@ -53,6 +53,31 @@ namespace Tutorz.Domain.Entities
         /// <summary>Optional note recorded by the institute staff</summary>
         public string? Note { get; set; }
 
+        // --- Commission & Platform Fields ---
+        // Snapshot of Class.InstituteCommissionRate at the time of payment (immutable audit trail)
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? InstituteCommissionPercentage { get; set; }
+
+        /// <summary>Platform levy on the institute (1% of InstituteAmount). e.g. 2.50 LKR.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? InstituteCommission { get; set; }
+
+        /// <summary>Platform levy on the tutor (1% of TuitionAmount). e.g. 7.50 LKR.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TutorCommission { get; set; }
+
+        /// <summary>AmountPaid × (InstituteCommissionPercentage / 100). Institute's gross share.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? InstituteAmount { get; set; }
+
+        /// <summary>AmountPaid − InstituteAmount. Tutor's gross share.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TuitionAmount { get; set; }
+
+        /// <summary>InstituteAmount + TuitionAmount. Total platform revenue from this payment.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TotalPlatformAmount { get; set; }
+
         // --- Online Payment Fields ---
         public string? ReferenceId { get; set; } // Our internal order ID
         public string? PayHerePaymentId { get; set; } // ID returned by PayHere

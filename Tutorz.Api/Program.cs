@@ -63,6 +63,7 @@ builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.Fi
 // Dispute / Ticketing System
 builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
 builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
+builder.Services.AddScoped<IBillService, BillService>();
 
 // Named HTTP client for PayHere API calls (Charging API, OAuth)
 builder.Services.AddHttpClient("PayHere", client =>
@@ -84,6 +85,7 @@ builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tuto
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.ApiUsageBatchWorker>();
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.DailyAggregationWorker>();
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.MonthlyAggregationWorker>();
+builder.Services.AddHostedService<MonthlyBillingWorker>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

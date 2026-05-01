@@ -41,6 +41,13 @@ namespace Tutorz.Application.DTOs.Payment
         public int Year { get; set; }
         public decimal AmountPaid { get; set; }
         public string? Note { get; set; }
+
+        /// <summary>
+        /// Optional override of the institute commission percentage for this specific payment.
+        /// If null, the class's stored InstituteCommissionRate (which defaults to the
+        /// institute's CommissionPercentage at class-creation time) is used instead.
+        /// </summary>
+        public decimal? InstituteCommissionPercentage { get; set; }
     }
 
     /// <summary>Summary of a payment for the Financials history table</summary>

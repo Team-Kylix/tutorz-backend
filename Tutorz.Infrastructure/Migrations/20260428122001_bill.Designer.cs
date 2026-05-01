@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260428122001_bill")]
+    partial class bill
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -305,7 +308,8 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.HasKey("BillId");
 
-                    b.HasIndex("UserId", "Month", "Year");
+                    b.HasIndex("UserId", "Month", "Year")
+                        .IsUnique();
 
                     b.ToTable("Bills");
                 });

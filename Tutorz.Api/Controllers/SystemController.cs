@@ -7,6 +7,8 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Infrastructure.Data;
 using Tutorz.Domain.Entities;
 using Tutorz.Api.Hubs;
+using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.DTOs.Billing;
 
 namespace Tutorz.Api.Controllers
 {
@@ -26,6 +28,7 @@ namespace Tutorz.Api.Controllers
         private readonly IInstituteService _instituteService;
         private readonly IAuthService _authService;
         private readonly IAdminService _adminService;
+        private readonly IBillService _billService;
 
         public SystemController(
             IConfiguration configuration,
@@ -35,7 +38,8 @@ namespace Tutorz.Api.Controllers
             ITutorService tutorService,
             IInstituteService instituteService,
             IAuthService authService,
-            IAdminService adminService)
+            IAdminService adminService,
+            IBillService billService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
@@ -45,6 +49,7 @@ namespace Tutorz.Api.Controllers
             _instituteService = instituteService;
             _authService = authService;
             _adminService = adminService;
+            _billService = billService;
         }
 
         [HttpGet("version")]
@@ -211,6 +216,24 @@ namespace Tutorz.Api.Controllers
             var result = await _adminService.UpdateAdminProfileAsync(userId, request);
             if (!result.Success) return BadRequest(result.Message);
             return Ok(result.Data);
+        }
+
+        // --- Billing Config Endpoints ---
+
+        [HttpGet("billing-config")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetBillingConfig()
+        {
+            var response = await _billService.GetBillingConfigAsync();
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        [HttpPut("billing-config")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> UpdateBillingConfig([FromBody] BillingConfigDto config)
+        {
+            var response = await _billService.UpdateBillingConfigAsync(config);
+            return response.Success ? Ok(response) : BadRequest(response);
         }
     }
 }

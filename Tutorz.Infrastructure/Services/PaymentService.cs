@@ -14,10 +14,12 @@ namespace Tutorz.Infrastructure.Services
     public class PaymentService : IPaymentService
     {
         private readonly TutorzDbContext _context;
+        private readonly IBillService _billService;
 
-        public PaymentService(TutorzDbContext context)
+        public PaymentService(TutorzDbContext context, IBillService billService)
         {
             _context = context;
+            _billService = billService;
         }
 
         /// <inheritdoc/>
@@ -133,6 +135,30 @@ namespace Tutorz.Infrastructure.Services
                     Message = "Class or Student not found."
                 };
 
+            // Use the per-payment override if the caller supplied one (user changed it at payment time);
+            // otherwise fall back to the rate stored on the class (seeded from institute default at creation).
+            decimal instituteCommissionPercentage =
+                request.InstituteCommissionPercentage.HasValue
+                    ? request.InstituteCommissionPercentage.Value
+                    : cls.InstituteCommissionRate;
+
+            // --- Commission Calculation (Tutorz Billing Formula) ---
+            // 1. Calculate how the class fee is split between the Institute and the Tutor
+            decimal instituteAmount = Math.Round(request.AmountPaid * (instituteCommissionPercentage / 100m), 2);
+            decimal tuitionAmount = request.AmountPaid - instituteAmount;
+
+            // 2. Fetch platform commission rate from system config (defaults to 1% total)
+            var configResponse = await _billService.GetBillingConfigAsync();
+            decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
+
+            // 3. Calculate Platform Fees based on the actual earnings of each party
+            // e.g. If Institute gets 15 LKR and Tutor gets 85 LKR, and platform rate is 1%:
+            // → InstitutePlatformCommission = 15 * 0.01 = 0.15
+            // → TutorPlatformCommission     = 85 * 0.01 = 0.85
+            decimal instituteCommission = Math.Round(instituteAmount * platformRate, 2);
+            decimal tutorCommission = Math.Round(tuitionAmount * platformRate, 2);
+            decimal totalPlatformAmount = instituteCommission + tutorCommission;
+
             var payment = new ClassPayment
             {
                 PaymentId = Guid.NewGuid(),
@@ -145,11 +171,20 @@ namespace Tutorz.Infrastructure.Services
                 Status = PaymentStatus.Paid.ToString(),
                 PaidAt = DateTime.UtcNow,
                 CreatedDate = DateTime.UtcNow,
-                Note = request.Note
+                Note = request.Note,
+                InstituteCommissionPercentage = instituteCommissionPercentage,
+                InstituteCommission = instituteCommission,
+                TutorCommission = tutorCommission,
+                InstituteAmount = instituteAmount,
+                TuitionAmount = tuitionAmount,
+                TotalPlatformAmount = totalPlatformAmount
             };
 
             await _context.ClassPayments.AddAsync(payment);
             await _context.SaveChangesAsync();
+
+            // Fire real-time bill update incrementally
+            await _billService.IncrementPlatformCommissionAsync(instituteId, cls.TutorId, instituteCommission, tutorCommission, request.Month, request.Year);
 
             var dto = new ClassPaymentDto
             {
