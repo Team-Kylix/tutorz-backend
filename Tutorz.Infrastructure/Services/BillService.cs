@@ -605,7 +605,6 @@ namespace Tutorz.Infrastructure.Services
                     page.Size(PageSizes.A4);
                     page.DefaultTextStyle(x => x.FontSize(10));
 
-                    // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     page.Header().Row(row =>
                     {
                         row.RelativeItem().Column(col =>
@@ -655,7 +654,6 @@ namespace Tutorz.Infrastructure.Services
                             });
                         });
 
-                        // â”€â”€ LINE ITEMS TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         col.Item().PaddingTop(20).Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
@@ -745,7 +743,6 @@ namespace Tutorz.Infrastructure.Services
                             });
                         });
 
-                        // â”€â”€ STATUS & NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         col.Item().PaddingTop(40).Column(c =>
                         {
                             c.Item().Text(text =>
@@ -761,7 +758,6 @@ namespace Tutorz.Infrastructure.Services
                         });
                     });
 
-                    // â”€â”€ PAGE FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     page.Footer().AlignCenter().Text(x =>
                     {
                         x.Span("Page ");
