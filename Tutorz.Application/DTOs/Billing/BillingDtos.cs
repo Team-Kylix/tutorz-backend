@@ -33,6 +33,7 @@ namespace Tutorz.Application.DTOs.Billing
         public string Email { get; set; } = string.Empty;
         public string? RegistrationNumber { get; set; }
         public string? MobileNumber { get; set; }
+        public string? Address { get; set; }
         public string UserRole { get; set; } = string.Empty;
         public int Month { get; set; }
         public int Year { get; set; }

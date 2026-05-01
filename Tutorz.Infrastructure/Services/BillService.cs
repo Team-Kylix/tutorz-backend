@@ -152,6 +152,11 @@ namespace Tutorz.Infrastructure.Services
                         : bill.UserRole == "Institute" 
                             ? await _context.Institutes.Where(i => i.UserId == bill.UserId).Select(i => i.InstituteName).FirstOrDefaultAsync() ?? bill.User.Email
                             : bill.User.Email,
+                Address = bill.UserRole == "Tutor"
+                    ? await _context.Tutors.Where(t => t.UserId == bill.UserId).Select(t => t.Address).FirstOrDefaultAsync()
+                    : bill.UserRole == "Institute"
+                        ? await _context.Institutes.Where(i => i.UserId == bill.UserId).Select(i => i.Address).FirstOrDefaultAsync()
+                        : null,
                 Email = bill.User.Email,
                 RegistrationNumber = bill.User.RegistrationNumber,
                 MobileNumber = bill.User.PhoneNumber,
@@ -182,21 +187,52 @@ namespace Tutorz.Infrastructure.Services
             var config = (await GetBillingConfigAsync()).Data;
             dto.PlatformCommissionRate = config?.PlatformCommissionRate ?? 1.00m;
 
-            // Fetch all payments for this user linked to this bill
-            // For the rolling bill model, we fetch ALL ClassPayments for this user
-            // that were paid on or after the bill's start date.
+            bool isBillPaid = bill.Status == BillStatus.Paid.ToString();
+
+            // Convert BillStartDate to UTC safely (stored as LKT, unspecified kind)
+            var startUtc = DateTime.SpecifyKind(bill.BillStartDate, DateTimeKind.Unspecified)
+                .Subtract(TimeSpan.FromHours(5.5)); // LKT = UTC+5:30
+
+            // ── KEY FIX: bill.UserId is the AspNetUsers UserId.
+            // ClassPayment.InstituteId  = Institute.InstituteId  (NOT UserId)
+            // Class.TutorId             = Tutor.TutorId          (NOT UserId)
+            // We must resolve the correct entity ID first.
             IQueryable<ClassPayment> paymentQuery = _context.ClassPayments
                 .Include(p => p.Class)
                 .ThenInclude(c => c.Institute)
-                .Where(p => p.PaidAt >= bill.BillStartDate.ToUniversalTime());
+                // Always filter from BillStartDate so only this billing window's payments appear
+                .Where(p => p.Status == "Paid" && p.PaidAt >= startUtc);
+
+            // For paid bills also cap at the PaidAt timestamp (end of window)
+            if (isBillPaid && bill.PaidAt.HasValue)
+            {
+                var endUtc = bill.PaidAt.Value;
+                paymentQuery = paymentQuery.Where(p => p.PaidAt <= endUtc);
+            }
 
             if (bill.UserRole == "Tutor")
             {
-                paymentQuery = paymentQuery.Where(p => p.Class.TutorId == bill.UserId);
+                // Resolve TutorId from UserId
+                var tutorId = await _context.Tutors
+                    .Where(t => t.UserId == bill.UserId)
+                    .Select(t => t.TutorId)
+                    .FirstOrDefaultAsync();
+
+                paymentQuery = tutorId == Guid.Empty
+                    ? paymentQuery.Where(p => false)
+                    : paymentQuery.Where(p => p.Class.TutorId == tutorId);
             }
             else if (bill.UserRole == "Institute")
             {
-                paymentQuery = paymentQuery.Where(p => p.InstituteId == bill.UserId);
+                // Resolve InstituteId from UserId
+                var instituteId = await _context.Institutes
+                    .Where(i => i.UserId == bill.UserId)
+                    .Select(i => i.InstituteId)
+                    .FirstOrDefaultAsync();
+
+                paymentQuery = instituteId == Guid.Empty
+                    ? paymentQuery.Where(p => false)
+                    : paymentQuery.Where(p => p.InstituteId == instituteId);
             }
             else
             {
@@ -204,21 +240,28 @@ namespace Tutorz.Infrastructure.Services
                 paymentQuery = paymentQuery.Where(p => false);
             }
 
+            // Only include payments where the commission was actually calculated and recorded.
+            // Payments with NULL TutorCommission/InstituteCommission were NOT accumulated into
+            // the bill total — including them causes line items to not match the Sub Total.
+            if (bill.UserRole == "Tutor")
+                paymentQuery = paymentQuery.Where(p => p.TutorCommission != null);
+            else if (bill.UserRole == "Institute")
+                paymentQuery = paymentQuery.Where(p => p.InstituteCommission != null);
+
             var payments = await paymentQuery.ToListAsync();
 
-            // Group by Class to generate line items
+            // Group by Class — use only the stored commission columns (no AmountPaid fallback).
             dto.ClassCommissions = payments
                 .GroupBy(p => p.ClassId)
                 .Select(g => {
                     var first = g.First();
                     var cls = first.Class;
-                    
-                    // Format: Grade + Subject + Institute
-                    string className = $"{cls.Grade} {cls.Subject} {cls.Institute?.InstituteName}".Trim();
-                    if (string.IsNullOrEmpty(className)) className = cls.ClassName ?? "Unknown Class";
 
-                    decimal earnings = bill.UserRole == "Tutor" 
-                        ? g.Sum(p => p.TuitionAmount ?? 0) 
+                    string className = $"{cls?.Grade} {cls?.Subject} {cls?.Institute?.InstituteName}".Trim();
+                    if (string.IsNullOrWhiteSpace(className)) className = cls?.ClassName ?? "Unknown Class";
+
+                    decimal earnings = bill.UserRole == "Tutor"
+                        ? g.Sum(p => p.TuitionAmount ?? 0)
                         : g.Sum(p => p.InstituteAmount ?? 0);
 
                     decimal commission = bill.UserRole == "Tutor"
@@ -228,12 +271,12 @@ namespace Tutorz.Infrastructure.Services
                     return new ClassCommissionItemDto
                     {
                         ClassName = className,
-                        Earnings = Math.Round(earnings, 2),
-                        Rate = dto.PlatformCommissionRate,
-                        Amount = Math.Round(commission, 2)
+                        Earnings  = Math.Round(earnings, 2),
+                        Rate      = dto.PlatformCommissionRate,
+                        Amount    = Math.Round(commission, 2)
                     };
                 })
-                .Where(i => i.Earnings > 0)
+                .Where(i => i.Amount > 0)
                 .OrderBy(i => i.ClassName)
                 .ToList();
 
@@ -387,7 +430,7 @@ namespace Tutorz.Infrastructure.Services
                 return bill;
             }
 
-            // 2. No open bill — create a fresh one.
+            // 2. No open bill â€” create a fresh one.
             // Start date = the PaidAt of the last paid bill (rolling window).
             // If this is the user's very first bill, start from today.
             var user = await _context.Users.FindAsync(userId);
@@ -537,7 +580,23 @@ namespace Tutorz.Infrastructure.Services
 
             var data = billResult.Data;
 
-            // Generate PDF using QuestPDF
+            // Logo â€” falls back to "Tutorz.lk" blue text if image not found
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            bool hasLogo = File.Exists(logoPath);
+            bool isPaid = data.Status == "Paid";
+
+            // ── Compute totals from the DISPLAYED line items so the footer always matches ──
+            // Commission = sum of all per-class commission amounts shown in the table
+            decimal pdfCommissionTotal = data.ClassCommissions.Sum(i => i.Amount);
+
+            // If no per-class breakdown, fall back to the stored PlatformCommissionAmount
+            if (pdfCommissionTotal == 0 && data.PlatformCommissionAmount > 0)
+                pdfCommissionTotal = data.PlatformCommissionAmount;
+
+            decimal pdfSubTotal    = pdfCommissionTotal + data.ApiUsageAmount + data.SmsAmount + data.PreviousOverdueAmount;
+            decimal pdfTaxAmount   = Math.Round(pdfSubTotal * (data.TaxPercentage / 100m), 2);
+            decimal pdfTotalPayable = pdfSubTotal + pdfTaxAmount;
+
             var document = Document.Create(container =>
             {
                 container.Page(page =>
@@ -546,11 +605,17 @@ namespace Tutorz.Infrastructure.Services
                     page.Size(PageSizes.A4);
                     page.DefaultTextStyle(x => x.FontSize(10));
 
+                    // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     page.Header().Row(row =>
                     {
                         row.RelativeItem().Column(col =>
                         {
-                            col.Item().Text("Tutorz.lk").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+                            if (hasLogo)
+                                col.Item().MaxHeight(44).Image(logoPath);
+                            else
+                                col.Item().Text("Tutorz.lk")
+                                    .FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+
                             col.Item().Text("Kylix Technology (Tutorz Team)");
                             col.Item().Text("lktutorz@gmail.com");
                             col.Item().Text("Sri Lanka");
@@ -564,14 +629,20 @@ namespace Tutorz.Infrastructure.Services
                         });
                     });
 
+                    // â”€â”€ CONTENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     page.Content().PaddingVertical(25).Column(col =>
                     {
+                        // Billed To / Billing Period
                         col.Item().Row(row =>
                         {
                             row.RelativeItem().Column(c =>
                             {
                                 c.Item().Text("Billed To:").Bold();
                                 c.Item().Text(data.UserName);
+                                if (!string.IsNullOrWhiteSpace(data.RegistrationNumber))
+                                    c.Item().Text(data.RegistrationNumber);
+                                if (!string.IsNullOrWhiteSpace(data.Address))
+                                    c.Item().Text(data.Address);
                                 c.Item().Text(data.Email);
                                 c.Item().Text($"Role: {data.UserRole}");
                             });
@@ -584,15 +655,16 @@ namespace Tutorz.Infrastructure.Services
                             });
                         });
 
+                        // â”€â”€ LINE ITEMS TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         col.Item().PaddingTop(20).Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(20);
-                                columns.RelativeColumn();
-                                columns.ConstantColumn(50);
-                                columns.ConstantColumn(80);
-                                columns.ConstantColumn(80);
+                                columns.ConstantColumn(20);   // #
+                                columns.RelativeColumn();     // Description
+                                columns.ConstantColumn(60);   // Qty / Earnings
+                                columns.ConstantColumn(80);   // Rate
+                                columns.ConstantColumn(80);   // Amount
                             });
 
                             table.Header(header =>
@@ -603,36 +675,24 @@ namespace Tutorz.Infrastructure.Services
                                 header.Cell().AlignRight().Text("Rate");
                                 header.Cell().AlignRight().Text("Amount");
 
-                                header.Cell().ColumnSpan(5).PaddingVertical(5).BorderBottom(1).BorderColor(Colors.Black);
+                                // Single bottom border line under header (original style)
+                                header.Cell().ColumnSpan(5).PaddingVertical(5)
+                                    .BorderBottom(1).BorderColor(Colors.Black);
                             });
 
                             int rowNum = 1;
 
-                            // API Calls
-                            table.Cell().Text($"{rowNum++}");
-                            table.Cell().Text("API Service Usage");
-                            table.Cell().AlignRight().Text($"{data.ApiCallCount}");
-                            table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
-                            table.Cell().AlignRight().Text($"{data.ApiUsageAmount:N2}");
-
-                            // SMS
-                            table.Cell().Text($"{rowNum++}");
-                            table.Cell().Text("SMS Dispatch Service");
-                            table.Cell().AlignRight().Text($"{data.SmsSentCount}");
-                            table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
-                            table.Cell().AlignRight().Text($"{data.SmsAmount:N2}");
-
-                            // Commissions Breakdown
+                            // â”€â”€ Per-class commission rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             foreach (var item in data.ClassCommissions)
                             {
                                 table.Cell().Text($"{rowNum++}");
-                                table.Cell().Text(item.ClassName);
+                                table.Cell().Text($"Platform Commission - {item.ClassName}");
                                 table.Cell().AlignRight().Text($"{item.Earnings:N2}");
                                 table.Cell().AlignRight().Text($"{item.Rate:N2}%");
                                 table.Cell().AlignRight().Text($"{item.Amount:N2}");
                             }
 
-                            // Fallback if no detailed items found but there is a total (for legacy bills)
+                            // Fallback for legacy bills with no per-class detail
                             if (data.ClassCommissions.Count == 0 && data.PlatformCommissionAmount > 0)
                             {
                                 table.Cell().Text($"{rowNum++}");
@@ -641,6 +701,20 @@ namespace Tutorz.Infrastructure.Services
                                 table.Cell().AlignRight().Text("-");
                                 table.Cell().AlignRight().Text($"{data.PlatformCommissionAmount:N2}");
                             }
+
+                            // API Calls (always shown, matching original screenshot)
+                            table.Cell().Text($"{rowNum++}");
+                            table.Cell().Text("API Service Usage");
+                            table.Cell().AlignRight().Text($"{data.ApiCallCount}");
+                            table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
+                            table.Cell().AlignRight().Text($"{data.ApiUsageAmount:N2}");
+
+                            // SMS (always shown, matching original screenshot)
+                            table.Cell().Text($"{rowNum++}");
+                            table.Cell().Text("SMS Dispatch Service");
+                            table.Cell().AlignRight().Text($"{data.SmsSentCount}");
+                            table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
+                            table.Cell().AlignRight().Text($"{data.SmsAmount:N2}");
 
                             // Overdue
                             if (data.PreviousOverdueAmount > 0)
@@ -654,27 +728,40 @@ namespace Tutorz.Infrastructure.Services
 
                             table.Footer(footer =>
                             {
-                                footer.Cell().ColumnSpan(5).PaddingVertical(5).BorderTop(1).BorderColor(Colors.Black);
-                                
+                                footer.Cell().ColumnSpan(5).PaddingVertical(5)
+                                    .BorderTop(1).BorderColor(Colors.Black);
+
                                 footer.Cell().ColumnSpan(4).AlignRight().Text("Sub Total").Bold();
-                                footer.Cell().AlignRight().Text($"{data.SubTotal:N2}");
+                                footer.Cell().AlignRight().Text($"{pdfSubTotal:N2}");
 
-                                footer.Cell().ColumnSpan(4).AlignRight().Text($"Tax ({data.TaxPercentage}%)").Bold();
-                                footer.Cell().AlignRight().Text($"{data.TaxAmount:N2}");
+                                footer.Cell().ColumnSpan(4).AlignRight()
+                                    .Text($"Tax ({data.TaxPercentage:N2}%)").Bold();
+                                footer.Cell().AlignRight().Text($"{pdfTaxAmount:N2}");
 
-                                footer.Cell().ColumnSpan(4).AlignRight().PaddingTop(5).Text("TOTAL PAYABLE (LKR)").FontSize(14).Bold();
-                                footer.Cell().AlignRight().PaddingTop(5).Text($"{data.PayableAmount:N2}").FontSize(14).Bold();
+                                footer.Cell().ColumnSpan(4).AlignRight().PaddingTop(5)
+                                    .Text("TOTAL PAYABLE (LKR)").FontSize(14).Bold();
+                                footer.Cell().AlignRight().PaddingTop(5)
+                                    .Text($"{pdfTotalPayable:N2}").FontSize(14).Bold();
                             });
                         });
 
+                        // â”€â”€ STATUS & NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         col.Item().PaddingTop(40).Column(c =>
                         {
-                            c.Item().Text("Status: " + data.Status.ToUpper()).Bold().FontColor(data.Status == "Paid" ? Colors.Green.Medium : Colors.Red.Medium);
-                            c.Item().Text("Payment Terms: Please settle this invoice within 15 days.");
-                            c.Item().PaddingTop(10).Text("Note: This is a system-generated invoice for platform usage fees.").Italic().FontSize(8);
+                            c.Item().Text(text =>
+                            {
+                                text.Span("Status: ").Bold();
+                                text.Span(data.Status.ToUpper()).Bold()
+                                    .FontColor(isPaid ? Colors.Green.Medium : Colors.Red.Medium);
+                            });
+                            c.Item().Text("Payment Terms: Please settle this invoice within 30 days.");
+                            c.Item().PaddingTop(10)
+                                .Text("Note: This is a system-generated invoice for platform usage fees.")
+                                .Italic().FontSize(8);
                         });
                     });
 
+                    // â”€â”€ PAGE FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     page.Footer().AlignCenter().Text(x =>
                     {
                         x.Span("Page ");
