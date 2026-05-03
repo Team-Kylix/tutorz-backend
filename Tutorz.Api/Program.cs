@@ -1,4 +1,6 @@
 using System.Text;
+using Azure.Identity;
+using Tutorz.Api.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -14,6 +16,24 @@ using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
 using Tutorz.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ─── Azure Key Vault ───────────────────────────────────────────────────────────
+// KeyVault:VaultUri is set in each appsettings.{Environment}.json.
+// AddAzureKeyVault() fetches secrets and maps them to .NET config keys:
+//   Secret name  : {Prefix}--{Section}--{Key}   (e.g. Shared--SmsSettings--ApiToken)
+//   Config key   : {Section}:{Key}              (e.g. SmsSettings:ApiToken)
+// The EnvironmentPrefixSecretManager controls which prefix(es) each
+// environment loads. appsettings files contain only non-secret config.
+var kvVaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrEmpty(kvVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(kvVaultUri),
+        new DefaultAzureCredential(),
+        new EnvironmentPrefixSecretManager(builder.Environment.EnvironmentName));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 //  Get the connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 

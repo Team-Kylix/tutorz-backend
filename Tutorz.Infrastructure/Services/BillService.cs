@@ -36,7 +36,15 @@ namespace Tutorz.Infrastructure.Services
 
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(b => b.User.Email.Contains(search) || b.BillReference.Contains(search));
+                query = query.Where(b => 
+                    b.User.Email.Contains(search) || 
+                    b.BillReference.Contains(search) ||
+                    (b.User.RegistrationNumber != null && b.User.RegistrationNumber.Contains(search)) ||
+                    (b.User.PhoneNumber != null && b.User.PhoneNumber.Contains(search)) ||
+                    (b.UserRole == "Student" && _context.Students.Any(s => s.UserId == b.UserId && (s.FirstName + " " + s.LastName).Contains(search))) ||
+                    (b.UserRole == "Tutor" && _context.Tutors.Any(t => t.UserId == b.UserId && (t.FirstName + " " + t.LastName).Contains(search))) ||
+                    (b.UserRole == "Institute" && _context.Institutes.Any(i => i.UserId == b.UserId && i.InstituteName.Contains(search)))
+                );
             }
 
             var totalCount = await query.CountAsync();
