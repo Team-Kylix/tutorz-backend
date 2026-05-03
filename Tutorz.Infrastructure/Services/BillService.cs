@@ -49,7 +49,8 @@ namespace Tutorz.Infrastructure.Services
 
             var totalCount = await query.CountAsync();
             var items = await query
-                .OrderByDescending(b => b.Year)
+                .OrderBy(b => b.Status == "Paid" ? 1 : 0)
+                .ThenByDescending(b => b.Year)
                 .ThenByDescending(b => b.Month)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
