@@ -74,6 +74,7 @@ namespace Tutorz.Application.DTOs.Billing
     public class ClassCommissionItemDto
     {
         public string ClassName { get; set; } = string.Empty; // e.g. "Grade 7 Science Samadi"
+        public string? TutorName { get; set; } // Used for grouping in Institute bills
         public decimal Earnings { get; set; } // The Qty (TuitionAmount or InstituteAmount)
         public decimal Rate { get; set; } // The commission % (e.g. 1%)
         public decimal Amount { get; set; } // The actual fee (Earnings * Rate)

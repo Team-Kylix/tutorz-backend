@@ -207,7 +207,9 @@ namespace Tutorz.Infrastructure.Services
             // We must resolve the correct entity ID first.
             IQueryable<ClassPayment> paymentQuery = _context.ClassPayments
                 .Include(p => p.Class)
-                .ThenInclude(c => c.Institute)
+                    .ThenInclude(c => c.Institute)
+                .Include(p => p.Class)
+                    .ThenInclude(c => c.Tutor)
                 // Always filter from BillStartDate so only this billing window's payments appear
                 .Where(p => p.Status == "Paid" && p.PaidAt >= startUtc);
 
@@ -258,34 +260,52 @@ namespace Tutorz.Infrastructure.Services
 
             var payments = await paymentQuery.ToListAsync();
 
-            // Group by Class — use only the stored commission columns (no AmountPaid fallback).
-            dto.ClassCommissions = payments
-                .GroupBy(p => p.ClassId)
+            // Pre-calculate the formatted name to group identical display strings together
+            var paymentsWithNames = payments.Select(p => {
+                var cls = p.Class;
+                string monthStr = $"{p.Year}-{p.Month:D2}";
+                string instName = cls?.Institute?.InstituteName;
+                string baseName = $"{cls?.Grade} {cls?.Subject}".Trim();
+                
+                if (!string.IsNullOrEmpty(instName)) 
+                {
+                    baseName += $" - {instName}";
+                }
+                
+                if (string.IsNullOrWhiteSpace(baseName)) 
+                {
+                    baseName = cls?.ClassName ?? "Unknown Class";
+                }
+
+                return new {
+                    Payment = p,
+                    FormattedName = $"{baseName} {monthStr}".Trim(),
+                    TutorName = cls?.Tutor != null ? $"{cls.Tutor.FirstName} {cls.Tutor.LastName}".Trim() : "Unknown Tutor"
+                };
+            }).ToList();
+
+            dto.ClassCommissions = paymentsWithNames
+                .GroupBy(x => new { x.FormattedName, x.TutorName })
                 .Select(g => {
-                    var first = g.First();
-                    var cls = first.Class;
-
-                    string className = $"{cls?.Grade} {cls?.Subject} {cls?.Institute?.InstituteName}".Trim();
-                    if (string.IsNullOrWhiteSpace(className)) className = cls?.ClassName ?? "Unknown Class";
-
                     decimal earnings = bill.UserRole == "Tutor"
-                        ? g.Sum(p => p.TuitionAmount ?? 0)
-                        : g.Sum(p => p.InstituteAmount ?? 0);
+                        ? g.Sum(x => x.Payment.TuitionAmount ?? 0)
+                        : g.Sum(x => x.Payment.InstituteAmount ?? 0);
 
                     decimal commission = bill.UserRole == "Tutor"
-                        ? g.Sum(p => p.TutorCommission ?? 0)
-                        : g.Sum(p => p.InstituteCommission ?? 0);
+                        ? g.Sum(x => x.Payment.TutorCommission ?? 0)
+                        : g.Sum(x => x.Payment.InstituteCommission ?? 0);
 
                     return new ClassCommissionItemDto
                     {
-                        ClassName = className,
+                        ClassName = g.Key.FormattedName,
+                        TutorName = g.Key.TutorName,
                         Earnings  = Math.Round(earnings, 2),
                         Rate      = dto.PlatformCommissionRate,
                         Amount    = Math.Round(commission, 2)
                     };
                 })
                 .Where(i => i.Amount > 0)
-                .OrderBy(i => i.ClassName)
+                .OrderBy(i => i.TutorName).ThenBy(i => i.ClassName)
                 .ToList();
 
             return ServiceResponse<BillDetailDto>.SuccessResponse(dto);
@@ -306,19 +326,35 @@ namespace Tutorz.Infrastructure.Services
         public async Task<ServiceResponse<int>> FixOldBillReferencesAsync()
         {
             var bills = await _context.Bills.ToListAsync();
+            var nowLkt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SriLankaTimeZone);
             int updatedCount = 0;
             
             foreach (var b in bills)
             {
-                var parts = b.BillReference.Split('-');
-                // Example: TZ-2026-05-EECB-93CB -> TZ-2026-05-EECB
-                // Expected parts length with random Guid suffix is 5 (TZ, YYYY, MM, UID, GUID)
-                if (parts.Length > 4) 
+                bool modified = false;
+
+                // Move unpaid bills to current month
+                if (b.Status == BillStatus.Unpaid.ToString())
                 {
-                    var newRef = string.Join("-", parts.Take(4));
-                    b.BillReference = newRef;
-                    updatedCount++;
+                    if (b.Month != nowLkt.Month || b.Year != nowLkt.Year)
+                    {
+                        b.Month = nowLkt.Month;
+                        b.Year = nowLkt.Year;
+                        b.MonthYear = $"{nowLkt.Year}-{nowLkt.Month:D2}";
+                        modified = true;
+                    }
                 }
+
+                var refPart = b.UserId.ToString().Substring(0, 4).ToUpper();
+                var newRef = $"TZ{b.Year % 100:D2}{b.Month:D2}{refPart}";
+                
+                if (b.BillReference != newRef) 
+                {
+                    b.BillReference = newRef;
+                    modified = true;
+                }
+
+                if (modified) updatedCount++;
             }
 
             if (updatedCount > 0)
@@ -391,7 +427,7 @@ namespace Tutorz.Infrastructure.Services
                         Month = targetMonth,
                         Year = targetYear,
                         UserRole = prevBill.UserRole,
-                        BillReference = $"TZ-{targetYear}-{targetMonth:D2}-{prevBill.UserId.ToString().Substring(0, 4).ToUpper()}{suffix}",
+                        BillReference = $"TZ{targetYear % 100:D2}{targetMonth:D2}{prevBill.UserId.ToString().Substring(0, 4).ToUpper()}{suffix}",
                         MonthYear = $"{targetYear}-{targetMonth:D2}",
                         BillStartDate = startDateLkt,
                         BillEndDate = endDateLkt,
@@ -434,6 +470,10 @@ namespace Tutorz.Infrastructure.Services
                     bill.Month = month;
                     bill.Year = year;
                     bill.MonthYear = $"{year}-{month:D2}";
+                    
+                    var existingCount = await _context.Bills.CountAsync(b => b.UserId == userId && b.Month == month && b.Year == year && b.BillId != bill.BillId);
+                    var suff = existingCount > 0 ? $"-{(existingCount + 1):D2}" : "";
+                    bill.BillReference = $"TZ{year % 100:D2}{month:D2}{userId.ToString().Substring(0, 4).ToUpper()}{suff}";
                 }
                 return bill;
             }
@@ -468,7 +508,7 @@ namespace Tutorz.Infrastructure.Services
                 Month = month,
                 Year = year,
                 UserRole = "Unknown",
-                BillReference = $"TZ-{year}-{month:D2}-{userId.ToString().Substring(0, 4).ToUpper()}{suffix}",
+                BillReference = $"TZ{year % 100:D2}{month:D2}{userId.ToString().Substring(0, 4).ToUpper()}{suffix}",
                 MonthYear = $"{year}-{month:D2}",
                 BillStartDate = startDateLkt,
                 BillEndDate = endDateLkt,
@@ -623,7 +663,7 @@ namespace Tutorz.Infrastructure.Services
                                 col.Item().Text("Tutorz.lk")
                                     .FontSize(20).Bold().FontColor(Colors.Blue.Medium);
 
-                            col.Item().Text("Kylix Technology (Tutorz Team)");
+                            col.Item().Text("Kylix Technology");
                             col.Item().Text("lktutorz@gmail.com");
                             col.Item().Text("Sri Lanka");
                         });
@@ -677,9 +717,9 @@ namespace Tutorz.Infrastructure.Services
                             {
                                 header.Cell().Text("#");
                                 header.Cell().Text("Description");
-                                header.Cell().AlignRight().Text("Qty");
+                                header.Cell().AlignRight().Text("Collection");
                                 header.Cell().AlignRight().Text("Rate");
-                                header.Cell().AlignRight().Text("Amount");
+                                header.Cell().AlignRight().Text("Charge");
 
                                 // Single bottom border line under header (original style)
                                 header.Cell().ColumnSpan(5).PaddingVertical(5)
@@ -689,13 +729,34 @@ namespace Tutorz.Infrastructure.Services
                             int rowNum = 1;
 
                             // â”€â”€ Per-class commission rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                            foreach (var item in data.ClassCommissions)
+                            if (data.UserRole == "Institute")
                             {
-                                table.Cell().Text($"{rowNum++}");
-                                table.Cell().Text($"Platform Commission - {item.ClassName}");
-                                table.Cell().AlignRight().Text($"{item.Earnings:N2}");
-                                table.Cell().AlignRight().Text($"{item.Rate:N2}%");
-                                table.Cell().AlignRight().Text($"{item.Amount:N2}");
+                                var groupedByTutor = data.ClassCommissions.GroupBy(c => c.TutorName ?? "Unknown Tutor").OrderBy(g => g.Key);
+                                foreach (var tutorGroup in groupedByTutor)
+                                {
+                                    // Group Header
+                                    table.Cell().ColumnSpan(5).PaddingTop(5).PaddingBottom(2).Text(tutorGroup.Key).Bold();
+
+                                    foreach (var item in tutorGroup)
+                                    {
+                                        table.Cell().Text($"{rowNum++}");
+                                        table.Cell().PaddingLeft(10).Text($"{item.ClassName}");
+                                        table.Cell().AlignRight().Text($"{item.Earnings:N2}");
+                                        table.Cell().AlignRight().Text($"{item.Rate:N2}%");
+                                        table.Cell().AlignRight().Text($"{item.Amount:N2}");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                foreach (var item in data.ClassCommissions)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().Text($"{item.ClassName}");
+                                    table.Cell().AlignRight().Text($"{item.Earnings:N2}");
+                                    table.Cell().AlignRight().Text($"{item.Rate:N2}%");
+                                    table.Cell().AlignRight().Text($"{item.Amount:N2}");
+                                }
                             }
 
                             // Fallback for legacy bills with no per-class detail
