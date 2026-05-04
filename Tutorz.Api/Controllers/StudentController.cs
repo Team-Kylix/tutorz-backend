@@ -25,6 +25,7 @@ namespace Tutorz.Api.Controllers
         public async Task<IActionResult> SearchClasses(
             [FromQuery] string? grade, 
             [FromQuery] string? query, 
+            [FromQuery] int? provinceId, 
             [FromQuery] int? districtId, 
             [FromQuery] int? cityId,
             [FromQuery] int page = 1,
@@ -42,7 +43,7 @@ namespace Tutorz.Api.Controllers
                 studentId = Guid.Parse(studentIdString);
             }
 
-            var result = await _studentService.SearchClassesAsync(grade, query, studentId, districtId, cityId, page, pageSize);
+            var result = await _studentService.SearchClassesAsync(grade, query, studentId, provinceId, districtId, cityId, page, pageSize);
 
             if (!result.Success) return BadRequest(result);
 

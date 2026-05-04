@@ -19,7 +19,7 @@ namespace Tutorz.Infrastructure.Repositories
         {
         }
 
-        public async Task<PaginatedResultDto<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
+        public async Task<PaginatedResultDto<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
         {
             var db = _context as TutorzDbContext;
 
@@ -34,6 +34,16 @@ namespace Tutorz.Infrastructure.Repositories
             if (!string.IsNullOrEmpty(grade))
             {
                 query = query.Where(c => c.Grade == grade);
+            }
+
+            // Filter by Province
+            if (provinceId.HasValue)
+            {
+                query = query.Where(c => c.Institute != null && 
+                                       c.Institute.User != null && 
+                                       c.Institute.User.City != null && 
+                                       c.Institute.User.City.District != null &&
+                                       c.Institute.User.City.District.ProvinceId == provinceId.Value);
             }
 
             // Filter by District

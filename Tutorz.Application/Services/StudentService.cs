@@ -37,12 +37,12 @@ namespace Tutorz.Application.Services
             _tutorRepo = tutorRepo;
         }
 
-        public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
+        public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<PaginatedResultDto<ClassSearchDto>>();
             try
             {
-                var paginatedData = await _studentRepo.SearchClassesAsync(grade, searchTerm, studentId, districtId, cityId, page, pageSize);
+                var paginatedData = await _studentRepo.SearchClassesAsync(grade, searchTerm, studentId, provinceId, districtId, cityId, page, pageSize);
                 response.Data = paginatedData;
                 response.Success = true;
             }
@@ -143,11 +143,17 @@ namespace Tutorz.Application.Services
                 var city = await _cityRepo.GetAsync(c => c.Id == dto.CityId.Value);
                 if (city != null)
                 {
+                    dto.CityName = city.Name;
                     dto.DistrictId = city.DistrictId;
-                    var district = await _districtRepo.GetAsync(d => d.Id == city.DistrictId);
+                    var district = await _districtRepo.GetAsync(d => d.Id == city.DistrictId, includeProperties: "Province");
                     if (district != null)
                     {
+                        dto.DistrictName = district.Name;
                         dto.ProvinceId = district.ProvinceId;
+                        if (district.Province != null)
+                        {
+                            dto.ProvinceName = district.Province.Name;
+                        }
                     }
                 }
             }
