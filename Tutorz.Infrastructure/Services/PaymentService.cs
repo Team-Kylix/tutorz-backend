@@ -143,9 +143,14 @@ namespace Tutorz.Infrastructure.Services
                     : cls.InstituteCommissionRate;
 
             // --- Commission Calculation (Tutorz Billing Formula) ---
+            // IMPORTANT: Always calculate on the BASE class fee, not AmountPaid.
+            // For online payments AmountPaid includes the PayHere gateway surcharge (30+3%)
+            // which belongs entirely to PayHere and must not inflate the commission base.
+            decimal baseFee = cls.Fee > 0 ? cls.Fee : request.AmountPaid;
+
             // 1. Calculate how the class fee is split between the Institute and the Tutor
-            decimal instituteAmount = Math.Round(request.AmountPaid * (instituteCommissionPercentage / 100m), 2);
-            decimal tuitionAmount = request.AmountPaid - instituteAmount;
+            decimal instituteAmount = Math.Round(baseFee * (instituteCommissionPercentage / 100m), 2);
+            decimal tuitionAmount = baseFee - instituteAmount;
 
             // 2. Fetch platform commission rate from system config (defaults to 1% total)
             var configResponse = await _billService.GetBillingConfigAsync();
@@ -169,6 +174,7 @@ namespace Tutorz.Infrastructure.Services
                 Month = request.Month,
                 Year = request.Year,
                 AmountPaid = request.AmountPaid,
+                BaseFee = baseFee,
                 Status = PaymentStatus.Paid.ToString(),
                 PaidAt = DateTime.UtcNow,
                 CreatedDate = DateTime.UtcNow,

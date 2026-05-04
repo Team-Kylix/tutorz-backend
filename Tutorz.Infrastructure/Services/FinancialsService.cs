@@ -567,9 +567,10 @@ namespace Tutorz.Infrastructure.Services
                     return Fail<object>(errMsg);
                 }
 
-                // 3. Calculate commissions (same formula as manual RecordPaymentAsync)
+                // 3. Calculate commissions always on the BASE class fee, never on the
+                //    gateway-inflated AmountPaid (PayHere 30+3% belongs entirely to PayHere).
                 var (instAmt, tutAmt, instComm, tutComm, totalComm, commPct) =
-                    await CalculateCommissionsAsync(classEntity, request.Amount);
+                    await CalculateCommissionsAsync(classEntity, classEntity.Fee);
 
                 // 4. Record the payment with all commission fields populated
                 _context.ClassPayments.Add(new Tutorz.Domain.Entities.ClassPayment
@@ -580,6 +581,7 @@ namespace Tutorz.Infrastructure.Services
                     Month                        = request.Month,
                     Year                         = request.Year,
                     AmountPaid                   = request.Amount,
+                    BaseFee                      = classEntity.Fee,
                     Status                       = "Paid",
                     ReferenceId                  = orderId,
                     PaymentMethod                = student.CardBrand ?? "SAVED_CARD",
@@ -613,9 +615,9 @@ namespace Tutorz.Infrastructure.Services
             }
 
             // ── STANDARD CHECKOUT PATH: create PENDING payment with commissions pre-calculated ──
-            // Commissions are locked in at initiation so the webhook only needs to flip the status.
+            // Commissions are always based on the class fee (BaseFee), never on the gateway total.
             var (instAmt2, tutAmt2, instComm2, tutComm2, totalComm2, commPct2) =
-                await CalculateCommissionsAsync(classEntity, request.Amount);
+                await CalculateCommissionsAsync(classEntity, classEntity.Fee);
 
             var payment = new Tutorz.Domain.Entities.ClassPayment
             {
@@ -625,6 +627,7 @@ namespace Tutorz.Infrastructure.Services
                 Month                        = request.Month,
                 Year                         = request.Year,
                 AmountPaid                   = request.Amount,
+                BaseFee                      = classEntity.Fee,
                 Status                       = "PENDING",
                 ReferenceId                  = orderId,
                 PaymentMethod                = "PAYHERE_CHECKOUT",
@@ -975,16 +978,16 @@ namespace Tutorz.Infrastructure.Services
         /// Uses the same formula as <see cref="PaymentService.RecordPaymentAsync"/>.
         /// </summary>
         private async Task<(decimal instAmt, decimal tutAmt, decimal instComm, decimal tutComm, decimal totalComm, decimal commPct)>
-            CalculateCommissionsAsync(Tutorz.Domain.Entities.Class classEntity, decimal amountPaid)
+            CalculateCommissionsAsync(Tutorz.Domain.Entities.Class classEntity, decimal baseFee)
         {
             // 1. Determine commission rate from the class entity (snapshot set at class creation)
             decimal commPct = classEntity.InstituteCommissionRate;
 
-            // 2. Split the fee
-            decimal instAmt = Math.Round(amountPaid * (commPct / 100m), 2);
-            decimal tutAmt  = amountPaid - instAmt;
+            // 2. Split on the BASE fee only — gateway surcharges (PayHere 30+3%) are excluded
+            decimal instAmt = Math.Round(baseFee * (commPct / 100m), 2);
+            decimal tutAmt  = baseFee - instAmt;
 
-            // 3. Apply platform levy (default 1%) on each party's share
+            // 3. Apply platform levy (default 1%) on each party's base share
             var configResponse = await _billService.GetBillingConfigAsync();
             decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
 

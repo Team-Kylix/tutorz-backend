@@ -74,9 +74,18 @@ namespace Tutorz.Domain.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal? TuitionAmount { get; set; }
 
-        /// <summary>InstituteAmount + TuitionAmount. Total platform revenue from this payment.</summary>
+        /// <summary>TotalPlatformAmount of the platform revenue from this payment.</summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal? TotalPlatformAmount { get; set; }
+
+        /// <summary>
+        /// The raw class fee at the time of payment — used as the calculation base for all
+        /// commission splits (InstituteAmount, TuitionAmount, InstituteCommission, TutorCommission).
+        /// This is always Class.Fee and is NEVER inflated by gateway surcharges.
+        /// AmountPaid may differ (e.g. includes PayHere 30+3% surcharge for card payments).
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? BaseFee { get; set; }
 
         // --- Online Payment Fields ---
         public string? ReferenceId { get; set; } // Our internal order ID
