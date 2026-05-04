@@ -271,11 +271,6 @@ namespace Tutorz.Infrastructure.Services
                 string instName = cls?.Institute?.InstituteName;
                 string baseName = $"{cls?.Grade} {cls?.Subject}".Trim();
                 
-                if (!string.IsNullOrEmpty(instName)) 
-                {
-                    baseName += $" - {instName}";
-                }
-                
                 if (string.IsNullOrWhiteSpace(baseName)) 
                 {
                     baseName = cls?.ClassName ?? "Unknown Class";
@@ -284,12 +279,13 @@ namespace Tutorz.Infrastructure.Services
                 return new {
                     Payment = p,
                     FormattedName = $"{baseName} {monthStr}".Trim(),
-                    TutorName = cls?.Tutor != null ? $"{cls.Tutor.FirstName} {cls.Tutor.LastName}".Trim() : "Unknown Tutor"
+                    TutorName = cls?.Tutor != null ? $"{cls.Tutor.FirstName} {cls.Tutor.LastName}".Trim() : "Unknown Tutor",
+                    InstituteName = !string.IsNullOrEmpty(instName) ? instName : "Independent / Online"
                 };
             }).ToList();
 
             dto.ClassCommissions = paymentsWithNames
-                .GroupBy(x => new { x.FormattedName, x.TutorName })
+                .GroupBy(x => new { x.FormattedName, x.TutorName, x.InstituteName })
                 .Select(g => {
                     decimal earnings = bill.UserRole == "Tutor"
                         ? g.Sum(x => x.Payment.TuitionAmount ?? 0)
@@ -303,13 +299,14 @@ namespace Tutorz.Infrastructure.Services
                     {
                         ClassName = g.Key.FormattedName,
                         TutorName = g.Key.TutorName,
+                        InstituteName = g.Key.InstituteName,
                         Earnings  = Math.Round(earnings, 2),
                         Rate      = dto.PlatformCommissionRate,
                         Amount    = Math.Round(commission, 2)
                     };
                 })
                 .Where(i => i.Amount > 0)
-                .OrderBy(i => i.TutorName).ThenBy(i => i.ClassName)
+                .OrderBy(i => i.InstituteName).ThenBy(i => i.TutorName).ThenBy(i => i.ClassName)
                 .ToList();
 
             return ServiceResponse<BillDetailDto>.SuccessResponse(dto);
@@ -733,7 +730,7 @@ namespace Tutorz.Infrastructure.Services
 
                             int rowNum = 1;
 
-                            // â”€â”€ Per-class commission rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // ─── Per-class commission rows ────────────────────────
                             if (data.UserRole == "Institute")
                             {
                                 var groupedByTutor = data.ClassCommissions.GroupBy(c => c.TutorName ?? "Unknown Tutor").OrderBy(g => g.Key);
@@ -743,6 +740,24 @@ namespace Tutorz.Infrastructure.Services
                                     table.Cell().ColumnSpan(5).PaddingTop(5).PaddingBottom(2).Text(tutorGroup.Key).Bold();
 
                                     foreach (var item in tutorGroup)
+                                    {
+                                        table.Cell().Text($"{rowNum++}");
+                                        table.Cell().PaddingLeft(10).Text($"{item.ClassName}");
+                                        table.Cell().AlignRight().Text($"{item.Earnings:N2}");
+                                        table.Cell().AlignRight().Text($"{item.Rate:N2}%");
+                                        table.Cell().AlignRight().Text($"{item.Amount:N2}");
+                                    }
+                                }
+                            }
+                            else if (data.UserRole == "Tutor")
+                            {
+                                var groupedByInstitute = data.ClassCommissions.GroupBy(c => c.InstituteName ?? "Independent / Online").OrderBy(g => g.Key);
+                                foreach (var instituteGroup in groupedByInstitute)
+                                {
+                                    // Group Header
+                                    table.Cell().ColumnSpan(5).PaddingTop(5).PaddingBottom(2).Text(instituteGroup.Key).Bold();
+
+                                    foreach (var item in instituteGroup)
                                     {
                                         table.Cell().Text($"{rowNum++}");
                                         table.Cell().PaddingLeft(10).Text($"{item.ClassName}");
