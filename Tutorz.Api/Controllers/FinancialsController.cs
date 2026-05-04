@@ -224,6 +224,21 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpPost("initiate-bill-payment")]
+        [ApiPurpose("Initiate Platform Bill Payment")]
+        public async Task<IActionResult> InitiateBillPayment([FromBody] InitiateBillPaymentRequestDto request)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var (ownerId, role) = GetOwnerContext();
+            if (ownerId == Guid.Empty) 
+                return Unauthorized("User identity not found in token.");
+
+            var result = await _financialsService.InitiateBillPaymentAsync(ownerId, role, request);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpPost("payhere-notify")]
         [AllowAnonymous]
         public async Task<IActionResult> PayHereNotify([FromForm] PayHereNotifyDto notifyDto)

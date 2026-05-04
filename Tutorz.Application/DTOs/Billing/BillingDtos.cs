@@ -17,6 +17,7 @@ namespace Tutorz.Application.DTOs.Billing
         public int Year { get; set; }
         public string MonthYear { get; set; } = string.Empty;
         public decimal PayableAmount { get; set; }
+        public decimal? PaidAmount { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime GeneratedAt { get; set; }
     }
@@ -59,6 +60,7 @@ namespace Tutorz.Application.DTOs.Billing
         public decimal TaxPercentage { get; set; }
         public decimal TaxAmount { get; set; }
         public decimal PayableAmount { get; set; }
+        public decimal? PaidAmount { get; set; }
 
         public string Status { get; set; } = string.Empty;
         public DateTime? PaidAt { get; set; }

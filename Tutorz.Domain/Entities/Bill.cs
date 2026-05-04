@@ -104,6 +104,9 @@ namespace Tutorz.Domain.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal PayableAmount { get; set; }
 
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? PaidAmount { get; set; }
+
         // ─── Status ──────────────────────────────────────────────────────────
 
         [Required]

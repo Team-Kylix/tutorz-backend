@@ -74,6 +74,7 @@ namespace Tutorz.Infrastructure.Services
                     Year = b.Year,
                     MonthYear = b.MonthYear,
                     PayableAmount = b.PayableAmount,
+                    PaidAmount = b.PaidAmount,
                     Status = b.Status,
                     GeneratedAt = b.GeneratedAt
                 })
@@ -108,6 +109,7 @@ namespace Tutorz.Infrastructure.Services
                     Year = b.Year,
                     MonthYear = b.MonthYear,
                     PayableAmount = b.PayableAmount,
+                    PaidAmount = b.PaidAmount,
                     Status = b.Status,
                     GeneratedAt = b.GeneratedAt
                 })
@@ -188,6 +190,7 @@ namespace Tutorz.Infrastructure.Services
                 TaxPercentage = bill.TaxPercentage,
                 TaxAmount = bill.TaxAmount,
                 PayableAmount = bill.PayableAmount,
+                PaidAmount = bill.PaidAmount,
                 Status = bill.Status,
                 PaidAt = bill.PaidAt
             };
@@ -319,6 +322,7 @@ namespace Tutorz.Infrastructure.Services
 
             bill.Status = BillStatus.Paid.ToString();
             bill.PaidAt = DateTime.UtcNow;
+            bill.PaidAmount = bill.PayableAmount; // Offline payments have no PayHere gateway fee
 
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.SuccessResponse(true);
