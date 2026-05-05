@@ -309,7 +309,8 @@ namespace Tutorz.Infrastructure.Repositories
                     Name = string.IsNullOrEmpty(enrollment.Class.ClassName) ? enrollment.Class.Subject : enrollment.Class.ClassName,
                     RegNo = $"{enrollment.Class.Tutor.FirstName} {enrollment.Class.Tutor.LastName}",
                     Mobile = enrollment.Class.ClassType,
-                    AttendanceRecord = new Dictionary<DateTime, bool>()
+                    AttendanceRecord = new Dictionary<DateTime, bool>(),
+                    ClassConductedDates = classConductedDates  // dates the class was actually held
                 };
 
                 // Map the full requested dates
