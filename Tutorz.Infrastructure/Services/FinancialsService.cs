@@ -548,9 +548,10 @@ namespace Tutorz.Infrastructure.Services
             if (request.UseSavedCard && !string.IsNullOrEmpty(student.PayHereToken))
             {
                 // 1. Obtain OAuth access token
-                string? accessToken = await GetPayHereAccessTokenAsync();
+                var tokenResult = await GetPayHereAccessTokenAsync();
+                string? accessToken = tokenResult.Token;
                 if (string.IsNullOrEmpty(accessToken))
-                    return Fail<object>("Could not obtain PayHere access token. Please try the standard checkout.");
+                    return Fail<object>($"Could not obtain PayHere access token: {tokenResult.Error}");
 
                 // 2. Call PayHere Charging API
                 var chargeResult = await ChargeCustomerAsync(
@@ -713,9 +714,10 @@ namespace Tutorz.Infrastructure.Services
                 if (string.IsNullOrEmpty(payHereToken))
                     return Fail<object>("No saved card found.");
 
-                string accessToken = await GetPayHereAccessTokenAsync();
+                var tokenResult = await GetPayHereAccessTokenAsync();
+                string? accessToken = tokenResult.Token;
                 if (string.IsNullOrEmpty(accessToken))
-                    return Fail<object>("Could not obtain PayHere access token. Please try the standard checkout.");
+                    return Fail<object>($"Could not obtain PayHere access token: {tokenResult.Error}");
 
                 var chargeResult = await ChargeCustomerAsync(
                     accessToken,
@@ -856,10 +858,13 @@ namespace Tutorz.Infrastructure.Services
         /// Retrieves a short-lived Bearer access token from PayHere's OAuth endpoint
         /// using the App ID + App Secret (Basic auth with base64 encoding).
         /// </summary>
-        private async Task<string?> GetPayHereAccessTokenAsync()
+        private async Task<(string? Token, string? Error)> GetPayHereAccessTokenAsync()
         {
             try
             {
+                if (string.IsNullOrEmpty(PayHereAppId) || string.IsNullOrEmpty(PayHereAppSecret))
+                    return (null, "PayHere AppId or AppSecret is missing in configuration.");
+
                 var client = _httpClientFactory.CreateClient("PayHere");
                 string credentials = Convert.ToBase64String(
                     Encoding.UTF8.GetBytes($"{PayHereAppId}:{PayHereAppSecret}"));
@@ -875,18 +880,20 @@ namespace Tutorz.Infrastructure.Services
                 });
 
                 var response = await client.SendAsync(request);
-                if (!response.IsSuccessStatusCode) return null;
-
                 var json = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                    return (null, $"PayHere OAuth failed with status {response.StatusCode}. Response: {json}");
+
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("access_token", out var tokenEl))
-                    return tokenEl.GetString();
+                    return (tokenEl.GetString(), null);
 
-                return null;
+                return (null, "Access token not found in PayHere response.");
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                return (null, $"Exception during PayHere OAuth: {ex.Message}");
             }
         }
 
