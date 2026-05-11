@@ -11,7 +11,7 @@ namespace Tutorz.Application.Interfaces
 {
     public interface IStudentService
     {
-        Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10);
+        Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10);
         Task<ServiceResponse<string>> RequestJoinClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<string>> LeaveClassAsync(Guid studentId, Guid classId);
         Task<ServiceResponse<StudentProfileDto>> GetProfileAsync(Guid studentId);

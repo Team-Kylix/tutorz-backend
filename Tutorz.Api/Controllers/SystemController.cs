@@ -7,6 +7,8 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Infrastructure.Data;
 using Tutorz.Domain.Entities;
 using Tutorz.Api.Hubs;
+using Tutorz.Application.DTOs.Common;
+using Tutorz.Application.DTOs.Billing;
 
 namespace Tutorz.Api.Controllers
 {
@@ -22,17 +24,32 @@ namespace Tutorz.Api.Controllers
         private readonly TutorzDbContext _dbContext;
         private readonly INotificationPusher _notificationPusher;
         private readonly IStudentService _studentService;
+        private readonly ITutorService _tutorService;
+        private readonly IInstituteService _instituteService;
+        private readonly IAuthService _authService;
+        private readonly IAdminService _adminService;
+        private readonly IBillService _billService;
 
         public SystemController(
             IConfiguration configuration,
             TutorzDbContext dbContext,
             INotificationPusher notificationPusher,
-            IStudentService studentService)
+            IStudentService studentService,
+            ITutorService tutorService,
+            IInstituteService instituteService,
+            IAuthService authService,
+            IAdminService adminService,
+            IBillService billService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
             _notificationPusher = notificationPusher;
             _studentService = studentService;
+            _tutorService = tutorService;
+            _instituteService = instituteService;
+            _authService = authService;
+            _adminService = adminService;
+            _billService = billService;
         }
 
         [HttpGet("version")]
@@ -64,7 +81,9 @@ namespace Tutorz.Api.Controllers
             try
             {
                 var totalUsers = await _dbContext.Users.CountAsync();
-                return Ok(new { totalUsers });
+                var totalInstitutes = await _dbContext.Institutes.CountAsync();
+                var totalTutors = await _dbContext.Tutors.CountAsync();
+                return Ok(new { totalUsers, totalInstitutes, totalTutors });
             }
             catch (Exception ex)
             {
@@ -77,6 +96,24 @@ namespace Tutorz.Api.Controllers
         public async Task<IActionResult> GetStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _studentService.GetAllStudentsAsync(searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("tutors")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetTutors([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _tutorService.GetAllTutorsAsync(searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("institutes")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetInstitutes([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _instituteService.GetAllInstitutesAsync(searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
         }
@@ -136,6 +173,67 @@ namespace Tutorz.Api.Controllers
             {
                 return StatusCode(500, new { message = "Failed to force logout.", error = ex.Message });
             }
+        }
+
+        [HttpPost("admin")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> CreateAdmin([FromBody] Tutorz.Application.DTOs.System.CreateAdminDto request)
+        {
+            try
+            {
+                var result = await _authService.CreateAdminAsync(request);
+                if (!result.Success) return BadRequest(result);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to create admin.", error = ex.Message });
+            }
+        }
+        [HttpGet("admin/profile")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetAdminProfile()
+        {
+            var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+            if (!Guid.TryParse(idClaim, out var userId)) return Unauthorized();
+
+            var result = await _adminService.GetAdminProfileAsync(userId);
+            if (!result.Success) return NotFound(result.Message);
+            return Ok(result);
+        }
+
+        [HttpPut("admin/profile")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> UpdateAdminProfile([FromForm] Tutorz.Application.DTOs.Admin.UpdateAdminProfileDto request)
+        {
+            var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+            if (!Guid.TryParse(idClaim, out var userId)) return Unauthorized();
+
+            var result = await _adminService.UpdateAdminProfileAsync(userId, request);
+            if (!result.Success) return BadRequest(result.Message);
+            return Ok(result.Data);
+        }
+
+        // --- Billing Config Endpoints ---
+
+        [HttpGet("billing-config")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetBillingConfig()
+        {
+            var response = await _billService.GetBillingConfigAsync();
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        [HttpPut("billing-config")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> UpdateBillingConfig([FromBody] BillingConfigDto config)
+        {
+            var response = await _billService.UpdateBillingConfigAsync(config);
+            return response.Success ? Ok(response) : BadRequest(response);
         }
     }
 }

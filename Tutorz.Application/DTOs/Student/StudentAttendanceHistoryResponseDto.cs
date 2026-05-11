@@ -10,8 +10,12 @@ namespace Tutorz.Application.DTOs.Student
         public string RegNo { get; set; } = string.Empty; // Tutor Name
         public string Mobile { get; set; } = string.Empty; // Additional info / empty
 
-        // Maps Date to IsPresent
+        // Maps Date to IsPresent (only contains dates this student was present)
         public Dictionary<DateTime, bool> AttendanceRecord { get; set; } = new Dictionary<DateTime, bool>();
+
+        // Dates this specific class was actually conducted (any student marked present).
+        // Used by the frontend to distinguish "absent" (red ✕) from "class not held" (grey).
+        public List<DateTime> ClassConductedDates { get; set; } = new List<DateTime>();
     }
 
     public class StudentAttendanceHistoryResponseDto

@@ -5,6 +5,7 @@ using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Institute;
 using Tutorz.Api.Attributes;
+using System;
 
 namespace Tutorz.Api.Controllers
 {
@@ -14,10 +15,12 @@ namespace Tutorz.Api.Controllers
     public class StudentController : ControllerBase
     {
         private readonly IStudentService _studentService;
+        private readonly IStudentBillService _studentBillService;
 
-        public StudentController(IStudentService studentService)
+        public StudentController(IStudentService studentService, IStudentBillService studentBillService)
         {
             _studentService = studentService;
+            _studentBillService = studentBillService;
         }
 
         [HttpGet("search-classes")]
@@ -25,6 +28,7 @@ namespace Tutorz.Api.Controllers
         public async Task<IActionResult> SearchClasses(
             [FromQuery] string? grade, 
             [FromQuery] string? query, 
+            [FromQuery] int? provinceId, 
             [FromQuery] int? districtId, 
             [FromQuery] int? cityId,
             [FromQuery] int page = 1,
@@ -42,7 +46,7 @@ namespace Tutorz.Api.Controllers
                 studentId = Guid.Parse(studentIdString);
             }
 
-            var result = await _studentService.SearchClassesAsync(grade, query, studentId, districtId, cityId, page, pageSize);
+            var result = await _studentService.SearchClassesAsync(grade, query, studentId, provinceId, districtId, cityId, page, pageSize);
 
             if (!result.Success) return BadRequest(result);
 
@@ -240,6 +244,27 @@ namespace Tutorz.Api.Controllers
             
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
+        }
+
+        [HttpGet("class-payments/{paymentId}/pdf")]
+        [ApiPurpose("Download Class Payment PDF")]
+        public async Task<IActionResult> DownloadClassPaymentPdf(Guid paymentId)
+        {
+            var studentIdString = User.FindFirst("StudentId")?.Value;
+            if (string.IsNullOrEmpty(studentIdString))
+                studentIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(studentIdString))
+                return Unauthorized("Student ID not found in token.");
+
+            var studentId = Guid.Parse(studentIdString);
+            var pdfBytes = await _studentBillService.GenerateClassPaymentPdfAsync(paymentId, studentId);
+
+            if (pdfBytes == null)
+                return NotFound("Payment not found or access denied.");
+
+            var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
+            return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
         }
     }
 }

@@ -1,4 +1,6 @@
 using System.Text;
+using Azure.Identity;
+using Tutorz.Api.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -14,6 +16,24 @@ using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
 using Tutorz.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ─── Azure Key Vault ───────────────────────────────────────────────────────────
+// KeyVault:VaultUri is set in each appsettings.{Environment}.json.
+// AddAzureKeyVault() fetches secrets and maps them to .NET config keys:
+//   Secret name  : {Prefix}--{Section}--{Key}   (e.g. Shared--SmsSettings--ApiToken)
+//   Config key   : {Section}:{Key}              (e.g. SmsSettings:ApiToken)
+// The EnvironmentPrefixSecretManager controls which prefix(es) each
+// environment loads. appsettings files contain only non-secret config.
+var kvVaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrEmpty(kvVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(kvVaultUri),
+        new DefaultAzureCredential(),
+        new EnvironmentPrefixSecretManager(builder.Environment.EnvironmentName));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 //  Get the connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -51,6 +71,7 @@ builder.Services.AddScoped<ITutorService, TutorService>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IInstituteService, InstituteService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
 builder.Services.AddScoped<IClassPaymentRepository, ClassPaymentRepository>();
@@ -58,6 +79,12 @@ builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.Payme
 builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
+
+// Dispute / Ticketing System
+builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
+builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
+builder.Services.AddScoped<IBillService, BillService>();
+builder.Services.AddScoped<IStudentBillService, StudentBillService>();
 
 // Named HTTP client for PayHere API calls (Charging API, OAuth)
 builder.Services.AddHttpClient("PayHere", client =>
@@ -79,6 +106,7 @@ builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tuto
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.ApiUsageBatchWorker>();
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.DailyAggregationWorker>();
 builder.Services.AddHostedService<Tutorz.Infrastructure.Services.MonthlyAggregationWorker>();
+builder.Services.AddHostedService<MonthlyBillingWorker>();
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

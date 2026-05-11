@@ -43,6 +43,9 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Notification> Notifications { get; set; }
         // Global application settings (e.g., MinTokenDate for forced logout on deploy)
         public DbSet<AppSetting> AppSettings { get; set; }
+        public DbSet<Dispute> Disputes { get; set; }
+        public DbSet<Admin> Admins { get; set; }
+        public DbSet<Bill> Bills { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -59,6 +62,12 @@ namespace Tutorz.Infrastructure.Data
                 .WithMany(u => u.Students)
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Admin>()
+                .HasOne(a => a.User)
+                .WithOne(u => u.Admin)
+                .HasForeignKey<Admin>(a => a.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Class>()
                 .Property(c => c.Fee)
@@ -212,6 +221,77 @@ namespace Tutorz.Infrastructure.Data
             // Composite index: fast query of latest notifications per user
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => new { n.UserId, n.CreatedAt });
+
+            // Dispute Configuration
+            modelBuilder.Entity<Dispute>()
+                .HasOne(d => d.RaisedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.RaisedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // AssignedAdmin: nullable FK — SetNull so deleting an admin keeps dispute history
+            modelBuilder.Entity<Dispute>()
+                .HasOne(d => d.AssignedAdmin)
+                .WithMany()
+                .HasForeignKey(d => d.AssignedAdminUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => d.DisputeNumber)
+                .IsUnique(); // Fast, guaranteed-unique lookups
+
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => new { d.RaisedByUserId, d.CreatedAt }); // Fast per-user queries
+
+            // Index for fast admin scoped query
+            modelBuilder.Entity<Dispute>()
+                .HasIndex(d => d.AssignedAdminUserId);
+
+            // Bill Configuration
+            modelBuilder.Entity<Bill>()
+                .HasOne(b => b.User)
+                .WithMany()
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Index for fast lookup (removed IsUnique to allow multiple bills per month if previous is paid)
+            modelBuilder.Entity<Bill>()
+                .HasIndex(b => new { b.UserId, b.Month, b.Year });
+
+            // Decimal precision for Bill money fields
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.ApiUsageAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.SmsAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.PlatformCommissionAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.PreviousOverdueAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.SubTotal).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.TaxAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Bill>()
+                .Property(b => b.PayableAmount).HasColumnType("decimal(18,2)");
+
+            // Decimal precision for ClassPayment new columns
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.InstituteCommissionPercentage).HasColumnType("decimal(5,2)");
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.InstituteCommission).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.TutorCommission).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.InstituteAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.TuitionAmount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ClassPayment>()
+                .Property(p => p.TotalPlatformAmount).HasColumnType("decimal(18,2)");
+
+            // Decimal precision for Class.InstituteCommissionRate
+            modelBuilder.Entity<Class>()
+                .Property(c => c.InstituteCommissionRate).HasColumnType("decimal(5,2)");
         }
     }
 }

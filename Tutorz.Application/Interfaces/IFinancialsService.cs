@@ -42,6 +42,7 @@ namespace Tutorz.Application.Interfaces
         // --- Online Payments (PayHere) ---
         Task<ServiceResponse<IEnumerable<MonthPaymentStatusDto>>> GetStudentPaymentStatusAsync(Guid classId, Guid studentId);
         Task<ServiceResponse<object>> InitiateOnlinePaymentAsync(Guid studentId, InitiatePaymentRequestDto request);
+        Task<ServiceResponse<object>> InitiateBillPaymentAsync(Guid ownerId, string role, InitiateBillPaymentRequestDto request);
         Task<ServiceResponse<bool>> ProcessPayHereWebhookAsync(PayHereNotifyDto notifyDto);
     }
 }

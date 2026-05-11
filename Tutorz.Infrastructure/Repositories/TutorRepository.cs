@@ -109,8 +109,53 @@ namespace Tutorz.Infrastructure.Repositories
                 SchoolName = student.SchoolName,
                 ParentName = student.ParentName,
                 Mobile = student.User?.PhoneNumber,
-                Email = student.User?.Email,
                 DateOfBirth = student.DateOfBirth
+            };
+        }
+
+        public async Task<Tutorz.Application.DTOs.Common.PaginatedResultDto<TutorProfileDto>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize)
+        {
+            var query = _context.Tutors
+                .Include(t => t.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                string term = searchQuery.ToLower();
+                query = query.Where(t =>
+                    t.FirstName.ToLower().Contains(term) ||
+                    t.LastName.ToLower().Contains(term) ||
+                    t.RegistrationNumber.ToLower().Contains(term) ||
+                    (t.User != null && t.User.PhoneNumber.Contains(term)) ||
+                    (t.User != null && t.User.Email != null && t.User.Email.ToLower().Contains(term))
+                );
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(t => t.User != null ? t.User.CreatedDate : System.DateTime.MinValue)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(t => new TutorProfileDto
+                {
+                    UserId = t.UserId,
+                    TutorId = t.TutorId,
+                    FirstName = t.FirstName,
+                    LastName = t.LastName,
+                    RegistrationNumber = t.RegistrationNumber,
+                    Email = t.User != null ? t.User.Email : "",
+                    PhoneNumber = t.User != null ? t.User.PhoneNumber : "",
+                    ProfileImageUrlSmall = t.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = t.ProfileImageUrlLarge
+                }).ToListAsync();
+
+            return new Tutorz.Application.DTOs.Common.PaginatedResultDto<TutorProfileDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
             };
         }
     }

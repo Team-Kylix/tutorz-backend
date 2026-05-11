@@ -565,6 +565,7 @@ namespace Tutorz.Application.Services
                     EndTime = c.EndTime,
                     HallName = c.HallName,
                     Fee = c.Fee,
+                    InstituteCommissionRate = c.InstituteCommissionRate,
                     StudentRegisteredCount = enrollments.Count(),
                     StudentCount = enrollments.Count()
                 });
@@ -707,6 +708,11 @@ namespace Tutorz.Application.Services
                 HallName = request.HallName,
                 Fee = request.Fee,
                 IsActive = request.IsActive,
+                // Use the caller-supplied rate if provided; otherwise seed from the institute default.
+                // This snapshot is later used as the fallback in RecordPaymentAsync.
+                InstituteCommissionRate = request.InstituteCommissionRate.HasValue
+                    ? request.InstituteCommissionRate.Value
+                    : institute.CommissionPercentage,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -726,6 +732,7 @@ namespace Tutorz.Application.Services
                 EndTime = newClass.EndTime,
                 HallName = newClass.HallName,
                 Fee = newClass.Fee,
+                InstituteCommissionRate = newClass.InstituteCommissionRate,
                 StudentRegisteredCount = 0,
                 StudentCount = 0
             };
@@ -757,6 +764,9 @@ namespace Tutorz.Application.Services
             existingClass.EndTime = request.EndTime;
             existingClass.HallName = request.HallName;
             existingClass.Fee = request.Fee;
+            // If the caller provides an override, use it; otherwise keep the existing rate unchanged.
+            if (request.InstituteCommissionRate.HasValue)
+                existingClass.InstituteCommissionRate = request.InstituteCommissionRate.Value;
             existingClass.UpdatedDate = DateTime.UtcNow;
 
             // ── Hall Conflict Check on Update (exclude self, same institute + hall + overlapping time) ──
@@ -835,6 +845,7 @@ namespace Tutorz.Application.Services
                 EndTime = existingClass.EndTime,
                 HallName = existingClass.HallName,
                 Fee = existingClass.Fee,
+                InstituteCommissionRate = existingClass.InstituteCommissionRate,
                 StudentRegisteredCount = enrollments.Count(),
                 StudentCount = enrollments.Count()
             };
@@ -1344,6 +1355,23 @@ namespace Tutorz.Application.Services
             await _instituteRepository.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Commission percentage updated successfully." };
+        }
+
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteProfileDto>>> GetAllInstitutesAsync(string? searchQuery, int page, int pageSize)
+        {
+            var response = new ServiceResponse<PaginatedResultDto<InstituteProfileDto>>();
+            try
+            {
+                var data = await _instituteRepository.GetAllInstitutesAsync(searchQuery, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching all institutes: " + ex.Message;
+            }
+            return response;
         }
     }
 }

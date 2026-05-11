@@ -42,6 +42,13 @@ namespace Tutorz.Domain.Entities
         [Column(TypeName = "decimal(18,2)")]
         public decimal Fee { get; set; }
 
+        /// <summary>
+        /// Percentage of class fee the institute keeps (e.g. 25.00 = 25%).
+        /// Independent tutors set this to 0. Snapshotted into ClassPayment at payment time.
+        /// </summary>
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal InstituteCommissionRate { get; set; } = 0;
+
         public bool IsActive { get; set; } = true;
         public bool IsDeleted { get; set; } = false;
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;

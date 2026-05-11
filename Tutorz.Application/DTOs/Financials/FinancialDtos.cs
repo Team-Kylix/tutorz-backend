@@ -144,6 +144,14 @@ namespace Tutorz.Application.DTOs.Financials
         public bool UseSavedCard { get; set; } = false;
     }
 
+    public class InitiateBillPaymentRequestDto
+    {
+        [Required]
+        public Guid BillId { get; set; }
+        
+        public bool UseSavedCard { get; set; } = false;
+    }
+
     public class PayHereNotifyDto
     {
         public string? merchant_id { get; set; }

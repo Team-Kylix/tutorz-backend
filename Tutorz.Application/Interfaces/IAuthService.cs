@@ -11,6 +11,7 @@ namespace Tutorz.Application.Interfaces
     public interface IAuthService
     {
         Task<AuthResponse> RegisterAsync(RegisterRequest request);
+        Task<ServiceResponse<bool>> CreateAdminAsync(Tutorz.Application.DTOs.System.CreateAdminDto request);
         Task SendRegistrationOtpAsync(string phoneNumber);
         Task<AuthResponse> LoginAsync(LoginRequest request);
         Task<AuthResponse> SocialLoginAsync(SocialLoginRequest request);

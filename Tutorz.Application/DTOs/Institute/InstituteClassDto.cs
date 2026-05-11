@@ -20,5 +20,8 @@ namespace Tutorz.Application.DTOs.Institute
         public decimal Fee { get; set; }
         public int StudentRegisteredCount { get; set; }
         public int StudentCount { get; set; }
+
+        /// <summary>Percentage of class fee the institute keeps (e.g. 25.00 = 25%).</summary>
+        public decimal InstituteCommissionRate { get; set; }
     }
 }

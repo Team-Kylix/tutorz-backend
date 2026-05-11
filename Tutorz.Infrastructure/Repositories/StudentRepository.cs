@@ -19,7 +19,7 @@ namespace Tutorz.Infrastructure.Repositories
         {
         }
 
-        public async Task<PaginatedResultDto<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
+        public async Task<PaginatedResultDto<ClassSearchDto>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
         {
             var db = _context as TutorzDbContext;
 
@@ -34,6 +34,16 @@ namespace Tutorz.Infrastructure.Repositories
             if (!string.IsNullOrEmpty(grade))
             {
                 query = query.Where(c => c.Grade == grade);
+            }
+
+            // Filter by Province
+            if (provinceId.HasValue)
+            {
+                query = query.Where(c => c.Institute != null && 
+                                       c.Institute.User != null && 
+                                       c.Institute.User.City != null && 
+                                       c.Institute.User.City.District != null &&
+                                       c.Institute.User.City.District.ProvinceId == provinceId.Value);
             }
 
             // Filter by District
@@ -299,7 +309,8 @@ namespace Tutorz.Infrastructure.Repositories
                     Name = string.IsNullOrEmpty(enrollment.Class.ClassName) ? enrollment.Class.Subject : enrollment.Class.ClassName,
                     RegNo = $"{enrollment.Class.Tutor.FirstName} {enrollment.Class.Tutor.LastName}",
                     Mobile = enrollment.Class.ClassType,
-                    AttendanceRecord = new Dictionary<DateTime, bool>()
+                    AttendanceRecord = new Dictionary<DateTime, bool>(),
+                    ClassConductedDates = classConductedDates  // dates the class was actually held
                 };
 
                 // Map the full requested dates
@@ -327,40 +338,55 @@ namespace Tutorz.Infrastructure.Repositories
 
         public async Task<StudentPaymentHistoryResponseDto> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize)
         {
-            var query = _context.ClassPayments
+            var db = _context as TutorzDbContext;
+
+            // ── 1. Build base payment query ───────────────────────────────────
+            var paymentQuery = db.ClassPayments
                 .Include(p => p.Class)
-                .ThenInclude(c => c.Tutor)
-                .ThenInclude(t => t.User)
+                    .ThenInclude(c => c.Tutor)
                 .Where(p => p.StudentId == studentId)
                 .AsQueryable();
 
             if (tutorId.HasValue)
-            {
-                query = query.Where(p => p.Class.TutorId == tutorId.Value);
-            }
+                paymentQuery = paymentQuery.Where(p => p.Class.TutorId == tutorId.Value);
 
             if (classId.HasValue)
-            {
-                query = query.Where(p => p.ClassId == classId.Value);
-            }
+                paymentQuery = paymentQuery.Where(p => p.ClassId == classId.Value);
 
-            if (!string.IsNullOrEmpty(monthYear))
-            {
-                // expecting "yyyy-MM" e.g. "2026-04" 
-                if (DateTime.TryParse(monthYear, out DateTime parsedDate))
+            if (!string.IsNullOrEmpty(monthYear) && DateTime.TryParse(monthYear, out DateTime parsedDate))
+                paymentQuery = paymentQuery.Where(p => p.Month == parsedDate.Month && p.Year == parsedDate.Year);
+
+            // ── 2. Aggregate stats from existing payments ─────────────────────
+            decimal totalPaid = await paymentQuery.SumAsync(p => (decimal?)p.AmountPaid) ?? 0;
+
+            // ── 3. Paid rows ──────────────────────────────────────────────────
+            var paidRows = await paymentQuery
+                .OrderByDescending(p => p.PaidAt)
+                .Select(p => new StudentPaymentHistoryDto
                 {
-                    query = query.Where(p => p.Month == parsedDate.Month && p.Year == parsedDate.Year);
-                }
-            }
+                    PaymentId   = p.PaymentId,
+                    ClassId     = p.ClassId,
+                    TutorId     = p.Class.TutorId,
+                    TutorName   = p.Class.Tutor.FirstName + " " + p.Class.Tutor.LastName,
+                    Subject     = p.Class.Subject,
+                    ClassName   = p.Class.ClassName,
+                    Month       = p.Month,
+                    Year        = p.Year,
+                    MonthYear   = new DateTime(p.Year, p.Month, 1).ToString("MMM yyyy"),
+                    ClassFee    = p.Class.Fee,
+                    AmountPaid  = p.AmountPaid,
+                    PaidAt      = p.PaidAt,
+                    Status      = p.Status,
+                    Note        = p.Note
+                })
+                .ToListAsync();
 
-            decimal totalPaid = await query.SumAsync(p => p.AmountPaid);
-            int totalCount = await query.CountAsync();
-
-            // --- Compute TotalDueAmount ---
-            // Get all approved enrollments for this student (optionally filtered)
-            var enrollmentsQuery = _context.Enrollments
+            // ── 4. Due rows: class-months with attendance but no ClassPayment ─
+            // Get all approved enrollments for this student
+            var enrollmentsQuery = db.Enrollments
                 .Include(e => e.Class)
-                .Where(e => e.StudentId == studentId && e.Status == Tutorz.Domain.Entities.EnrollmentStatus.Approved);
+                    .ThenInclude(c => c.Tutor)
+                .Where(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
 
             if (tutorId.HasValue)
                 enrollmentsQuery = enrollmentsQuery.Where(e => e.Class.TutorId == tutorId.Value);
@@ -370,40 +396,74 @@ namespace Tutorz.Infrastructure.Repositories
             var enrollments = await enrollmentsQuery.ToListAsync();
             decimal totalClassFees = enrollments.Sum(e => e.Class.Fee);
 
-            // If a specific month is selected, consider only payments for that month vs. all class fees
-            // TotalDue = TotalClassFees - TotalPaid (for the filtered scope)
-            decimal totalDue = Math.Max(0, totalClassFees - totalPaid);
+            // For each enrollment, find months with attendance but no payment
+            var dueRows = new List<StudentPaymentHistoryDto>();
 
-            var payments = await query
-                .OrderByDescending(p => p.PaidAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(p => new StudentPaymentHistoryDto
+            // Set of (classId, month, year) already paid – to exclude from due rows
+            var paidKeys = paidRows.Select(r => (r.ClassId, r.Month, r.Year)).ToHashSet();
+
+            foreach (var enrollment in enrollments)
+            {
+                var cls = enrollment.Class;
+
+                // Get distinct months where this student had attendance for this class
+                var attendedMonths = await db.Attendances
+                    .Where(a => a.ClassId == cls.ClassId && a.StudentId == studentId && a.IsPresent)
+                    .Select(a => new { a.Date.Month, a.Date.Year })
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var am in attendedMonths)
                 {
-                    PaymentId = p.PaymentId,
-                    ClassId = p.ClassId,
-                    TutorName = p.Class.Tutor.FirstName + " " + p.Class.Tutor.LastName,
-                    Subject = p.Class.Subject,
-                    ClassName = p.Class.ClassName,
-                    MonthYear = new DateTime(p.Year, p.Month, 1).ToString("MMM yyyy"),
-                    AmountPaid = p.AmountPaid,
-                    PaidAt = p.PaidAt,
-                    Status = p.Status,
-                    Note = p.Note
-                })
-                .ToListAsync();
+                    // Skip if already paid or if a month filter is applied and doesn't match
+                    if (paidKeys.Contains((cls.ClassId, am.Month, am.Year))) continue;
+                    if (!string.IsNullOrEmpty(monthYear) && DateTime.TryParse(monthYear, out DateTime pDate))
+                    {
+                        if (am.Month != pDate.Month || am.Year != pDate.Year) continue;
+                    }
+
+                    dueRows.Add(new StudentPaymentHistoryDto
+                    {
+                        PaymentId  = Guid.Empty, // No payment yet
+                        ClassId    = cls.ClassId,
+                        TutorId    = cls.TutorId,
+                        TutorName  = $"{cls.Tutor.FirstName} {cls.Tutor.LastName}",
+                        Subject    = cls.Subject,
+                        ClassName  = cls.ClassName,
+                        Month      = am.Month,
+                        Year       = am.Year,
+                        MonthYear  = new DateTime(am.Year, am.Month, 1).ToString("MMM yyyy"),
+                        ClassFee   = cls.Fee,
+                        AmountPaid = 0,
+                        PaidAt     = null,
+                        Status     = "Due",
+                        Note       = null
+                    });
+                }
+            }
+
+            // ── 5. Merge: due rows first (newest month first), then paid rows ─
+            var dueSorted   = dueRows.OrderByDescending(r => r.Year).ThenByDescending(r => r.Month).ToList();
+            var allRows     = dueSorted.Concat(paidRows).ToList();
+            int totalCount  = allRows.Count;
+
+            // Apply pagination after merging
+            var pagedItems = allRows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            // ── 6. Compute due amount ─────────────────────────────────────────
+            decimal totalDue = dueRows.Sum(r => r.ClassFee);
 
             return new StudentPaymentHistoryResponseDto
             {
                 TotalAmountPaid = totalPaid,
-                TotalClassFees = totalClassFees,
-                TotalDueAmount = totalDue,
+                TotalClassFees  = totalClassFees,
+                TotalDueAmount  = totalDue,
                 PaginatedPayments = new Tutorz.Application.DTOs.Common.PaginatedResultDto<StudentPaymentHistoryDto>
                 {
-                    Items = payments,
+                    Items      = pagedItems,
                     TotalCount = totalCount,
-                    Page = page,
-                    PageSize = pageSize
+                    Page       = page,
+                    PageSize   = pageSize
                 }
             };
         }
