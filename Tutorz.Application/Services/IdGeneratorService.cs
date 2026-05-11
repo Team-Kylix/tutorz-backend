@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Tutorz.Application.Interfaces;
@@ -38,6 +38,9 @@ namespace Tutorz.Application.Services
                     break;
                 case "admin":
                     rolePrefix = "ADM";
+                    break;
+                case "superadmin":
+                    rolePrefix = "SAD";
                     break;
                 default:
                     throw new Exception("Unknown Role for ID generation");

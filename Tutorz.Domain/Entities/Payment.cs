@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,8 +25,8 @@ namespace Tutorz.Domain.Entities
         [Required]
         public Guid ClassId { get; set; }
 
-        [Required]
-        public Guid InstituteId { get; set; }
+        /// <summary>Null for tutor own-place classes with no institute</summary>
+        public Guid? InstituteId { get; set; }
 
         /// <summary>Calendar month (1–12)</summary>
         [Required]
@@ -53,6 +53,46 @@ namespace Tutorz.Domain.Entities
         /// <summary>Optional note recorded by the institute staff</summary>
         public string? Note { get; set; }
 
+        // --- Commission & Platform Fields ---
+        // Snapshot of Class.InstituteCommissionRate at the time of payment (immutable audit trail)
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal? InstituteCommissionPercentage { get; set; }
+
+        /// <summary>Platform levy on the institute (1% of InstituteAmount). e.g. 2.50 LKR.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? InstituteCommission { get; set; }
+
+        /// <summary>Platform levy on the tutor (1% of TuitionAmount). e.g. 7.50 LKR.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TutorCommission { get; set; }
+
+        /// <summary>AmountPaid × (InstituteCommissionPercentage / 100). Institute's gross share.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? InstituteAmount { get; set; }
+
+        /// <summary>AmountPaid − InstituteAmount. Tutor's gross share.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TuitionAmount { get; set; }
+
+        /// <summary>TotalPlatformAmount of the platform revenue from this payment.</summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? TotalPlatformAmount { get; set; }
+
+        /// <summary>
+        /// The raw class fee at the time of payment — used as the calculation base for all
+        /// commission splits (InstituteAmount, TuitionAmount, InstituteCommission, TutorCommission).
+        /// This is always Class.Fee and is NEVER inflated by gateway surcharges.
+        /// AmountPaid may differ (e.g. includes PayHere 30+3% surcharge for card payments).
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? BaseFee { get; set; }
+
+        // --- Online Payment Fields ---
+        public string? ReferenceId { get; set; } // Our internal order ID
+        public string? PayHerePaymentId { get; set; } // ID returned by PayHere
+        public string? PaymentMethod { get; set; } // e.g. "CARD", "VISA"
+        public string? Hash { get; set; } // Hash for verification
+
         // --- Navigation Properties ---
         [ForeignKey("StudentId")]
         public virtual Student Student { get; set; }
@@ -61,6 +101,6 @@ namespace Tutorz.Domain.Entities
         public virtual Class Class { get; set; }
 
         [ForeignKey("InstituteId")]
-        public virtual Institute Institute { get; set; }
+        public virtual Institute? Institute { get; set; }
     }
 }

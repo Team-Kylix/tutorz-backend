@@ -22,6 +22,7 @@ namespace Tutorz.Infrastructure.Services
         private readonly IStudentRepository _studentRepository;
         private readonly ITutorRepository _tutorRepository;
         private readonly IInstituteRepository _instituteRepository;
+        private readonly IGenericRepository<Admin> _adminRepository;
 
         // Target dimensions
         private const int SmallWidth = 150;
@@ -34,13 +35,15 @@ namespace Tutorz.Infrastructure.Services
             IConfiguration configuration,
             IStudentRepository studentRepository,
             ITutorRepository tutorRepository,
-            IInstituteRepository instituteRepository)
+            IInstituteRepository instituteRepository,
+            IGenericRepository<Admin> adminRepository)
         {
             _env = env;
             _configuration = configuration;
             _studentRepository = studentRepository;
             _tutorRepository = tutorRepository;
             _instituteRepository = instituteRepository;
+            _adminRepository = adminRepository;
         }
 
         public async Task<(string smallUrl, string largeUrl)> UploadProfilePictureAsync(Guid entityId, string registrationNumber, string role, IFormFile file)
@@ -168,6 +171,15 @@ namespace Tutorz.Infrastructure.Services
                         institute.ProfileImageUrlSmall = smallUrl;
                         institute.ProfileImageUrlLarge = largeUrl;
                         await _instituteRepository.SaveChangesAsync();
+                    }
+                    break;
+                case "admin":
+                    var admin = await _adminRepository.GetAsync(x => x.AdminId == entityId || x.UserId == entityId);
+                    if (admin != null)
+                    {
+                        admin.ProfileImageUrlSmall = smallUrl;
+                        admin.ProfileImageUrlLarge = largeUrl;
+                        await _adminRepository.SaveChangesAsync();
                     }
                     break;
                 default:

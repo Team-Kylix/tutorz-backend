@@ -13,11 +13,13 @@ namespace Tutorz.Application.Services
     {
         private readonly IHallRepository _hallRepository;
         private readonly IInstituteRepository _instituteRepository;
+        private readonly IGenericRepository<Class> _classRepository;
 
-        public HallService(IHallRepository hallRepository, IInstituteRepository instituteRepository)
+        public HallService(IHallRepository hallRepository, IInstituteRepository instituteRepository, IGenericRepository<Class> classRepository)
         {
             _hallRepository = hallRepository;
             _instituteRepository = instituteRepository;
+            _classRepository = classRepository;
         }
 
         public async Task<ServiceResponse<HallDto>> AddHallAsync(Guid instituteId, CreateHallDto dto)
@@ -130,6 +132,18 @@ namespace Tutorz.Application.Services
                 {
                     Success = false,
                     Message = "Hall not found or does not belong to this institute."
+                };
+            }
+
+            var activeClasses = await _classRepository.GetAllAsync(c => c.InstituteId == instituteId && c.HallName == hall.Name && !c.IsDeleted && c.IsActive);
+            
+            if (activeClasses.Any())
+            {
+                var classNames = string.Join(", ", activeClasses.Select(c => c.ClassName ?? c.Subject));
+                return new ServiceResponse<bool>
+                {
+                    Success = false,
+                    Message = $"These classes are already held on this hall: {classNames}. Change these classes into another hall to delete this hall."
                 };
             }
 

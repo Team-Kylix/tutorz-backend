@@ -299,7 +299,7 @@ namespace Tutorz.Application.Services
                     if ((student.FirstName != null && student.FirstName.ToLower().Contains(query)) ||
                         (student.LastName != null && student.LastName.ToLower().Contains(query)) ||
                         (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -372,7 +372,7 @@ namespace Tutorz.Application.Services
                     if ((tutor.FirstName != null && tutor.FirstName.ToLower().Contains(query)) ||
                         (tutor.LastName != null && tutor.LastName.ToLower().Contains(query)) ||
                         (tutor.RegistrationNumber != null && tutor.RegistrationNumber.ToLower().Contains(query)) ||
-                        phone.Contains(query) || phone.Contains(cleanPhone) ||
+                        phone.Contains(query) || phone.Contains(cleanPhone) || phone.Contains(exactPhone) ||
                         email.ToLower().Contains(query))
                     {
                         isMatch = true;
@@ -445,7 +445,9 @@ namespace Tutorz.Application.Services
                     IsPrimary = student.IsPrimary,
                     RegistrationNumber = student.RegistrationNumber,
                     Email = user?.Email,
-                    PhoneNumber = user?.PhoneNumber
+                    PhoneNumber = user?.PhoneNumber,
+                    ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = student.ProfileImageUrlLarge
                 });
             }
 
@@ -514,13 +516,19 @@ namespace Tutorz.Application.Services
 
             return new ServiceResponse<PaginatedResultDto<TutorProfileDto>> { Success = true, Data = result };
         }
-        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteClassDto>>> GetInstituteClassesAsync(Guid instituteId, string searchQuery = "", Guid? tutorId = null, int page = 1, int pageSize = 10)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<PaginatedResultDto<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+            var classesQuery = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
+            var classes = classesQuery.AsEnumerable();
+
+            if (tutorId.HasValue)
+            {
+                classes = classes.Where(c => c.TutorId == tutorId.Value);
+            }
 
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
@@ -529,9 +537,10 @@ namespace Tutorz.Application.Services
                     (c.ClassName != null && c.ClassName.ToLower().Contains(searchQuery)) ||
                     (c.Subject != null && c.Subject.ToLower().Contains(searchQuery)) ||
                     (c.Tutor != null && ((c.Tutor.FirstName != null && c.Tutor.FirstName.ToLower().Contains(searchQuery)) || (c.Tutor.LastName != null && c.Tutor.LastName.ToLower().Contains(searchQuery))))
-                ).ToList();
+                );
             }
 
+            classes = classes.ToList();
             int totalItems = classes.Count();
             var pagedClasses = classes.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
@@ -556,7 +565,9 @@ namespace Tutorz.Application.Services
                     EndTime = c.EndTime,
                     HallName = c.HallName,
                     Fee = c.Fee,
-                    StudentRegisteredCount = enrollments.Count()
+                    InstituteCommissionRate = c.InstituteCommissionRate,
+                    StudentRegisteredCount = enrollments.Count(),
+                    StudentCount = enrollments.Count()
                 });
             }
 
@@ -697,6 +708,11 @@ namespace Tutorz.Application.Services
                 HallName = request.HallName,
                 Fee = request.Fee,
                 IsActive = request.IsActive,
+                // Use the caller-supplied rate if provided; otherwise seed from the institute default.
+                // This snapshot is later used as the fallback in RecordPaymentAsync.
+                InstituteCommissionRate = request.InstituteCommissionRate.HasValue
+                    ? request.InstituteCommissionRate.Value
+                    : institute.CommissionPercentage,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -716,7 +732,9 @@ namespace Tutorz.Application.Services
                 EndTime = newClass.EndTime,
                 HallName = newClass.HallName,
                 Fee = newClass.Fee,
-                StudentRegisteredCount = 0
+                InstituteCommissionRate = newClass.InstituteCommissionRate,
+                StudentRegisteredCount = 0,
+                StudentCount = 0
             };
 
             return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class created successfully." };
@@ -728,7 +746,7 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Institute not found." };
 
-            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId, includeProperties: "Tutor");
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor");
             if (existingClass == null)
                 return new ServiceResponse<InstituteClassDto> { Success = false, Message = "Class not found or access denied." };
 
@@ -746,6 +764,9 @@ namespace Tutorz.Application.Services
             existingClass.EndTime = request.EndTime;
             existingClass.HallName = request.HallName;
             existingClass.Fee = request.Fee;
+            // If the caller provides an override, use it; otherwise keep the existing rate unchanged.
+            if (request.InstituteCommissionRate.HasValue)
+                existingClass.InstituteCommissionRate = request.InstituteCommissionRate.Value;
             existingClass.UpdatedDate = DateTime.UtcNow;
 
             // ── Hall Conflict Check on Update (exclude self, same institute + hall + overlapping time) ──
@@ -824,7 +845,9 @@ namespace Tutorz.Application.Services
                 EndTime = existingClass.EndTime,
                 HallName = existingClass.HallName,
                 Fee = existingClass.Fee,
-                StudentRegisteredCount = enrollments.Count()
+                InstituteCommissionRate = existingClass.InstituteCommissionRate,
+                StudentRegisteredCount = enrollments.Count(),
+                StudentCount = enrollments.Count()
             };
 
             return new ServiceResponse<InstituteClassDto> { Success = true, Data = dto, Message = "Class updated successfully." };
@@ -836,11 +859,13 @@ namespace Tutorz.Application.Services
             if (institute == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
 
-            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            var existingClass = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted);
             if (existingClass == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
 
-            await _classRepository.DeleteAsync(existingClass);
+            // Soft Delete — matches the Hall pattern
+            existingClass.IsDeleted = true;
+            await _classRepository.SaveChangesAsync();
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Class deleted successfully." };
         }
 
@@ -851,7 +876,7 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
 
             var existingClass = await _classRepository.GetAsync(
-                c => c.ClassId == classId && c.InstituteId == institute.InstituteId,
+                c => c.ClassId == classId && c.InstituteId == institute.InstituteId && !c.IsDeleted,
                 includeProperties: "Tutor");
             if (existingClass == null)
                 return new ServiceResponse<bool> { Success = false, Message = "Class not found." };
@@ -914,7 +939,7 @@ namespace Tutorz.Application.Services
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
             // Find classes for this institute
-            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+            var instituteClasses = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor,Enrollments");
 
             // Find enrollments for this student
             var activeEnrollments = await _enrollmentRepository.GetAllAsync(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
@@ -937,7 +962,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -990,19 +1017,20 @@ namespace Tutorz.Application.Services
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Attendance marked successfully." };
         }
 
-        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId)
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
             if (institute == null)
                 return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
 
-            var today = DateTime.UtcNow.DayOfWeek.ToString();
-            var todayDate = DateTime.UtcNow.Date;
+            // Use the client-supplied local date to get the correct DayOfWeek (avoids UTC offset issues)
+            var today = clientDate.DayOfWeek.ToString(); // e.g. "Monday"
+            var todayDate = clientDate.Date;
 
-            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive, includeProperties: "Tutor");
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted, includeProperties: "Tutor,Enrollments");
 
             // Filter for today
-            var classesToday = classes.Where(c => 
+            var classesToday = classes.Where(c =>
                 (c.ClassType == "Class" && c.DayOfWeek == today) ||
                 (c.ClassType != "Class" && c.Date.HasValue && c.Date.Value.Date == todayDate)
             ).ToList();
@@ -1022,7 +1050,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -1239,8 +1269,8 @@ namespace Tutorz.Application.Services
             var dateOnly = date.Date;
 
             var allClasses = await _classRepository.GetAllAsync(
-                c => c.InstituteId == institute.InstituteId && c.IsActive,
-                includeProperties: "Tutor");
+                c => c.InstituteId == institute.InstituteId && c.IsActive && !c.IsDeleted,
+                includeProperties: "Tutor,Enrollments");
 
             // Include recurring classes matching the day-of-week, and one-off classes on that exact date
             var filtered = allClasses.Where(c =>
@@ -1264,7 +1294,9 @@ namespace Tutorz.Application.Services
                 StartTime = c.StartTime,
                 EndTime = c.EndTime,
                 HallName = c.HallName,
-                Fee = c.Fee
+                Fee = c.Fee,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -1323,6 +1355,23 @@ namespace Tutorz.Application.Services
             await _instituteRepository.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Commission percentage updated successfully." };
+        }
+
+        public async Task<ServiceResponse<PaginatedResultDto<InstituteProfileDto>>> GetAllInstitutesAsync(string? searchQuery, int page, int pageSize)
+        {
+            var response = new ServiceResponse<PaginatedResultDto<InstituteProfileDto>>();
+            try
+            {
+                var data = await _instituteRepository.GetAllInstitutesAsync(searchQuery, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching all institutes: " + ex.Message;
+            }
+            return response;
         }
     }
 }

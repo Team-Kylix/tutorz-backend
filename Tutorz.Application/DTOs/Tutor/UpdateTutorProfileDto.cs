@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,9 +10,9 @@ namespace Tutorz.Application.DTOs.Tutor
     {
         public string FirstName { get; set; }
         public string LastName { get; set; }
-        public string PhoneNumber { get; set; } // Living in User table
-        public string Bio { get; set; }
-        public string BankName { get; set; }
-        public string BankAccountNumber { get; set; }
+        public string? Bio { get; set; }
+        public string? Address { get; set; }
+        public int? CityId { get; set; }
+        public Microsoft.AspNetCore.Http.IFormFile? ProfilePicture { get; set; }
     }
 }

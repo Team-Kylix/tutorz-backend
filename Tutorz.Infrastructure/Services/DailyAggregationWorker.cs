@@ -8,6 +8,7 @@ using Tutorz.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Tutorz.Domain.Entities;
 using System.Linq;
+using Tutorz.Application.Interfaces;
 
 namespace Tutorz.Infrastructure.Services
 {
@@ -24,7 +25,11 @@ namespace Tutorz.Infrastructure.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("DailyAggregationWorker starting...");
+            _logger.LogInformation("DailyAggregationWorker starting... Waiting 2 minutes for Azure app to warm up.");
+            
+            // Prevent thread pool starvation on startup by delaying the first run
+            try { await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken); }
+            catch (TaskCanceledException) { return; }
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -89,6 +94,13 @@ namespace Tutorz.Infrastructure.Services
                 await dbContext.ApiDailyUsageSummaries.AddRangeAsync(aggregatedData);
                 await dbContext.SaveChangesAsync();
                 _logger.LogInformation($"Added {aggregatedData.Count} daily usage summaries for {yesterday.Date:yyyy-MM-dd}.");
+
+                // Increment real-time bill for all users involved
+                var billService = scope.ServiceProvider.GetRequiredService<IBillService>();
+                foreach (var data in aggregatedData)
+                {
+                    await billService.IncrementApiUsageAsync(data.UserId, data.TotalCalls, data.Date);
+                }
             }
 
             // Clean up: delete raw logs from yesterday since they are now aggregated

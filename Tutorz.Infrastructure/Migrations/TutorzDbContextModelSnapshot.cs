@@ -52,6 +52,50 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("APIMonthlyUsageSummaries");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Admin", b =>
+                {
+                    b.Property<Guid>("AdminId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlLarge")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfileImageUrlSmall")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RegistrationNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("AdminId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Admins");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.ApiDailyUsageSummary", b =>
                 {
                     b.Property<Guid>("Id")
@@ -107,6 +151,25 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("ApiUsageLogs");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("AppSettings");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Attendance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -140,6 +203,145 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasIndex("StudentId");
 
                     b.ToTable("Attendances");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("BankCode");
+
+                    b.ToTable("Banks");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bill", b =>
+                {
+                    b.Property<Guid>("BillId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ApiCallCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ApiCallRate")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ApiUsageAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("BillEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("BillReference")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("BillStartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MonthYear")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<decimal?>("PaidAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PayableAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlatformCommissionAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PreviousOverdueAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SmsAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SmsRate")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<int>("SmsSentCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxPercentage")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("BillId");
+
+                    b.HasIndex("UserId", "Month", "Year");
+
+                    b.ToTable("Bills");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.Property<int>("BranchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BranchId"));
+
+                    b.Property<int>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BranchName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("BranchId");
+
+                    b.HasIndex("BankCode", "BranchCode");
+
+                    b.ToTable("Branches");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
@@ -203,10 +405,16 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("InstituteCommissionRate")
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<Guid?>("InstituteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("StartTime")
@@ -241,13 +449,28 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<decimal>("AmountPaid")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("BaseFee")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("ClassId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("InstituteId")
+                    b.Property<string>("Hash")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("InstituteAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("InstituteCommission")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("InstituteCommissionPercentage")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid?>("InstituteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Month")
@@ -259,12 +482,30 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PayHerePaymentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("TotalPlatformAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TuitionAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TutorCommission")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Year")
                         .HasColumnType("int");
@@ -279,6 +520,62 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ClassPayments");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Dispute", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("AssignedAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DisputeNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("RaisedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ScreenshotUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedAdminUserId");
+
+                    b.HasIndex("DisputeNumber")
+                        .IsUnique();
+
+                    b.HasIndex("RaisedByUserId", "CreatedAt");
+
+                    b.ToTable("Disputes");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
@@ -381,6 +678,21 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("CommissionPercentage")
                         .HasColumnType("decimal(18,2)");
 
@@ -391,6 +703,18 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("InstituteName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -400,6 +724,12 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<bool>("IsSmsEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
                         .HasColumnType("nvarchar(max)");
@@ -502,6 +832,43 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("InstituteTutors");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("RelatedId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>
                 {
                     b.Property<int>("Id")
@@ -594,6 +961,21 @@ namespace Tutorz.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardExpiry")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("datetime2");
 
@@ -614,6 +996,9 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("ParentName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
@@ -646,8 +1031,14 @@ namespace Tutorz.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("BankAccountNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("BankCode")
+                        .HasColumnType("int");
 
                     b.Property<string>("BankName")
                         .HasColumnType("nvarchar(max)");
@@ -656,8 +1047,32 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("BranchCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CardBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardLast4")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CardholderName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedAccountHolderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBankName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EncryptedBranchName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ExperienceYears")
                         .HasColumnType("int");
@@ -671,6 +1086,12 @@ namespace Tutorz.Infrastructure.Migrations
 
                     b.Property<string>("LastName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayHereToken")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProfileImageUrlLarge")
@@ -716,6 +1137,9 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("bit");
+
                     b.Property<string>("OtpCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -732,7 +1156,7 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("QrCodeUrl")
+                    b.Property<string>("RegistrationNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ResetTokenExpires")
@@ -773,6 +1197,17 @@ namespace Tutorz.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Admin", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithOne("Admin")
+                        .HasForeignKey("Tutorz.Domain.Entities.Admin", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("User");
@@ -826,6 +1261,28 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bill", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Branch", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Bank", "Bank")
+                        .WithMany("Branches")
+                        .HasForeignKey("BankCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Bank");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.City", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.District", "District")
@@ -865,8 +1322,7 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
                         .WithMany()
                         .HasForeignKey("InstituteId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Tutorz.Domain.Entities.Student", "Student")
                         .WithMany()
@@ -879,6 +1335,24 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Institute");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Dispute", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "AssignedAdmin")
+                        .WithMany()
+                        .HasForeignKey("AssignedAdminUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Tutorz.Domain.Entities.User", "RaisedByUser")
+                        .WithMany()
+                        .HasForeignKey("RaisedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedAdmin");
+
+                    b.Navigation("RaisedByUser");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
@@ -895,7 +1369,7 @@ namespace Tutorz.Infrastructure.Migrations
             modelBuilder.Entity("Tutorz.Domain.Entities.Enrollment", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.Class", "Class")
-                        .WithMany()
+                        .WithMany("Enrollments")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -996,6 +1470,17 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Tutor");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.SmsLog", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "SenderUser")
@@ -1037,6 +1522,16 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("City");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
+                {
+                    b.Navigation("Branches");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.Class", b =>
+                {
+                    b.Navigation("Enrollments");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.District", b =>
                 {
                     b.Navigation("Cities");
@@ -1066,6 +1561,8 @@ namespace Tutorz.Infrastructure.Migrations
 
             modelBuilder.Entity("Tutorz.Domain.Entities.User", b =>
                 {
+                    b.Navigation("Admin");
+
                     b.Navigation("Students");
 
                     b.Navigation("Tutor");

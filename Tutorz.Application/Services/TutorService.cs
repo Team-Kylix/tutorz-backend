@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +20,10 @@ namespace Tutorz.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly IInstituteJoinRequestRepository _joinRequestRepo;
         private readonly IInstituteTutorRepository _instituteTutorRepo;
+        private readonly IInstituteRepository _instituteRepo;
+        private readonly IProfilePictureService _profilePictureService;
+        private readonly IGenericRepository<City> _cityRepo;
+        private readonly IGenericRepository<District> _districtRepo;
 
         public TutorService(
             ITutorRepository tutorRepo,
@@ -27,7 +31,11 @@ namespace Tutorz.Application.Services
             IStudentRepository studentRepo,
             IUserRepository userRepo,
             IInstituteJoinRequestRepository joinRequestRepo,
-            IInstituteTutorRepository instituteTutorRepo)
+            IInstituteTutorRepository instituteTutorRepo,
+            IInstituteRepository instituteRepo,
+            IProfilePictureService profilePictureService,
+            IGenericRepository<City> cityRepo,
+            IGenericRepository<District> districtRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
@@ -35,6 +43,10 @@ namespace Tutorz.Application.Services
             _userRepo = userRepo;
             _joinRequestRepo = joinRequestRepo;
             _instituteTutorRepo = instituteTutorRepo;
+            _instituteRepo = instituteRepo;
+            _profilePictureService = profilePictureService;
+            _cityRepo = cityRepo;
+            _districtRepo = districtRepo;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -132,11 +144,21 @@ namespace Tutorz.Application.Services
             }
 
 
+            decimal instituteCommissionRate = 0;
+            if (request.InstituteId.HasValue)
+            {
+                var inst = await _instituteRepo.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (inst != null)
+                {
+                    instituteCommissionRate = inst.CommissionPercentage;
+                }
+            }
+
             var newClass = new Class
             {
                 ClassId = Guid.NewGuid(),
                 TutorId = tutor.TutorId,
-                    InstituteId = request.InstituteId,
+                InstituteId = request.InstituteId,
                 ClassType = request.ClassType,
                 Subject = request.Subject,
                 Grade = request.Grade,
@@ -147,6 +169,7 @@ namespace Tutorz.Application.Services
                 EndTime = request.EndTime,
                 HallName = request.HallName,
                 Fee = request.Fee,
+                InstituteCommissionRate = instituteCommissionRate,
                 IsActive = request.IsActive,
                 CreatedDate = DateTime.UtcNow
             };
@@ -160,7 +183,7 @@ namespace Tutorz.Application.Services
         public async Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
-            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId, includeProperties: "Enrollments,Institute");
 
             if (existingClass == null) throw new Exception("Class not found or access denied.");
 
@@ -176,6 +199,21 @@ namespace Tutorz.Application.Services
             existingClass.HallName = request.HallName;
             existingClass.Fee = request.Fee;
             existingClass.IsActive = request.IsActive;
+            
+            // Tutors cannot edit the commission rate, but we refresh it if the institute changed
+            if (request.InstituteId.HasValue)
+            {
+                var inst = await _instituteRepo.GetAsync(i => i.InstituteId == request.InstituteId.Value);
+                if (inst != null)
+                {
+                    existingClass.InstituteCommissionRate = inst.CommissionPercentage;
+                }
+            }
+            else
+            {
+                existingClass.InstituteCommissionRate = 0;
+            }
+
             existingClass.UpdatedDate = DateTime.UtcNow;
 
             // ── Hall Conflict Check on Update (same institute + hall, exclude self) ──
@@ -251,7 +289,7 @@ namespace Tutorz.Application.Services
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             if (tutor == null) throw new Exception("Tutor profile not found.");
 
-            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute");
+            var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId, includeProperties: "Institute,Enrollments");
 
             return classes.Select(c => MapToDto(c)).ToList();
         }
@@ -268,11 +306,26 @@ namespace Tutorz.Application.Services
                 return response;
             }
 
+            // Populate Location names and IDs
+            if (profileDto.CityId.HasValue)
+            {
+                var city = await _cityRepo.GetAsync(c => c.Id == profileDto.CityId.Value);
+                if (city != null)
+                {
+                    profileDto.DistrictId = city.DistrictId;
+                    var district = await _districtRepo.GetAsync(d => d.Id == city.DistrictId);
+                    if (district != null)
+                    {
+                        profileDto.ProvinceId = district.ProvinceId;
+                    }
+                }
+            }
+
             response.Data = profileDto;
             return response;
         }
 
-        public async Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, TutorProfileDto request)
+        public async Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, UpdateTutorProfileDto request)
         {
             var response = new ServiceResponse<TutorProfileDto>();
 
@@ -292,25 +345,47 @@ namespace Tutorz.Application.Services
                 return response;
             }
 
+            // Update Tutor entity
             tutor.FirstName = request.FirstName;
             tutor.LastName = request.LastName;
-            tutor.Bio = request.Bio;
-            tutor.BankName = request.BankName;
-            tutor.BankAccountNumber = request.BankAccountNumber;
+            tutor.Bio = request.Bio ?? "";
+            tutor.Address = request.Address;
             tutor.UpdatedDate = DateTime.UtcNow;
 
-            user.PhoneNumber = request.PhoneNumber;
+            // Update User entity
+            if (request.CityId.HasValue)
+            {
+                user.CityId = request.CityId;
+            }
             user.UpdatedDate = DateTime.UtcNow;
+
+            // Handle Profile Picture
+            if (request.ProfilePicture != null)
+            {
+                try
+                {
+                    var (smallUrl, largeUrl) = await _profilePictureService.UploadProfilePictureAsync(
+                        tutor.TutorId,
+                        tutor.RegistrationNumber,
+                        "Tutor",
+                        request.ProfilePicture
+                    );
+
+                    tutor.ProfileImageUrlSmall = smallUrl;
+                    tutor.ProfileImageUrlLarge = largeUrl;
+                }
+                catch (Exception ex)
+                {
+                    response.Success = false;
+                    response.Message = $"Image upload failed: {ex.Message}";
+                    return response;
+                }
+            }
 
             await _tutorRepo.SaveChangesAsync();
             await _userRepo.SaveChangesAsync();
 
-            var updatedProfile = await GetTutorProfileAsync(userId);
-            response.Data = updatedProfile.Data;
-            response.Success = true;
-            response.Message = "Profile updated successfully";
-
-            return response;
+            return await GetTutorProfileAsync(userId);
         }
 
         public async Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId)
@@ -462,7 +537,8 @@ namespace Tutorz.Application.Services
             {
                 InstituteId = a.Institute.InstituteId,
                 Name = a.Institute.InstituteName,
-                City = a.Institute.User?.City?.Name
+                City = a.Institute.User?.City?.Name,
+                CommissionPercentage = a.Institute.CommissionPercentage
             });
 
             return new ServiceResponse<IEnumerable<InstituteDto>> { Success = true, Data = dtos };
@@ -486,8 +562,96 @@ namespace Tutorz.Application.Services
                 HallName = entity.HallName,
                 Fee = entity.Fee,
                 IsActive = entity.IsActive,
-                StudentCount = 0 
+                InstituteCommissionRate = entity.InstituteCommissionRate,
+                StudentCount = entity.Enrollments?.Count(e => e.Status == EnrollmentStatus.Approved) ?? 0
             };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid userId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower().Trim();
+
+            try
+            {
+                var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+                if (tutor == null) return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Tutor not found." };
+
+                // Get all classes for this tutor
+                var classes = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId);
+                var classIds = classes.Select(c => c.ClassId).ToList();
+
+                // Get all approved enrollments for these classes
+                var results = new List<SearchUserResultDto>();
+                var seenStudentIds = new HashSet<Guid>();
+
+                foreach (var classId in classIds)
+                {
+                    var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+                    var approvedEnrollments = enrollments.Where(e => e.Status == EnrollmentStatus.Approved);
+
+                    foreach (var enrollment in approvedEnrollments)
+                    {
+                        if (enrollment.StudentId != Guid.Empty && !seenStudentIds.Contains(enrollment.StudentId))
+                        {
+                            var student = enrollment.Student ?? await _studentRepo.GetAsync(
+                                s => s.StudentId == enrollment.StudentId,
+                                includeProperties: "User"
+                            );
+
+                            if (student != null)
+                            {
+                                string fullName = $"{student.FirstName} {student.LastName}".ToLower();
+                                string regNo = student.RegistrationNumber?.ToLower() ?? "";
+                                string phone = student.User?.PhoneNumber ?? "";
+                                string email = student.User?.Email?.ToLower() ?? "";
+
+                                if (fullName.Contains(query) || regNo.Contains(query) || phone.Contains(query) || email.Contains(query))
+                                {
+                                    results.Add(new SearchUserResultDto
+                                    {
+                                        UserId = student.UserId,
+                                        RoleSpecificId = student.StudentId,
+                                        RegistrationNumber = student.RegistrationNumber,
+                                        Name = $"{student.FirstName} {student.LastName}",
+                                        PhoneNumber = phone,
+                                        Email = email,
+                                        ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+                                        ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+                                        IsAlreadyAssigned = true
+                                    });
+                                    seenStudentIds.Add(student.StudentId);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Error searching students: " + ex.Message };
+            }
+        }
+
+        public async Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize)
+        {
+            var response = new ServiceResponse<PaginatedResultDto<TutorProfileDto>>();
+            try
+            {
+                var data = await _tutorRepo.GetAllTutorsAsync(searchQuery, page, pageSize);
+                response.Data = data;
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                response.Success = false;
+                response.Message = "Error fetching all tutors: " + ex.Message;
+            }
+            return response;
         }
     }
 }

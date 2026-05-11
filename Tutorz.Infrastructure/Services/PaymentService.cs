@@ -14,10 +14,12 @@ namespace Tutorz.Infrastructure.Services
     public class PaymentService : IPaymentService
     {
         private readonly TutorzDbContext _context;
+        private readonly IBillService _billService;
 
-        public PaymentService(TutorzDbContext context)
+        public PaymentService(TutorzDbContext context, IBillService billService)
         {
             _context = context;
+            _billService = billService;
         }
 
         /// <inheritdoc/>
@@ -133,23 +135,67 @@ namespace Tutorz.Infrastructure.Services
                     Message = "Class or Student not found."
                 };
 
+            // Use the per-payment override if the caller supplied one (user changed it at payment time);
+            // otherwise fall back to the rate stored on the class (seeded from institute default at creation).
+            decimal instituteCommissionPercentage =
+                request.InstituteCommissionPercentage.HasValue
+                    ? request.InstituteCommissionPercentage.Value
+                    : cls.InstituteCommissionRate;
+
+            // --- Commission Calculation (Tutorz Billing Formula) ---
+            // IMPORTANT: Always calculate on the BASE class fee, not AmountPaid.
+            // For online payments AmountPaid includes the PayHere gateway surcharge (30+3%)
+            // which belongs entirely to PayHere and must not inflate the commission base.
+            decimal baseFee = cls.Fee > 0 ? cls.Fee : request.AmountPaid;
+
+            // 1. Calculate how the class fee is split between the Institute and the Tutor
+            decimal instituteAmount = Math.Round(baseFee * (instituteCommissionPercentage / 100m), 2);
+            decimal tuitionAmount = baseFee - instituteAmount;
+
+            // 2. Fetch platform commission rate from system config (defaults to 1% total)
+            var configResponse = await _billService.GetBillingConfigAsync();
+            decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
+
+            // 3. Calculate Platform Fees based on the actual earnings of each party
+            // e.g. If Institute gets 15 LKR and Tutor gets 85 LKR, and platform rate is 1%:
+            // → InstitutePlatformCommission = 15 * 0.01 = 0.15
+            // → TutorPlatformCommission     = 85 * 0.01 = 0.85
+            decimal instituteCommission = Math.Round(instituteAmount * platformRate, 2);
+            decimal tutorCommission = Math.Round(tuitionAmount * platformRate, 2);
+            decimal totalPlatformAmount = instituteCommission + tutorCommission;
+
             var payment = new ClassPayment
             {
                 PaymentId = Guid.NewGuid(),
                 StudentId = request.StudentId,
                 ClassId = request.ClassId,
-                InstituteId = instituteId,
+                // Null for tutor own-place classes (no institute)
+                InstituteId = instituteId == Guid.Empty ? null : instituteId,
                 Month = request.Month,
                 Year = request.Year,
                 AmountPaid = request.AmountPaid,
+                BaseFee = baseFee,
                 Status = PaymentStatus.Paid.ToString(),
                 PaidAt = DateTime.UtcNow,
                 CreatedDate = DateTime.UtcNow,
-                Note = request.Note
+                Note = request.Note,
+                InstituteCommissionPercentage = instituteCommissionPercentage,
+                InstituteCommission = instituteCommission,
+                TutorCommission = tutorCommission,
+                InstituteAmount = instituteAmount,
+                TuitionAmount = tuitionAmount,
+                TotalPlatformAmount = totalPlatformAmount
             };
 
             await _context.ClassPayments.AddAsync(payment);
             await _context.SaveChangesAsync();
+
+            // Fire real-time bill update incrementally
+            // Only pass a real instituteId — Guid.Empty means own-place class (no institute bill)
+            await _billService.IncrementPlatformCommissionAsync(
+                instituteId == Guid.Empty ? Guid.Empty : instituteId,
+                cls.TutorId, instituteCommission, tutorCommission,
+                request.Month, request.Year);
 
             var dto = new ClassPaymentDto
             {
