@@ -18,5 +18,7 @@ namespace Tutorz.Application.Interfaces
         Task<StudentPaymentHistoryResponseDto> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
         Task<IEnumerable<Enrollment>> GetEnrollmentsByClassAsync(Guid classId);
         Task<PaginatedResultDto<StudentProfileDto>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize);
+        Task AddEnrollmentAsync(Enrollment enrollment);
+        Task<Student?> GetStudentByPhoneOrRegNoAsync(string registrationNumber, string? normalizedPhone);
     }
 }

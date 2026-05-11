@@ -24,6 +24,7 @@ namespace Tutorz.Application.Services
         private readonly IProfilePictureService _profilePictureService;
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
+        private readonly INotificationService _notificationService;
 
         public TutorService(
             ITutorRepository tutorRepo,
@@ -35,7 +36,8 @@ namespace Tutorz.Application.Services
             IInstituteRepository instituteRepo,
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
-            IGenericRepository<District> districtRepo)
+            IGenericRepository<District> districtRepo,
+            INotificationService notificationService)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
@@ -47,6 +49,7 @@ namespace Tutorz.Application.Services
             _profilePictureService = profilePictureService;
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
+            _notificationService = notificationService;
         }
 
         public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -278,8 +281,57 @@ namespace Tutorz.Application.Services
         public async Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
-            var student = await _studentRepo.GetAsync(s => s.UserId.ToString() == request.StudentRegistrationNumber);
-            if (student == null) throw new Exception("Student not found.");
+            
+            var existingClass = await _classRepo.GetAsync(
+                c => c.ClassId == request.ClassId && c.TutorId == tutor.TutorId,
+                includeProperties: "Institute");
+
+            if (existingClass == null) throw new Exception("Class not found or access denied.");
+
+            if (existingClass.InstituteId.HasValue)
+            {
+                var instName = existingClass.Institute?.InstituteName ?? "an institute";
+                throw new Exception($"This class is held at {instName}. Only the institute can add students directly to the class, or the student should send a request to join the class.");
+            }
+
+            // Normalize the input: if the user typed a local mobile (e.g. 0712345678), convert to +94 format
+            string lookup = request.StudentRegistrationNumber?.Trim() ?? "";
+            string normalizedPhone = null;
+            if (System.Text.RegularExpressions.Regex.IsMatch(lookup, @"^07\d{8}$"))
+            {
+                normalizedPhone = "+94" + lookup.Substring(1);
+            }
+
+            var student = await _studentRepo.GetStudentByPhoneOrRegNoAsync(lookup, normalizedPhone);
+
+            if (student == null) throw new Exception("Student not found. Please enter the full Registration Number (e.g. STU-XXXXXX) or Mobile Number (e.g. 07XXXXXXXX).");
+
+            // Check if the student is already in the class
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(request.ClassId);
+            if (enrollments.Any(e => e.StudentId == student.StudentId))
+                throw new Exception("Student is already enrolled in this class.");
+
+            // Add enrollment
+            var enrollment = new Enrollment
+            {
+                Id = Guid.NewGuid(),
+                StudentId = student.StudentId,
+                ClassId = request.ClassId,
+                Status = EnrollmentStatus.Approved, // Auto approve since tutor is adding
+                EnrolledAt = DateTime.UtcNow
+            };
+
+            await _studentRepo.AddEnrollmentAsync(enrollment);
+            await _studentRepo.SaveChangesAsync();
+            
+            // Add Notification
+            await _notificationService.CreateAndPushAsync(
+                student.UserId,
+                "Added to Class",
+                $"You have been added to the class {existingClass.ClassName} by tutor {tutor.FirstName} {tutor.LastName}.",
+                "ClassAdded",
+                existingClass.ClassId
+            );
 
             return true;
         }

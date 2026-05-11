@@ -69,8 +69,15 @@ namespace Tutorz.Api.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
 
-            await _tutorService.AddStudentToClassAsync(userId, request);
-            return Ok(new { message = "Student added successfully" });
+            try
+            {
+                await _tutorService.AddStudentToClassAsync(userId, request);
+                return Ok(new { message = "Student added successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete("classes/{id}")]

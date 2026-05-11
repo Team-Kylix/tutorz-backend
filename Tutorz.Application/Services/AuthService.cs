@@ -39,6 +39,7 @@ namespace Tutorz.Application.Services
         private readonly INotificationService _notificationService;
         private readonly IMemoryCache _cache;
         private readonly IGenericRepository<Admin> _adminRepository;
+        private readonly IGenericRepository<Class> _classRepository;
 
         public AuthService(
             IUserRepository userRepository,
@@ -55,7 +56,8 @@ namespace Tutorz.Application.Services
             ISmsService smsService,
             INotificationService notificationService,
             IMemoryCache cache,
-            IGenericRepository<Admin> adminRepository)
+            IGenericRepository<Admin> adminRepository,
+            IGenericRepository<Class> classRepository)
         {
             _userRepository = userRepository;
             _adminRepository = adminRepository;
@@ -73,6 +75,7 @@ namespace Tutorz.Application.Services
             _smsService = smsService;
             _notificationService = notificationService;
             _cache = cache;
+            _classRepository = classRepository;
         }
 
         // --- REGISTER (First Time User) ---
@@ -92,8 +95,8 @@ namespace Tutorz.Application.Services
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
 
-            // OTP Verification for Registration (Bypass if registered by an Institute)
-            if (!request.InstituteId.HasValue)
+            // OTP Verification for Registration (Bypass if registered by an Institute or a Tutor via Class)
+            if (!request.InstituteId.HasValue && !request.ClassId.HasValue)
             {
                 if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
                 {
@@ -246,6 +249,41 @@ namespace Tutorz.Application.Services
                 {
                     // Notification failure must never break registration
                     Console.WriteLine($"Notification push failed: {ex.Message}");
+                }
+            }
+
+            // --- Link to Class if ClassId is provided in the request (Tutor Dashboard Registration) ---
+            if (request.ClassId.HasValue && newStudentId.HasValue)
+            {
+                await _studentRepository.AddEnrollmentAsync(new Enrollment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = newStudentId.Value,
+                    ClassId = request.ClassId.Value,
+                    Status = EnrollmentStatus.Approved,
+                    EnrolledAt = DateTime.UtcNow
+                });
+
+                var cls = await _classRepository.GetAsync(c => c.ClassId == request.ClassId.Value);
+                if (cls != null)
+                {
+                    var tut = await _tutorRepository.GetAsync(t => t.TutorId == cls.TutorId);
+                    string tutName = tut != null ? $"{tut.FirstName} {tut.LastName}" : "your tutor";
+
+                    try
+                    {
+                        await _notificationService.CreateAndPushAsync(
+                            user.UserId,
+                            "Added to Class",
+                            $"You have been added to the class {cls.Subject} {cls.Grade} by {tutName}.",
+                            "ClassAdded",
+                            cls.ClassId
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"ClassAdded notification push failed: {ex.Message}");
+                    }
                 }
             }
 
