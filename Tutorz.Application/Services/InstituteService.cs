@@ -1155,6 +1155,11 @@ namespace Tutorz.Application.Services
             var enrollments = await _enrollmentRepository.GetAllAsync(e => classIds.Contains(e.ClassId) && e.Status == EnrollmentStatus.Approved, includeProperties: "Student");
             var distinctStudents = enrollments.Select(e => e.Student).GroupBy(s => s.StudentId).Select(g => g.First()).ToList();
 
+            // Build a lookup: studentId -> set of classIds they are enrolled in
+            var studentToClassIds = enrollments
+                .GroupBy(e => e.StudentId)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ClassId).ToHashSet());
+
             // Fetch User details for students (for email/phone search)
             var userIds = distinctStudents.Select(s => s.UserId).Distinct().ToList();
             var allUsersQuery = await _userRepository.GetAllAsync();
@@ -1214,13 +1219,23 @@ namespace Tutorz.Application.Services
                     attendanceRecord[date] = record != null && record.IsPresent;
                 }
 
+                // Per-student conducted dates: only dates when THIS student's class(es) ran
+                var myClassIds = studentToClassIds.GetValueOrDefault(student.StudentId, new HashSet<Guid>());
+                var myClassConductedDates = attendancesList
+                    .Where(a => myClassIds.Contains(a.ClassId))
+                    .Select(a => a.Date.Date)
+                    .Distinct()
+                    .OrderBy(d => d)
+                    .ToList();
+
                 rowDtos.Add(new StudentAttendanceRowDto
                 {
                     StudentId = student.StudentId,
                     Name = $"{student.FirstName} {student.LastName}".Trim(),
                     RegistrationNumber = student.RegistrationNumber ?? "",
                     MobileNumber = phone,
-                    AttendanceRecord = attendanceRecord
+                    AttendanceRecord = attendanceRecord,
+                    ClassConductedDates = myClassConductedDates
                 });
             }
 

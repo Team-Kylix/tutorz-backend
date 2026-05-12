@@ -234,5 +234,23 @@ namespace Tutorz.Api.Controllers
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
         }
+
+        [HttpGet("attendance/history")]
+        [ApiPurpose("Get Tutor Attendance History")]
+        public async Task<IActionResult> GetAttendanceHistory(
+            [FromQuery] Guid? classId,
+            [FromQuery] Guid? instituteId,
+            [FromQuery] bool noInstitute = false,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetAttendanceHistoryAsync(userId, classId, instituteId, noInstitute, searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
     }
 }

@@ -17,6 +17,8 @@ namespace Tutorz.Application.Services
         private readonly ITutorRepository _tutorRepo;
         private readonly IGenericRepository<Class> _classRepo; 
         private readonly IStudentRepository _studentRepo;
+        private readonly IGenericRepository<Enrollment> _enrollmentRepo;
+        private readonly IAttendanceRepository _attendanceRepo;
         private readonly IUserRepository _userRepo;
         private readonly IInstituteJoinRequestRepository _joinRequestRepo;
         private readonly IInstituteTutorRepository _instituteTutorRepo;
@@ -30,6 +32,8 @@ namespace Tutorz.Application.Services
             ITutorRepository tutorRepo,
             IGenericRepository<Class> classRepo,
             IStudentRepository studentRepo,
+            IGenericRepository<Enrollment> enrollmentRepo,
+            IAttendanceRepository attendanceRepo,
             IUserRepository userRepo,
             IInstituteJoinRequestRepository joinRequestRepo,
             IInstituteTutorRepository instituteTutorRepo,
@@ -42,6 +46,8 @@ namespace Tutorz.Application.Services
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
             _studentRepo = studentRepo;
+            _enrollmentRepo = enrollmentRepo;
+            _attendanceRepo = attendanceRepo;
             _userRepo = userRepo;
             _joinRequestRepo = joinRequestRepo;
             _instituteTutorRepo = instituteTutorRepo;
@@ -704,6 +710,141 @@ namespace Tutorz.Application.Services
                 response.Message = "Error fetching all tutors: " + ex.Message;
             }
             return response;
+        }
+        public async Task<ServiceResponse<AttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(
+            Guid userId, Guid? classId, Guid? instituteId, bool noInstitute, string? searchQuery, int page = 1, int pageSize = 10)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Tutor not found." };
+
+            List<Class> targetClasses;
+
+            if (classId.HasValue && classId.Value != Guid.Empty)
+            {
+                // A specific class was selected — ignore institute filter
+                var cls = await _classRepo.GetAsync(c => c.ClassId == classId.Value && c.TutorId == tutor.TutorId);
+                if (cls == null)
+                    return new ServiceResponse<AttendanceHistoryResponseDto> { Success = false, Message = "Class not found or access denied." };
+                targetClasses = new List<Class> { cls };
+            }
+            else if (noInstitute)
+            {
+                // "My Own Place" — classes with no institute
+                var all = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId && !c.IsDeleted && c.InstituteId == null);
+                targetClasses = all.ToList();
+            }
+            else if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+            {
+                // A specific institute was selected
+                var all = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId && !c.IsDeleted && c.InstituteId == instituteId.Value);
+                targetClasses = all.ToList();
+            }
+            else
+            {
+                // All institutes — return all classes for this tutor
+                var all = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId && !c.IsDeleted);
+                targetClasses = all.ToList();
+            }
+
+            if (!targetClasses.Any())
+                return new ServiceResponse<AttendanceHistoryResponseDto>
+                {
+                    Success = true,
+                    Data = new AttendanceHistoryResponseDto()
+                };
+
+            var classIds = targetClasses.Select(c => c.ClassId).ToList();
+
+            // Fetch all attendances for these classes (tutor-owned, no institute filter)
+            var allAttendances = await _attendanceRepo.GetAllAsync(a => classIds.Contains(a.ClassId));
+            var attendancesList = allAttendances.ToList();
+            var distinctDates = attendancesList.Select(a => a.Date.Date).Distinct().OrderBy(d => d).ToList();
+
+            // Fetch enrolled students
+            var enrollments = await _enrollmentRepo.GetAllAsync(
+                e => classIds.Contains(e.ClassId) && e.Status == EnrollmentStatus.Approved,
+                includeProperties: "Student");
+
+            var distinctStudents = enrollments
+                .Where(e => e.Student != null)
+                .Select(e => e.Student)
+                .GroupBy(s => s.StudentId)
+                .Select(g => g.First())
+                .ToList();
+
+            // Build a lookup: studentId -> set of classIds they are enrolled in
+            var studentToClassIds = enrollments
+                .GroupBy(e => e.StudentId)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ClassId).ToHashSet());
+
+            // Fetch user details for phone/email search
+            var userIds = distinctStudents.Select(s => s.UserId).Distinct().ToList();
+            var allUsers = await _userRepo.GetAllAsync();
+            var userDict = allUsers.Where(u => userIds.Contains(u.UserId)).ToDictionary(u => u.UserId);
+
+            // Filter by search query
+            var matchedStudents = distinctStudents.Where(student =>
+            {
+                if (string.IsNullOrWhiteSpace(searchQuery)) return true;
+                userDict.TryGetValue(student.UserId, out var u);
+                string phone = u?.PhoneNumber ?? "";
+                string email = u?.Email ?? "";
+                var lq = searchQuery.ToLower().Trim();
+                return (student.FirstName != null && student.FirstName.ToLower().Contains(lq))
+                    || (student.LastName != null && student.LastName.ToLower().Contains(lq))
+                    || (student.RegistrationNumber != null && student.RegistrationNumber.ToLower().Contains(lq))
+                    || phone.Contains(lq)
+                    || email.ToLower().Contains(lq);
+            }).ToList();
+
+            int totalCount = matchedStudents.Count;
+            var pagedStudents = matchedStudents
+                .OrderBy(s => s.FirstName).ThenBy(s => s.LastName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var rowDtos = pagedStudents.Select(student =>
+            {
+                userDict.TryGetValue(student.UserId, out var u);
+                var studentAttendances = attendancesList.Where(a => a.StudentId == student.StudentId).ToList();
+                var record = distinctDates.ToDictionary(date => date, date =>
+                    studentAttendances.Any(a => a.Date.Date == date && a.IsPresent));
+
+                // Per-student conducted dates: only dates when THIS student's class(es) ran
+                var myClassIds = studentToClassIds.GetValueOrDefault(student.StudentId, new HashSet<Guid>());
+                var myClassConductedDates = attendancesList
+                    .Where(a => myClassIds.Contains(a.ClassId))
+                    .Select(a => a.Date.Date)
+                    .Distinct()
+                    .OrderBy(d => d)
+                    .ToList();
+
+                return new StudentAttendanceRowDto
+                {
+                    StudentId = student.StudentId,
+                    Name = $"{student.FirstName} {student.LastName}".Trim(),
+                    RegistrationNumber = student.RegistrationNumber ?? "",
+                    MobileNumber = u?.PhoneNumber ?? "",
+                    AttendanceRecord = record,
+                    ClassConductedDates = myClassConductedDates
+                };
+            }).ToList();
+
+            var responseDto = new AttendanceHistoryResponseDto
+            {
+                ConductedDates = distinctDates,
+                Students = rowDtos,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalStudentCount = totalCount,
+                TotalReceived = 0,
+                TotalDue = 0
+            };
+
+            return new ServiceResponse<AttendanceHistoryResponseDto> { Success = true, Data = responseDto };
         }
     }
 }
