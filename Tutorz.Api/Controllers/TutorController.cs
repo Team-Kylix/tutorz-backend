@@ -15,10 +15,16 @@ namespace Tutorz.Api.Controllers
     public class TutorController : ControllerBase
     {
         private readonly ITutorService _tutorService;
+        private readonly IPaymentService _paymentService;
+        private readonly ITutorRepository _tutorRepo;
+        private readonly IStudentBillService _studentBillService;
 
-        public TutorController(ITutorService tutorService)
+        public TutorController(ITutorService tutorService, IPaymentService paymentService, ITutorRepository tutorRepo, IStudentBillService studentBillService)
         {
             _tutorService = tutorService;
+            _paymentService = paymentService;
+            _tutorRepo = tutorRepo;
+            _studentBillService = studentBillService;
         }
 
         private Guid GetUserId()
@@ -251,6 +257,49 @@ namespace Tutorz.Api.Controllers
             var result = await _tutorService.GetAttendanceHistoryAsync(userId, classId, instituteId, noInstitute, searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
+        }
+
+        [HttpGet("payments/history")]
+        [ApiPurpose("Get Tutor Payment History")]
+        public async Task<IActionResult> GetPaymentHistory(
+            [FromQuery] Guid? instituteId,
+            [FromQuery] bool noInstitute = false,
+            [FromQuery] Guid? classId = null,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            // Resolve the tutor entity to get the internal TutorId
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return NotFound(new { message = "Tutor profile not found." });
+
+            var result = await _paymentService.GetTutorPaymentHistoryAsync(
+                tutor.TutorId, instituteId, noInstitute, classId, searchQuery, page, pageSize);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("payments/{paymentId}/pdf")]
+        [ApiPurpose("Download Tutor Class Payment PDF")]
+        public async Task<IActionResult> DownloadPaymentPdf(Guid paymentId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return NotFound(new { message = "Tutor profile not found." });
+
+            var pdfBytes = await _studentBillService.GenerateClassPaymentPdfForTutorAsync(paymentId, tutor.TutorId);
+
+            if (pdfBytes == null)
+                return NotFound("Payment not found or access denied.");
+
+            var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
+            return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
         }
     }
 }

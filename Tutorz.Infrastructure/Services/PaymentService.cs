@@ -284,6 +284,107 @@ namespace Tutorz.Infrastructure.Services
                     MobileNumber = p.Student.User != null ? p.Student.User.PhoneNumber ?? "" : "",
                     MonthYear = new DateTime(p.Year, p.Month, 1).ToString("MMM yyyy"),
                     AmountPaid = p.AmountPaid,
+                    ClassFee = p.BaseFee ?? 0m,
+                    ClassName = p.Class != null ? (p.Class.ClassName ?? p.Class.Subject) : null,
+                    Subject = p.Class != null ? p.Class.Subject : null,
+                    PaidAt = p.PaidAt,
+                    Status = p.Status,
+                    Note = p.Note
+                })
+                .ToListAsync();
+
+            var paginatedResult = new PaginatedResultDto<ClassPaymentHistoryDto>
+            {
+                Items = payments,
+                TotalCount = totalRecords,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            var responseDto = new FinancialHistoryResponseDto
+            {
+                PaginatedPayments = paginatedResult,
+                TotalReceived = totalReceived,
+                TeacherShare = teacherShare,
+                InstituteShare = instituteShare,
+                TotalStudents = totalStudents
+            };
+
+            return new ServiceResponse<FinancialHistoryResponseDto>
+            {
+                Success = true,
+                Data = responseDto
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<ServiceResponse<FinancialHistoryResponseDto>> GetTutorPaymentHistoryAsync(
+            Guid tutorId, Guid? instituteId, bool noInstitute, Guid? classId,
+            string? searchQuery = null, int page = 1, int pageSize = 10)
+        {
+            // Build base query: all payments for classes belonging to this tutor
+            var query = _context.ClassPayments
+                .AsNoTracking()
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.User)
+                .Include(p => p.Class)
+                .Where(p => p.Class != null && p.Class.TutorId == tutorId
+                         && (p.Status == "Paid" || p.Status == "PAID"));
+
+            // Apply institute filter
+            if (classId.HasValue && classId.Value != Guid.Empty)
+            {
+                // Specific class selected — ignore institute filter
+                query = query.Where(p => p.ClassId == classId.Value);
+            }
+            else if (noInstitute)
+            {
+                // "My Own Place" — classes with no institute
+                query = query.Where(p => p.InstituteId == null);
+            }
+            else if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+            {
+                // Specific institute selected
+                query = query.Where(p => p.InstituteId == instituteId.Value);
+            }
+            // else: no filter — show all classes for this tutor
+
+            // Student search
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var lq = searchQuery.ToLower();
+                query = query.Where(p =>
+                    (p.Student.FirstName != null && p.Student.FirstName.ToLower().Contains(lq)) ||
+                    (p.Student.LastName != null && p.Student.LastName.ToLower().Contains(lq)) ||
+                    (p.Student.RegistrationNumber != null && p.Student.RegistrationNumber.ToLower().Contains(lq)) ||
+                    (p.Student.User != null && p.Student.User.PhoneNumber != null && p.Student.User.PhoneNumber.Contains(lq)));
+            }
+
+            // Summary stats (before pagination)
+            decimal totalReceived = await query.SumAsync(p => (decimal?)p.AmountPaid) ?? 0m;
+            int totalStudents = await query.Select(p => p.StudentId).Distinct().CountAsync();
+            int totalRecords = await query.CountAsync();
+
+            // Tutor share = sum of TuitionAmount (what the tutor actually earns after institute cut)
+            decimal teacherShare = await query.SumAsync(p => (decimal?)p.TuitionAmount) ?? 0m;
+            decimal instituteShare = await query.SumAsync(p => (decimal?)p.InstituteAmount) ?? 0m;
+
+            var payments = await query
+                .OrderByDescending(p => p.PaidAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(p => new ClassPaymentHistoryDto
+                {
+                    PaymentId = p.PaymentId,
+                    StudentId = p.StudentId,
+                    StudentName = $"{p.Student.FirstName} {p.Student.LastName}".Trim(),
+                    RegistrationNumber = p.Student.RegistrationNumber,
+                    MobileNumber = p.Student.User != null ? p.Student.User.PhoneNumber ?? "" : "",
+                    MonthYear = new DateTime(p.Year, p.Month, 1).ToString("MMM yyyy"),
+                    AmountPaid = p.AmountPaid,
+                    ClassFee = p.BaseFee ?? 0m,
+                    ClassName = p.Class != null ? (p.Class.ClassName ?? p.Class.Subject) : null,
+                    Subject = p.Class != null ? p.Class.Subject : null,
                     PaidAt = p.PaidAt,
                     Status = p.Status,
                     Note = p.Note
