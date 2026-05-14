@@ -61,14 +61,23 @@ namespace Tutorz.Infrastructure.Services
                 .Select(p => new { p.StudentId, p.ClassId, p.Month, p.Year, p.AmountPaid })
                 .ToListAsync();
 
-            // ── Group attendance by (Month, Year) ─────────────────────────────
-            var monthGroups = attendances
-                .GroupBy(a => new { a.Date.Year, a.Date.Month })
-                .OrderByDescending(g => g.Key.Year)
-                .ThenByDescending(g => g.Key.Month)
+            // ── Union months from attendance AND payments ──────────────────────
+            // A month appears if at least one student attended OR paid that month.
+            var attendanceMonths = attendances
+                .Select(a => new { a.Date.Year, a.Date.Month })
+                .Distinct();
+
+            var paymentMonths = payments
+                .Select(p => new { Year = p.Year, Month = p.Month })
+                .Distinct();
+
+            var allMonths = attendanceMonths
+                .Union(paymentMonths)
+                .OrderByDescending(m => m.Year)
+                .ThenByDescending(m => m.Month)
                 .ToList();
 
-            if (!monthGroups.Any())
+            if (!allMonths.Any())
                 return Ok(new TutorReportResponseDto());
 
             // ── Build scope description string ────────────────────────────────
@@ -76,23 +85,28 @@ namespace Tutorz.Infrastructure.Services
 
             var rows = new List<TutorMonthReportRowDto>();
 
-            foreach (var group in monthGroups)
+            foreach (var key in allMonths)
             {
-                int m = group.Key.Month;
-                int y = group.Key.Year;
+                int m = key.Month;
+                int y = key.Year;
 
                 // Students who attended ≥ 1 day this month
-                var studentIds = group.Select(a => a.StudentId).Distinct().ToHashSet();
-                int total = studentIds.Count;
+                var attendedIds = attendances
+                    .Where(a => a.Date.Month == m && a.Date.Year == y)
+                    .Select(a => a.StudentId)
+                    .ToHashSet();
 
-                // Count paid students for this month from our already-loaded payments
-                int paidCount = payments
-                    .Where(p => p.Month == m && p.Year == y && studentIds.Contains(p.StudentId))
+                // Students who paid this month (even without attendance)
+                var paidIds = payments
+                    .Where(p => p.Month == m && p.Year == y)
                     .Select(p => p.StudentId)
-                    .Distinct()
-                    .Count();
+                    .ToHashSet();
 
-                int unpaid = total - paidCount;
+                // Union: include if attended OR paid
+                var allStudentIds = attendedIds.Union(paidIds).ToHashSet();
+                int total     = allStudentIds.Count;
+                int paidCount = paidIds.Intersect(allStudentIds).Count();
+                int unpaid    = total - paidCount;
 
                 // Build reference: RPT{YY}{MM}{hash}
                 string hash = Math.Abs($"{filter.TutorId}{y}{m}".GetHashCode())
@@ -101,14 +115,14 @@ namespace Tutorz.Infrastructure.Services
 
                 rows.Add(new TutorMonthReportRowDto
                 {
-                    Reference = reference,
-                    MonthYear = new DateTime(y, m, 1).ToString("MMMM yyyy"),
-                    Month = m,
-                    Year = y,
+                    Reference     = reference,
+                    MonthYear     = new DateTime(y, m, 1).ToString("MMMM yyyy"),
+                    Month         = m,
+                    Year          = y,
                     DetailsPeriod = detailsPeriod,
                     TotalStudents = total,
-                    PaidCount = paidCount,
-                    UnpaidCount = unpaid < 0 ? 0 : unpaid
+                    PaidCount     = paidCount,
+                    UnpaidCount   = unpaid < 0 ? 0 : unpaid
                 });
             }
 
@@ -163,52 +177,92 @@ namespace Tutorz.Infrastructure.Services
                 })
                 .ToListAsync();
 
-            if (!attendances.Any()) return null;
-
-            // ── Q2: Payments for the specific month ───────────────────────────
+            // ── Q2: Payments for the specific month (with student names) ──────
+            // Include student navigation so we can show names for payment-only students.
             var payments = await _context.ClassPayments
                 .AsNoTracking()
+                .Include(p => p.Student)
                 .Where(p => classIds.Contains(p.ClassId)
                          && p.Month == month
                          && p.Year == year
                          && (p.Status == "Paid" || p.Status == "PAID"))
-                .Select(p => new { p.StudentId, p.ClassId, p.AmountPaid })
+                .Select(p => new
+                {
+                    p.StudentId,
+                    p.ClassId,
+                    p.AmountPaid,
+                    StudentName = p.Student.FirstName + " " + p.Student.LastName,
+                    RegNo = p.Student.RegistrationNumber
+                })
                 .ToListAsync();
 
-            var paidLookup = payments.ToDictionary(p => (p.StudentId, p.ClassId));
+            // Guard: need at least one attendance OR one payment to produce a PDF
+            if (!attendances.Any() && !payments.Any()) return null;
 
-            // ── Group: Institute → Class → Students ───────────────────────────
-            // Group classes by institute
+            var paidLookup = payments
+                .GroupBy(p => (p.StudentId, p.ClassId))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // ── Group: Institute → Class → Students (attended OR paid) ─────────
             var classByInstitute = classes
                 .GroupBy(c => c.InstituteId?.ToString() ?? "own")
                 .OrderBy(g => g.Key == "own" ? "ZZZZ" : g.First().Institute?.InstituteName ?? "")
                 .ToList();
 
-            // Build PDF sections
             var sections = new List<TutorReportClassSectionDto>();
             foreach (var instGroup in classByInstitute)
             {
                 foreach (var cls in instGroup.OrderBy(c => c.ClassName ?? c.Subject))
                 {
-                    // Students who attended this class this month
-                    var classAttendees = attendances
+                    // --- Set A: students who attended this class this month ---
+                    var attendeeGroups = attendances
                         .Where(a => a.ClassId == cls.ClassId)
                         .GroupBy(a => a.StudentId)
-                        .ToList();
+                        .ToDictionary(g => g.Key, g => g.ToList());
 
-                    if (!classAttendees.Any()) continue;
+                    // --- Set B: students who paid this class this month -------
+                    var classPayments = payments
+                        .Where(p => p.ClassId == cls.ClassId)
+                        .ToDictionary(p => p.StudentId);
 
-                    var students = classAttendees.Select(g =>
+                    // --- Union of student IDs from both sets -----------------
+                    var allStudentIds = attendeeGroups.Keys
+                        .Union(classPayments.Keys)
+                        .ToHashSet();
+
+                    if (!allStudentIds.Any()) continue;
+
+                    var students = allStudentIds.Select(sid =>
                     {
-                        var first = g.First();
-                        paidLookup.TryGetValue((g.Key, cls.ClassId), out var pay);
+                        // Attendance info (may be empty if payment-only)
+                        attendeeGroups.TryGetValue(sid, out var attRows);
+                        int attendanceCount = attRows?.Count ?? 0;
+
+                        // Student name: prefer attendance record, fall back to payment record
+                        string studentName;
+                        string? regNo;
+                        if (attRows != null && attRows.Count > 0)
+                        {
+                            studentName = attRows[0].StudentName.Trim();
+                            regNo       = attRows[0].RegNo;
+                        }
+                        else
+                        {
+                            classPayments.TryGetValue(sid, out var payRec);
+                            studentName = payRec?.StudentName.Trim() ?? "Unknown";
+                            regNo       = payRec?.RegNo;
+                        }
+
+                        // Payment info
+                        classPayments.TryGetValue(sid, out var pay);
+
                         return new TutorReportStudentDetailDto
                         {
-                            StudentName      = first.StudentName.Trim(),
-                            RegistrationNumber = first.RegNo,
-                            AttendanceCount  = g.Count(),
-                            PaymentStatus    = pay != null ? "Paid" : "Not Yet",
-                            PaidAmount       = pay?.AmountPaid
+                            StudentName        = studentName,
+                            RegistrationNumber = regNo,
+                            AttendanceCount    = attendanceCount,
+                            PaymentStatus      = pay != null ? "Paid" : "Not Yet",
+                            PaidAmount         = pay?.AmountPaid
                         };
                     }).OrderBy(s => s.StudentName).ToList();
 
