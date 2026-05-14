@@ -548,6 +548,8 @@ namespace Tutorz.Application.Services
                 RequestId = r.Id,
                 InstituteId = r.InstituteId,
                 InstituteName = r.Institute != null ? r.Institute.InstituteName : null,
+                InstituteRegNumber = r.Institute != null ? r.Institute.RegistrationNumber : null,
+                InstitutePhoneNumber = r.Institute != null ? r.Institute.ContactNumber : null,
                 TutorId = r.TutorId,
                 Status = r.Status.ToString(),
                 InitiatedBy = r.InitiatedBy.ToString(),
@@ -704,6 +706,69 @@ namespace Tutorz.Application.Services
             catch (Exception ex)
             {
                 return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = false, Message = "Error searching students: " + ex.Message };
+            }
+        }
+
+        public async Task<ServiceResponse<SearchUserResultDto>> SearchInstituteExactAsync(Guid userId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Search query is empty." };
+
+            query = query.ToLower().Trim();
+
+            try
+            {
+                var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+                if (tutor == null) return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Tutor not found." };
+
+                // Normalize phone for exact matching
+                string cleanPhone = query.Replace(" ", "").Replace("-", "");
+                string exactPhone = cleanPhone;
+                if (cleanPhone.StartsWith("0")) exactPhone = "+94" + cleanPhone.Substring(1);
+                else if (!cleanPhone.StartsWith("+") && cleanPhone.Length == 9) exactPhone = "+94" + cleanPhone;
+
+                // Search exact match by Registration Number or Phone Number
+                var institutes = await _instituteRepo.GetAllAsync(
+                    i => i.IsActive && (
+                        i.RegistrationNumber.ToLower() == query || 
+                        i.ContactNumber == query || 
+                        i.ContactNumber == exactPhone ||
+                        (i.User != null && (i.User.PhoneNumber == query || i.User.PhoneNumber == exactPhone))
+                    ),
+                    includeProperties: "User,User.City"
+                );
+
+                var institute = institutes.FirstOrDefault();
+
+                if (institute == null)
+                    return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "No active institute found with the exact Reg No or Mobile Number." };
+
+                // Check if already assigned
+                var existingAssignment = await _instituteTutorRepo.GetAsync(
+                    it => it.InstituteId == institute.InstituteId && it.TutorId == tutor.TutorId);
+
+                // Check if pending request exists
+                var pendingRequest = await _joinRequestRepo.GetAsync(
+                    r => r.InstituteId == institute.InstituteId && r.TutorId == tutor.TutorId && r.Status == AssignmentStatus.Pending);
+
+                var result = new SearchUserResultDto
+                {
+                    UserId = institute.UserId,
+                    RoleSpecificId = institute.InstituteId,
+                    RegistrationNumber = institute.RegistrationNumber,
+                    Name = institute.InstituteName,
+                    PhoneNumber = institute.User?.PhoneNumber,
+                    Email = institute.User?.Email,
+                    ProfileImageUrlSmall = institute.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = institute.ProfileImageUrlLarge,
+                    IsAlreadyAssigned = existingAssignment != null || pendingRequest != null
+                };
+
+                return new ServiceResponse<SearchUserResultDto> { Success = true, Data = result };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Error searching institute: " + ex.Message };
             }
         }
 

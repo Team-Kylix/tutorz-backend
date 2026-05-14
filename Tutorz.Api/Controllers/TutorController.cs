@@ -245,6 +245,19 @@ namespace Tutorz.Api.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet("institutes/search-exact")]
+        [ApiPurpose("Search Institute Exact")]
+        public async Task<IActionResult> SearchInstitutesExact([FromQuery] string query)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.SearchInstituteExactAsync(userId, query);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data); // Return single profile instead of list
+        }
+
         [HttpGet("attendance/history")]
         [ApiPurpose("Get Tutor Attendance History")]
         public async Task<IActionResult> GetAttendanceHistory(

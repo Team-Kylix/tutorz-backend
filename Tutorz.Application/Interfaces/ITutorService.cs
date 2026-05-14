@@ -28,6 +28,7 @@ namespace Tutorz.Application.Interfaces
         // Joined Institutes
         Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid tutorId, string query);
+        Task<ServiceResponse<SearchUserResultDto>> SearchInstituteExactAsync(Guid tutorId, string query);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize);
 
         // Attendance History (for Tutor's own classes)

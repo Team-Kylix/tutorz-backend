@@ -11,9 +11,14 @@ namespace Tutorz.Application.DTOs.Institute
         // Target or Initiator details (depending on perspective)
         public Guid? TutorId { get; set; }
         public string TutorName { get; set; }
+        public string TutorRegNumber { get; set; }
+        public string TutorPhoneNumber { get; set; }
         
         public Guid? StudentId { get; set; }
         public string StudentName { get; set; }
+        
+        public string InstituteRegNumber { get; set; }
+        public string InstitutePhoneNumber { get; set; }
         
         public string Status { get; set; } // "Pending", "Active", "Declined"
         public string InitiatedBy { get; set; } // "Institute" or "User"
