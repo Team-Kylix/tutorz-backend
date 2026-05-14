@@ -43,6 +43,8 @@ namespace Tutorz.Api.Controllers
             if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _tutorService.CreateClassAsync(userId, request);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
             return Ok(result);
         }
 
@@ -54,6 +56,8 @@ namespace Tutorz.Api.Controllers
             if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _tutorService.UpdateClassAsync(id, userId, request);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
             return Ok(result);
         }
 

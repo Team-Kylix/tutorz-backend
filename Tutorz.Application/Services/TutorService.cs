@@ -58,7 +58,7 @@ namespace Tutorz.Application.Services
             _notificationService = notificationService;
         }
 
-        public async Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request)
+        public async Task<ServiceResponse<ClassDto>> CreateClassAsync(Guid userId, CreateClassRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             if (tutor == null) throw new Exception("Tutor profile not found.");
@@ -101,7 +101,11 @@ namespace Tutorz.Application.Services
 
                     if (newStart < exEnd && newEnd > exStart)
                     {
-                        throw new Exception($"Time Crash! This time overlaps with your '{existing.ClassType}': {existing.Subject} ({existing.StartTime} - {existing.EndTime}).");
+                        return new ServiceResponse<ClassDto>
+                        {
+                            Success = false,
+                            Message = $"Time Crash! This time overlaps with your '{existing.ClassType}': {existing.Subject} ({existing.StartTime} – {existing.EndTime})."
+                        };
                     }
                 }
             }
@@ -146,7 +150,11 @@ namespace Tutorz.Application.Services
                         if (newStart < hcEnd && newEnd > hcStart)
                         {
                             string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
-                            throw new Exception($"Cannot create class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day.");
+                            return new ServiceResponse<ClassDto>
+                            {
+                                Success = false,
+                                Message = $"Hall Conflict! {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} – {hc.EndTime} on this day."
+                            };
                         }
                     }
                 }
@@ -186,10 +194,10 @@ namespace Tutorz.Application.Services
             await _classRepo.AddAsync(newClass);
             await _classRepo.SaveChangesAsync();
 
-            return MapToDto(newClass);
+            return new ServiceResponse<ClassDto> { Success = true, Data = MapToDto(newClass), Message = "Class created successfully." };
         }
 
-        public async Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
+        public async Task<ServiceResponse<ClassDto>> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request)
         {
             var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
             var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId, includeProperties: "Enrollments,Institute");
@@ -265,13 +273,17 @@ namespace Tutorz.Application.Services
                     if (newStart < hcEnd && newEnd > hcStart)
                     {
                         string occupyingTutor = hc.Tutor != null ? $"{hc.Tutor.FirstName} {hc.Tutor.LastName}" : "Another tutor";
-                        throw new Exception($"Cannot update class — {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} to {hc.EndTime} on this day.");
+                        return new ServiceResponse<ClassDto>
+                        {
+                            Success = false,
+                            Message = $"Hall Conflict! {occupyingTutor}'s class already occupies {request.HallName} from {hc.StartTime} – {hc.EndTime} on this day."
+                        };
                     }
                 }
             }
 
             await _classRepo.SaveChangesAsync();
-            return MapToDto(existingClass);
+            return new ServiceResponse<ClassDto> { Success = true, Data = MapToDto(existingClass), Message = "Class updated successfully." };
         }
 
 
