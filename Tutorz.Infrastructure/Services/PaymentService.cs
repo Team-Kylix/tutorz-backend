@@ -241,14 +241,7 @@ namespace Tutorz.Infrastructure.Services
             {
                 query = query.Where(p => p.Class != null && p.Class.TutorId == tutorId.Value);
             }
-            else
-            {
-                return new ServiceResponse<FinancialHistoryResponseDto> 
-                { 
-                    Success = false, 
-                    Message = "Please select a tutor or class." 
-                };
-            }
+            // else: no filter — return all payments for this institute
 
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {

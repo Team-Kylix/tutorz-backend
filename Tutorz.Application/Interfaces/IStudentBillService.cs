@@ -19,5 +19,11 @@ namespace Tutorz.Application.Interfaces
         /// Returns null if the payment does not belong to a class owned by this tutor.
         /// </summary>
         Task<byte[]?> GenerateClassPaymentPdfForTutorAsync(Guid paymentId, Guid tutorId);
+
+        /// <summary>
+        /// Generates a PDF invoice for a class payment, validated by the institute that owns the class.
+        /// Returns null if the payment does not belong to the requesting institute.
+        /// </summary>
+        Task<byte[]?> GenerateClassPaymentPdfForInstituteAsync(Guid paymentId, Guid instituteId);
     }
 }
