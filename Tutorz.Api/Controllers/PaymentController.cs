@@ -85,14 +85,24 @@ namespace Tutorz.Api.Controllers
         /// Downloads a class payment invoice PDF for the calling institute.
         /// </summary>
         [HttpGet("{paymentId}/pdf")]
-        [Authorize(Roles = "Institute")]
+        [Authorize(Roles = "Institute,Admin,SuperAdmin")]
         public async Task<IActionResult> DownloadPaymentPdf(Guid paymentId)
         {
-            var instituteId = GetInstituteIdFromToken();
-            if (instituteId == Guid.Empty)
-                return Unauthorized("Institute ID not found in token.");
+            byte[]? pdfBytes = null;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            var pdfBytes = await _studentBillService.GenerateClassPaymentPdfForInstituteAsync(paymentId, instituteId);
+            if (role == "Admin" || role == "SuperAdmin")
+            {
+                pdfBytes = await _studentBillService.GenerateClassPaymentPdfForSystemAsync(paymentId);
+            }
+            else
+            {
+                var instituteId = GetInstituteIdFromToken();
+                if (instituteId == Guid.Empty)
+                    return Unauthorized("Institute ID not found in token.");
+
+                pdfBytes = await _studentBillService.GenerateClassPaymentPdfForInstituteAsync(paymentId, instituteId);
+            }
 
             if (pdfBytes == null)
                 return NotFound("Payment not found or access denied.");

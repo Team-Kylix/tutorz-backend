@@ -29,6 +29,7 @@ namespace Tutorz.Api.Controllers
         private readonly IAuthService _authService;
         private readonly IAdminService _adminService;
         private readonly IBillService _billService;
+        private readonly IPaymentService _paymentService;
 
         public SystemController(
             IConfiguration configuration,
@@ -39,7 +40,8 @@ namespace Tutorz.Api.Controllers
             IInstituteService instituteService,
             IAuthService authService,
             IAdminService adminService,
-            IBillService billService)
+            IBillService billService,
+            IPaymentService paymentService)
         {
             _configuration = configuration;
             _dbContext = dbContext;
@@ -50,6 +52,7 @@ namespace Tutorz.Api.Controllers
             _authService = authService;
             _adminService = adminService;
             _billService = billService;
+            _paymentService = paymentService;
         }
 
         [HttpGet("version")]
@@ -101,12 +104,21 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("tutors")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetTutors([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetTutors([FromQuery] Guid? instituteId, [FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var result = await _tutorService.GetAllTutorsAsync(searchQuery, page, pageSize);
-            if (!result.Success) return BadRequest(result);
-            return Ok(result.Data);
+            if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+            {
+                var result = await _instituteService.GetAssignedTutorsAsync(instituteId.Value, searchQuery, page, pageSize);
+                if (!result.Success) return BadRequest(result);
+                return Ok(result.Data);
+            }
+            else
+            {
+                var result = await _tutorService.GetAllTutorsAsync(searchQuery, page, pageSize);
+                if (!result.Success) return BadRequest(result);
+                return Ok(result.Data);
+            }
         }
 
         [HttpGet("institutes")]
@@ -234,6 +246,60 @@ namespace Tutorz.Api.Controllers
         {
             var response = await _billService.UpdateBillingConfigAsync(config);
             return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        // --- System Data Endpoints ---
+
+        [HttpGet("payments-history")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetSystemPaymentsHistory(
+            [FromQuery] Guid? instituteId,
+            [FromQuery] Guid? tutorId,
+            [FromQuery] Guid? classId,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var result = await _paymentService.GetAllSystemPaymentHistoryAsync(
+                instituteId, tutorId, classId, searchQuery, page, pageSize);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("classes")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetSystemClasses([FromQuery] Guid? instituteId, [FromQuery] Guid? tutorId)
+        {
+            var query = _dbContext.Classes
+                .AsNoTracking()
+                .Include(c => c.Tutor)
+                .Include(c => c.Institute)
+                .AsQueryable();
+
+            if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+            {
+                query = query.Where(c => c.InstituteId == instituteId.Value);
+            }
+            if (tutorId.HasValue && tutorId.Value != Guid.Empty)
+            {
+                query = query.Where(c => c.TutorId == tutorId.Value);
+            }
+
+            var classes = await query
+                .Select(c => new
+                {
+                    c.ClassId,
+                    c.ClassName,
+                    c.Subject,
+                    c.Grade,
+                    c.ClassType,
+                    TutorName = c.Tutor != null ? c.Tutor.FirstName + " " + c.Tutor.LastName : null,
+                    InstituteName = c.Institute != null ? c.Institute.InstituteName : null
+                })
+                .ToListAsync();
+
+            return Ok(classes);
         }
     }
 }
