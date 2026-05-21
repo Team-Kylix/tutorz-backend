@@ -295,7 +295,16 @@ namespace Tutorz.Api.Controllers
                     c.Grade,
                     c.ClassType,
                     TutorName = c.Tutor != null ? c.Tutor.FirstName + " " + c.Tutor.LastName : null,
-                    InstituteName = c.Institute != null ? c.Institute.InstituteName : null
+                    InstituteName = c.Institute != null ? c.Institute.InstituteName : null,
+                    c.StartTime,
+                    c.EndTime,
+                    c.DayOfWeek,
+                    c.Date,
+                    c.HallName,
+                    c.Fee,
+                    c.InstituteCommissionRate,
+                    c.IsActive,
+                    StudentCount = c.Enrollments.Count
                 })
                 .ToListAsync();
 
