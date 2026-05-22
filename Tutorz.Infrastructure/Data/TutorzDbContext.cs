@@ -248,6 +248,10 @@ namespace Tutorz.Infrastructure.Data
             modelBuilder.Entity<Dispute>()
                 .HasIndex(d => d.AssignedAdminUserId);
 
+            // Global Query Filter for soft delete
+            modelBuilder.Entity<Dispute>()
+                .HasQueryFilter(d => !d.IsDeleted);
+
             // Bill Configuration
             modelBuilder.Entity<Bill>()
                 .HasOne(b => b.User)

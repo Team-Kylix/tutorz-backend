@@ -42,6 +42,8 @@ namespace Tutorz.Domain.Entities
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        public bool IsDeleted { get; set; } = false;
+
         // --- Navigation ---
         public User RaisedByUser { get; set; } = null!;
 

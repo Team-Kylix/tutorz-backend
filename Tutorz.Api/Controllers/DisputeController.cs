@@ -125,5 +125,21 @@ namespace Tutorz.Api.Controllers
 
             return Ok(new { message = result.Message });
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // DELETE api/dispute/{id}  —  Delete a pending dispute
+        // ─────────────────────────────────────────────────────────────────────
+        [HttpDelete("{id:int}")]
+        [ApiPurpose("Delete Pending Complaint")]
+        public async Task<IActionResult> DeleteDispute(int id)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _disputeService.DeleteDisputeAsync(id, userId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { message = result.Message });
+        }
     }
 }
