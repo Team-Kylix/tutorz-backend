@@ -1233,9 +1233,16 @@ namespace Tutorz.Application.Services
             user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
             await _userRepository.SaveChangesAsync();
 
+            Console.WriteLine($"[DEBUG] Generated OTP for email update ({newEmail}): {otp}");
+
             string subject = "Tutorz Email Update Verification";
             string body = $"<h3>Your verification code is: <span style='color:blue'>{otp}</span></h3><p>Use this code to verify your new email address.</p>";
-            try { _emailService.SendEmail(newEmail, subject, body); } catch { }
+            try { 
+                _emailService.SendEmail(newEmail, subject, body); 
+            } 
+            catch (Exception ex) { 
+                throw new Exception($"Failed to send email. Please check SMTP credentials or connection. Detail: {ex.Message}"); 
+            }
         }
 
         public async Task<ServiceResponse<bool>> VerifyEmailUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
@@ -1269,7 +1276,12 @@ namespace Tutorz.Application.Services
             user.OtpExpires = DateTime.UtcNow.AddMinutes(10);
             await _userRepository.SaveChangesAsync();
 
-            try { await _smsService.SendSmsAsync(cleanPhone, $"Your Tutorz Verification Code is {otp}", userId); } catch { }
+            Console.WriteLine($"[DEBUG] Generated OTP for mobile update ({cleanPhone}): {otp}");
+
+            try { await _smsService.SendSmsAsync(cleanPhone, $"Your Tutorz Verification Code is {otp}", userId); } 
+            catch (Exception ex) { 
+                throw new Exception($"Failed to send SMS. Please check SMS API configuration. Detail: {ex.Message}");
+            }
         }
 
         public async Task<ServiceResponse<bool>> VerifyMobileUpdateAsync(Guid userId, VerifyCredentialUpdateDto request)
