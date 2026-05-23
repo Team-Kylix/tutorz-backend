@@ -20,6 +20,8 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
         private readonly ITutorRepository _tutorRepo;
+        private readonly IGenericRepository<Class> _classRepo;
+        private readonly INotificationService _notificationService;
 
         public StudentService(
             IStudentRepository studentRepo,
@@ -27,7 +29,9 @@ namespace Tutorz.Application.Services
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
             IGenericRepository<District> districtRepo,
-            ITutorRepository tutorRepo)
+            ITutorRepository tutorRepo,
+            IGenericRepository<Class> classRepo,
+            INotificationService notificationService)
         {
             _studentRepo = studentRepo;
             _userRepo = userRepo;
@@ -35,6 +39,8 @@ namespace Tutorz.Application.Services
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
             _tutorRepo = tutorRepo;
+            _classRepo = classRepo;
+            _notificationService = notificationService;
         }
 
         public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
@@ -63,6 +69,27 @@ namespace Tutorz.Application.Services
 
                 if (result == "Success")
                 {
+                    // Fetch class and student to construct notification
+                    var targetClass = await _classRepo.GetAsync(c => c.ClassId == classId, includeProperties: "Tutor,Tutor.User,Institute,Institute.User");
+                    var student = await _studentRepo.GetAsync(s => s.StudentId == studentId);
+                    
+                    if (targetClass != null && student != null)
+                    {
+                        var title = "New Student Request";
+                        var message = $"{student.FirstName} {student.LastName} has requested to join your class: {targetClass.ClassName}.";
+                        
+                        // Notify Tutor if class belongs to a tutor
+                        if (targetClass.Tutor != null && targetClass.Tutor.UserId != Guid.Empty)
+                        {
+                            await _notificationService.CreateAndPushAsync(targetClass.Tutor.UserId, title, message, "request_received", targetClass.ClassId);
+                        }
+                        // Or notify Institute if class belongs to an institute directly
+                        else if (targetClass.Institute != null && targetClass.Institute.UserId != Guid.Empty)
+                        {
+                            await _notificationService.CreateAndPushAsync(targetClass.Institute.UserId, title, message, "request_received", targetClass.ClassId);
+                        }
+                    }
+
                     response.Success = true;
                     response.Data = "Request Sent";
                     response.Message = "Request to join class sent successfully.";

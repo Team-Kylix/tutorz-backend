@@ -493,6 +493,23 @@ namespace Tutorz.Application.Services
                 {
                     enrollment.Status = newStatus;
                     enrollment.EnrolledAt = DateTime.UtcNow;
+
+                    // Notify student
+                    if (enrollment.Student != null && enrollment.Student.UserId != Guid.Empty && enrollment.Class != null)
+                    {
+                        string actionText = request.Action.Equals("Accepted", StringComparison.OrdinalIgnoreCase) ? "accepted" : "declined";
+                        string title = $"Class Request {actionText.ToUpper()}";
+                        string message = $"Your request to join {enrollment.Class.ClassName} has been {actionText}.";
+                        string notificationType = request.Action.Equals("Accepted", StringComparison.OrdinalIgnoreCase) ? "request_approved" : "request_rejected";
+
+                        await _notificationService.CreateAndPushAsync(
+                            enrollment.Student.UserId,
+                            title,
+                            message,
+                            notificationType,
+                            enrollment.ClassId
+                        );
+                    }
                 }
             }
 
