@@ -81,8 +81,14 @@ namespace Tutorz.Application.Services
         // --- REGISTER (First Time User) ---
         public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
         {
-            if (request.Password.Length < 6 || request.Password.Length > 10)
+            if (string.IsNullOrEmpty(request.Password))
+            {
+                request.Password = new Random().Next(100000, 999999).ToString();
+            }
+            else if (request.Password.Length < 6 || request.Password.Length > 10)
+            {
                 throw new Exception("Password must be between 6 and 10 characters.");
+            }
 
             // Phone Number Validation
             if (string.IsNullOrWhiteSpace(request.PhoneNumber))
@@ -219,7 +225,7 @@ namespace Tutorz.Application.Services
                     try
                     {
                         string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                        string welcomeMessage = $"Hi {request.FirstName},\nYour registration number is {customId} and Default password: {request.Password}\nURL to Tutorz: {frontendUrl}";
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nURL to Tutorz: {frontendUrl}";
                         await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
                     }
                     catch (Exception ex)
@@ -250,6 +256,20 @@ namespace Tutorz.Application.Services
                 {
                     // Notification failure must never break registration
                     Console.WriteLine($"Notification push failed: {ex.Message}");
+                }
+            }
+            else
+            {
+                // --- Send Welcome SMS for direct registrations ---
+                try
+                {
+                    string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
+                    string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nURL to Tutorz: {frontendUrl}";
+                    await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Welcome SMS failed for {normalizedPhone}: {ex.Message}");
                 }
             }
 
@@ -398,7 +418,7 @@ namespace Tutorz.Application.Services
             // Send Welcome SMS
             try
             {
-                string welcomeMessage = $"Hi {request.FirstName},\nYou've been added as an Admin. Registration ID: {customId}, Default password: {rawPassword}\nURL: https://www.tutorz.lk";
+                string welcomeMessage = $"Hi {request.FirstName},\nYou've been added as an Admin. Your user name is {request.PhoneNumber} and password is {rawPassword}\nURL: https://www.tutorz.lk";
                 await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, user.UserId);
             }
             catch (Exception ex)
