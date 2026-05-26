@@ -46,6 +46,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Dispute> Disputes { get; set; }
         public DbSet<Admin> Admins { get; set; }
         public DbSet<Bill> Bills { get; set; }
+        public DbSet<Withdrawal> Withdrawals { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -296,6 +297,23 @@ namespace Tutorz.Infrastructure.Data
             // Decimal precision for Class.InstituteCommissionRate
             modelBuilder.Entity<Class>()
                 .Property(c => c.InstituteCommissionRate).HasColumnType("decimal(5,2)");
+
+            // Withdrawal Configuration
+            modelBuilder.Entity<Withdrawal>()
+                .HasOne(w => w.Institute)
+                .WithMany()
+                .HasForeignKey(w => w.InstituteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Withdrawal>()
+                .HasOne(w => w.Tutor)
+                .WithMany()
+                .HasForeignKey(w => w.TutorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Withdrawal>()
+                .HasIndex(w => w.ReferenceId)
+                .IsUnique();
         }
     }
 }

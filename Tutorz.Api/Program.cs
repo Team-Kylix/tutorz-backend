@@ -79,6 +79,8 @@ builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.Payme
 builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
+builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
+builder.Services.AddScoped<IWithdrawalService, WithdrawalService>();
 
 // Dispute / Ticketing System
 builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();

@@ -69,5 +69,19 @@ namespace Tutorz.Application.Services
             }
             return "0";
         }
+
+        public async Task<string> GenerateWithdrawalReferenceAsync()
+        {
+            var now = DateTime.UtcNow;
+            string year = now.ToString("yy");
+            string month = now.Month.ToString("D2");
+
+            string sequenceKey = $"WTH{year}{month}";
+            int nextNumber = await _sequenceRepository.GetNextSequenceNumberAsync(sequenceKey);
+
+            string incrementPart = nextNumber.ToString("D4");
+
+            return $"WTH{year}{month}{incrementPart}";
+        }
     }
 }
