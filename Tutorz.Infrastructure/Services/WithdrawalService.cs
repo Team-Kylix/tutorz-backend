@@ -52,7 +52,7 @@ namespace Tutorz.Infrastructure.Services
             return ServiceResponse<decimal>.SuccessResponse(totalTuitionAccrued - totalWithdrawn);
         }
 
-        public async Task<ServiceResponse<IEnumerable<WithdrawalDto>>> GetTutorWithdrawalsAsync(Guid tutorId, Guid? instituteId, Guid? classId)
+        public async Task<ServiceResponse<IEnumerable<WithdrawalDto>>> GetTutorWithdrawalsAsync(Guid tutorId, Guid? instituteId)
         {
             var query = _context.Withdrawals
                 .Include(w => w.Institute)
@@ -63,14 +63,11 @@ namespace Tutorz.Infrastructure.Services
             if (instituteId.HasValue)
                 query = query.Where(w => w.InstituteId == instituteId.Value);
 
-            if (classId.HasValue)
-                query = query.Where(w => w.ClassId == classId.Value);
-
             var list = await query.OrderByDescending(w => w.WithdrawalAt).ToListAsync();
             return ServiceResponse<IEnumerable<WithdrawalDto>>.SuccessResponse(list.Select(MapToDto));
         }
 
-        public async Task<ServiceResponse<IEnumerable<WithdrawalDto>>> GetInstituteWithdrawalsAsync(Guid instituteId, Guid? tutorId, Guid? classId)
+        public async Task<ServiceResponse<IEnumerable<WithdrawalDto>>> GetInstituteWithdrawalsAsync(Guid instituteId, Guid? tutorId)
         {
             var query = _context.Withdrawals
                 .Include(w => w.Institute)
@@ -80,9 +77,6 @@ namespace Tutorz.Infrastructure.Services
 
             if (tutorId.HasValue)
                 query = query.Where(w => w.TutorId == tutorId.Value);
-
-            if (classId.HasValue)
-                query = query.Where(w => w.ClassId == classId.Value);
 
             var list = await query.OrderByDescending(w => w.WithdrawalAt).ToListAsync();
             return ServiceResponse<IEnumerable<WithdrawalDto>>.SuccessResponse(list.Select(MapToDto));
@@ -497,7 +491,7 @@ namespace Tutorz.Infrastructure.Services
         // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public async Task<ServiceResponse<IEnumerable<WithdrawalOverviewRowDto>>> GetTutorWithdrawalOverviewAsync(
-            Guid tutorId, Guid? instituteId, Guid? classId)
+            Guid tutorId, Guid? instituteId)
         {
             // â”€â”€ 1. Gather classes this tutor teaches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var classQuery = _context.Classes
@@ -507,17 +501,13 @@ namespace Tutorz.Infrastructure.Services
 
             if (instituteId.HasValue && instituteId.Value != Guid.Empty)
                 classQuery = classQuery.Where(c => c.InstituteId == instituteId.Value);
-            if (classId.HasValue && classId.Value != Guid.Empty)
-                classQuery = classQuery.Where(c => c.ClassId == classId.Value);
 
             var classes = await classQuery.ToListAsync();
 
-            bool combineAll = !instituteId.HasValue && !classId.HasValue;
+            bool combineAll = !instituteId.HasValue;
             var groups = combineAll
-                ? classes.GroupBy(c => (InstituteId: (Guid?)null, ClassId: (Guid?)null))
-                : (classId.HasValue
-                    ? classes.GroupBy(c => (InstituteId: (Guid?)c.InstituteId!.Value, ClassId: (Guid?)c.ClassId))
-                    : classes.GroupBy(c => (InstituteId: (Guid?)c.InstituteId!.Value, ClassId: (Guid?)null)));
+                ? classes.GroupBy(c => (Guid?)null)
+                : classes.GroupBy(c => (Guid?)c.InstituteId!.Value);
 
             var classIds = classes.Select(c => c.ClassId).ToList();
             if (!classIds.Any())
@@ -547,15 +537,12 @@ namespace Tutorz.Infrastructure.Services
 
             foreach (var g in groups)
             {
-                var gInstId = g.Key.InstituteId;
-                var gClassId = g.Key.ClassId;
+                var gInstId = g.Key;
 
                 // payments in scope
                 var scopePayments = combineAll
                     ? payments.ToList()
-                    : (gClassId.HasValue
-                        ? payments.Where(p => p.InstituteId == gInstId && p.ClassId == gClassId).ToList()
-                        : payments.Where(p => p.InstituteId == gInstId).ToList());
+                    : payments.Where(p => p.InstituteId == gInstId).ToList();
 
                 decimal totalAccrued = scopePayments.Sum(p => p.TuitionAmount ?? 0);
                 if (totalAccrued == 0) continue; // no money ever paid, skip
@@ -563,21 +550,15 @@ namespace Tutorz.Infrastructure.Services
                 // withdrawals in scope
                 var scopeWithdrawals = combineAll
                     ? withdrawals.ToList()
-                    : (gClassId.HasValue
-                        ? withdrawals.Where(w => w.InstituteId == gInstId && w.ClassId == gClassId).ToList()
-                        : withdrawals.Where(w => w.InstituteId == gInstId).ToList());
+                    : withdrawals.Where(w => w.InstituteId == gInstId).ToList();
 
                 decimal totalWithdrawn = scopeWithdrawals.Sum(w => w.WithdrawalAmount);
                 decimal availBal = totalAccrued - totalWithdrawn;
 
-                // Details period: Institute name + class name (if class-level)
+                // Details period: Institute name
                 var firstClass = g.First();
                 string instituteName = combineAll ? "All Institutes" : (firstClass.Institute?.InstituteName ?? "Institute");
-                string detailsPeriod = combineAll
-                    ? "All Institutes"
-                    : (gClassId.HasValue
-                        ? $"{instituteName} - {firstClass.ClassName ?? firstClass.Subject ?? "Class"}"
-                        : instituteName);
+                string detailsPeriod = combineAll ? "All Institutes" : instituteName;
 
                 // 1. Pending Row (Current available balance)
                 // Always show if availBal >= 0 so tutors know their current pending balance
@@ -641,7 +622,7 @@ namespace Tutorz.Infrastructure.Services
         }
 
         public async Task<ServiceResponse<IEnumerable<WithdrawalOverviewRowDto>>> GetInstituteWithdrawalOverviewAsync(
-            Guid instituteId, Guid? tutorId, Guid? classId)
+            Guid instituteId, Guid? tutorId)
         {
             // â”€â”€ 1. Gather classes at this institute â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var classQuery = _context.Classes
@@ -651,17 +632,13 @@ namespace Tutorz.Infrastructure.Services
 
             if (tutorId.HasValue && tutorId.Value != Guid.Empty)
                 classQuery = classQuery.Where(c => c.TutorId == tutorId.Value);
-            if (classId.HasValue && classId.Value != Guid.Empty)
-                classQuery = classQuery.Where(c => c.ClassId == classId.Value);
 
             var classes = await classQuery.ToListAsync();
 
-            bool combineAll = !tutorId.HasValue && !classId.HasValue;
+            bool combineAll = !tutorId.HasValue;
             var groups = combineAll
-                ? classes.GroupBy(c => (TutorId: (Guid?)null, ClassId: (Guid?)null))
-                : (classId.HasValue
-                    ? classes.GroupBy(c => (TutorId: (Guid?)c.TutorId, ClassId: (Guid?)c.ClassId))
-                    : classes.GroupBy(c => (TutorId: (Guid?)c.TutorId, ClassId: (Guid?)null)));
+                ? classes.GroupBy(c => (Guid?)null)
+                : classes.GroupBy(c => (Guid?)c.TutorId);
 
             var classIds = classes.Select(c => c.ClassId).ToList();
             if (!classIds.Any())
@@ -695,23 +672,18 @@ namespace Tutorz.Infrastructure.Services
 
             foreach (var g in groups)
             {
-                var gTutorId = g.Key.TutorId;
-                var gClassId = g.Key.ClassId;
+                var gTutorId = g.Key;
 
                 var scopePayments = combineAll
                     ? payments.ToList()
-                    : (gClassId.HasValue
-                        ? payments.Where(p => p.TutorId == gTutorId && p.ClassId == gClassId).ToList()
-                        : payments.Where(p => p.TutorId == gTutorId).ToList());
+                    : payments.Where(p => p.TutorId == gTutorId).ToList();
 
                 decimal totalAccrued = scopePayments.Sum(p => p.TuitionAmount ?? 0);
                 if (totalAccrued == 0) continue;
 
                 var scopeWithdrawals = combineAll
                     ? withdrawals.ToList()
-                    : (gClassId.HasValue
-                        ? withdrawals.Where(w => w.TutorId == gTutorId && w.ClassId == gClassId).ToList()
-                        : withdrawals.Where(w => w.TutorId == gTutorId).ToList());
+                    : withdrawals.Where(w => w.TutorId == gTutorId).ToList();
 
                 decimal totalWithdrawn = scopeWithdrawals.Sum(w => w.WithdrawalAmount);
                 decimal availBal = totalAccrued - totalWithdrawn;
@@ -721,11 +693,7 @@ namespace Tutorz.Infrastructure.Services
                 string tutorName = combineAll ? "All Tutors" : (tutor != null
                     ? $"{tutor.FirstName} {tutor.LastName}".Trim()
                     : "Unknown");
-                string detailsPeriod = combineAll
-                    ? "All Tutors"
-                    : (gClassId.HasValue
-                        ? $"{tutorName} - {firstClass.ClassName ?? firstClass.Subject ?? "Class"}"
-                        : tutorName);
+                string detailsPeriod = tutorName;
 
                 // 1. Pending Row
                 if (availBal >= 0)
@@ -791,7 +759,7 @@ namespace Tutorz.Infrastructure.Services
                     .ThenByDescending(r => r.WithdrawalAt ?? DateTime.MaxValue));
         }
         // â”€â”€â”€ 2. Tutor pending earnings overview PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        public async Task<byte[]> GeneratePendingEarningsPdfAsync(Guid tutorId, Guid? instituteId, Guid? classId)
+        public async Task<byte[]> GeneratePendingEarningsPdfAsync(Guid tutorId, Guid? instituteId)
         {
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -805,8 +773,6 @@ namespace Tutorz.Infrastructure.Services
                 .Where(c => c.TutorId == tutorId && !c.IsDeleted && c.InstituteId != null);
             if (instituteId.HasValue && instituteId.Value != Guid.Empty)
                 classQuery = classQuery.Where(c => c.InstituteId == instituteId.Value);
-            if (classId.HasValue && classId.Value != Guid.Empty)
-                classQuery = classQuery.Where(c => c.ClassId == classId.Value);
 
             var classIds = await classQuery.Select(c => c.ClassId).ToListAsync();
             if (!classIds.Any()) return Array.Empty<byte>();
@@ -835,8 +801,6 @@ namespace Tutorz.Infrastructure.Services
             string scopeText = instituteId.HasValue
                 ? (pendingPayments.First().Class?.Institute?.InstituteName ?? "Specific Institute")
                 : "All Institutes";
-            if (classId.HasValue)
-                scopeText += $" - {pendingPayments.First().Class?.ClassName ?? pendingPayments.First().Class?.Subject}";
 
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
             bool hasLogo = File.Exists(logoPath);
@@ -957,13 +921,13 @@ namespace Tutorz.Infrastructure.Services
         }
 
         // â”€â”€â”€ 3. Institute overview PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        public async Task<byte[]> GenerateInstitutePendingEarningsPdfAsync(Guid instituteId, Guid? tutorId, Guid? classId)
+        public async Task<byte[]> GenerateInstitutePendingEarningsPdfAsync(Guid instituteId, Guid? tutorId)
         {
             // If the institute is downloading the report for a specific tutor, 
             // generate the exact same tutor-facing report so both sides see 100% identical PDFs.
             if (tutorId.HasValue && tutorId.Value != Guid.Empty)
             {
-                return await GeneratePendingEarningsPdfAsync(tutorId.Value, instituteId, classId);
+                return await GeneratePendingEarningsPdfAsync(tutorId.Value, instituteId);
             }
 
             QuestPDF.Settings.License = LicenseType.Community;
@@ -978,8 +942,6 @@ namespace Tutorz.Infrastructure.Services
                 .Where(c => c.InstituteId == instituteId && !c.IsDeleted);
             if (tutorId.HasValue && tutorId.Value != Guid.Empty)
                 classQuery = classQuery.Where(c => c.TutorId == tutorId.Value);
-            if (classId.HasValue && classId.Value != Guid.Empty)
-                classQuery = classQuery.Where(c => c.ClassId == classId.Value);
 
             var classIds = await classQuery.Select(c => c.ClassId).ToListAsync();
 
@@ -1006,8 +968,6 @@ namespace Tutorz.Infrastructure.Services
             string scopeText = tutorId.HasValue
                 ? ((pendingPayments.First().Class?.Tutor?.FirstName ?? "") + " " + (pendingPayments.First().Class?.Tutor?.LastName ?? "")).Trim()
                 : "All Tutors";
-            if (classId.HasValue)
-                scopeText += $" - {pendingPayments.First().Class?.ClassName ?? pendingPayments.First().Class?.Subject}";
 
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
             bool hasLogo = File.Exists(logoPath);

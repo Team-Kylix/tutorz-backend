@@ -52,11 +52,11 @@ namespace Tutorz.Api.Controllers
             return institute?.InstituteId ?? Guid.Empty;
         }
 
-        // GET /api/withdrawal/tutor?instituteId=&classId=
+        // GET /api/withdrawal/tutor?instituteId=
         [HttpGet("tutor")]
         [Authorize(Roles = "Tutor")]
         [ApiPurpose("Get Tutor Withdrawals")]
-        public async Task<IActionResult> GetTutorWithdrawals([FromQuery] Guid? instituteId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> GetTutorWithdrawals([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -64,17 +64,17 @@ namespace Tutorz.Api.Controllers
             var tutorId = await GetTutorIdAsync(userId);
             if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
 
-            var result = await _withdrawalService.GetTutorWithdrawalsAsync(tutorId, instituteId, classId);
+            var result = await _withdrawalService.GetTutorWithdrawalsAsync(tutorId, instituteId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { data = result.Data });
         }
 
-        // GET /api/withdrawal/institute?tutorId=&classId=
+        // GET /api/withdrawal/institute?tutorId=
         [HttpGet("institute")]
         [Authorize(Roles = "Institute")]
         [ApiPurpose("Get Institute Withdrawals")]
-        public async Task<IActionResult> GetInstituteWithdrawals([FromQuery] Guid? tutorId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> GetInstituteWithdrawals([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -82,7 +82,7 @@ namespace Tutorz.Api.Controllers
             var instituteId = await GetInstituteIdAsync(userId);
             if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
 
-            var result = await _withdrawalService.GetInstituteWithdrawalsAsync(instituteId, tutorId, classId);
+            var result = await _withdrawalService.GetInstituteWithdrawalsAsync(instituteId, tutorId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { data = result.Data });
@@ -189,11 +189,11 @@ namespace Tutorz.Api.Controllers
             return File(pdfBytes, "application/pdf", $"Withdrawal_Receipt_{id}.pdf");
         }
 
-        // GET /api/withdrawal/overview?instituteId=&classId=
+        // GET /api/withdrawal/overview?instituteId=
         [HttpGet("overview")]
         [Authorize(Roles = "Tutor")]
         [ApiPurpose("Get Tutor Withdrawal Overview")]
-        public async Task<IActionResult> GetTutorOverview([FromQuery] Guid? instituteId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> GetTutorOverview([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -201,17 +201,17 @@ namespace Tutorz.Api.Controllers
             var tutorId = await GetTutorIdAsync(userId);
             if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
 
-            var result = await _withdrawalService.GetTutorWithdrawalOverviewAsync(tutorId, instituteId, classId);
+            var result = await _withdrawalService.GetTutorWithdrawalOverviewAsync(tutorId, instituteId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { data = result.Data });
         }
 
-        // GET /api/withdrawal/overview-institute?tutorId=&classId=
+        // GET /api/withdrawal/overview-institute?tutorId=
         [HttpGet("overview-institute")]
         [Authorize(Roles = "Institute")]
         [ApiPurpose("Get Institute Withdrawal Overview")]
-        public async Task<IActionResult> GetInstituteOverview([FromQuery] Guid? tutorId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> GetInstituteOverview([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -219,16 +219,16 @@ namespace Tutorz.Api.Controllers
             var instituteId = await GetInstituteIdAsync(userId);
             if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
 
-            var result = await _withdrawalService.GetInstituteWithdrawalOverviewAsync(instituteId, tutorId, classId);
+            var result = await _withdrawalService.GetInstituteWithdrawalOverviewAsync(instituteId, tutorId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { data = result.Data });
         }
-        // GET /api/withdrawal/overview-pdf?instituteId=&classId=
+        // GET /api/withdrawal/overview-pdf?instituteId=
         [HttpGet("overview-pdf")]
         [Authorize(Roles = "Tutor")]
         [ApiPurpose("Download Pending Earnings PDF")]
-        public async Task<IActionResult> DownloadTutorOverviewPdf([FromQuery] Guid? instituteId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> DownloadTutorOverviewPdf([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -236,7 +236,7 @@ namespace Tutorz.Api.Controllers
             var tutorId = await GetTutorIdAsync(userId);
             if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
 
-            var pdfBytes = await _withdrawalService.GeneratePendingEarningsPdfAsync(tutorId, instituteId, classId);
+            var pdfBytes = await _withdrawalService.GeneratePendingEarningsPdfAsync(tutorId, instituteId);
 
             if (pdfBytes == null || pdfBytes.Length == 0)
                 return NotFound(new { message = "No pending earnings found for the given selection." });
@@ -244,11 +244,11 @@ namespace Tutorz.Api.Controllers
             return File(pdfBytes, "application/pdf", $"Pending_Earnings_Report.pdf");
         }
 
-        // GET /api/withdrawal/overview-institute-pdf?tutorId=&classId=
+        // GET /api/withdrawal/overview-institute-pdf?tutorId=
         [HttpGet("overview-institute-pdf")]
         [Authorize(Roles = "Institute")]
         [ApiPurpose("Download Pending Payouts PDF")]
-        public async Task<IActionResult> DownloadInstituteOverviewPdf([FromQuery] Guid? tutorId, [FromQuery] Guid? classId)
+        public async Task<IActionResult> DownloadInstituteOverviewPdf([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
@@ -256,7 +256,7 @@ namespace Tutorz.Api.Controllers
             var instituteId = await GetInstituteIdAsync(userId);
             if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
 
-            var pdfBytes = await _withdrawalService.GenerateInstitutePendingEarningsPdfAsync(instituteId, tutorId, classId);
+            var pdfBytes = await _withdrawalService.GenerateInstitutePendingEarningsPdfAsync(instituteId, tutorId);
 
             if (pdfBytes == null || pdfBytes.Length == 0)
                 return NotFound(new { message = "No pending payouts found for the given selection." });
