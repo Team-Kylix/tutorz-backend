@@ -228,11 +228,11 @@ namespace Tutorz.Infrastructure.Services
                     var online  = g.Where(p => !string.IsNullOrEmpty(p.PayHerePaymentId) || p.PaymentMethod == "CARD" || p.PaymentMethod == "VISA").ToList();
                     var onhand  = g.Where(p =>  string.IsNullOrEmpty(p.PayHerePaymentId) && p.PaymentMethod != "CARD" && p.PaymentMethod != "VISA").ToList();
 
-                    decimal clsGross      = g.Sum(p => p.AmountPaid);
+                    decimal clsGross      = g.Sum(p => p.BaseFee ?? p.AmountPaid);
                     decimal clsCommission = g.Sum(p => p.InstituteAmount ?? 0);
                     decimal clsPending    = g.Sum(p => p.TuitionAmount  ?? 0);
-                    decimal onlineGross   = online.Sum(p => p.AmountPaid);
-                    decimal onhandGross   = onhand.Sum(p => p.AmountPaid);
+                    decimal onlineGross   = online.Sum(p => p.BaseFee ?? p.AmountPaid);
+                    decimal onhandGross   = onhand.Sum(p => p.BaseFee ?? p.AmountPaid);
                     decimal rate          = g.First().InstituteCommissionPercentage ?? 0;
 
                     return new { label, g = g.ToList(), online, onhand, clsGross, clsCommission, clsPending, onlineGross, onhandGross, rate };
@@ -340,15 +340,7 @@ namespace Tutorz.Infrastructure.Services
 
             if (withdrawal == null) return Array.Empty<byte>();
 
-            var payments = await _context.ClassPayments
-                .Include(p => p.Class)
-                .Include(p => p.Student)
-                .Where(p => p.Class.TutorId == withdrawal.TutorId 
-                         && p.InstituteId == withdrawal.InstituteId
-                         && p.PaidAt >= withdrawal.PeriodStart 
-                         && p.PaidAt <= withdrawal.PeriodEnd
-                         && (p.Status == "Paid" || p.Status == "PAID"))
-                .ToListAsync();
+
 
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
             bool hasLogo = File.Exists(logoPath);
@@ -415,15 +407,6 @@ namespace Tutorz.Infrastructure.Services
                                 c.Item().Text($"Payment Method: {withdrawal.PaymentMethod}");
                             });
                         });
-
-                        // Class-wise earnings table
-                        col.Item().PaddingTop(20).Text("CLASS-WISE EARNINGS SUMMARY").Bold();
-
-                        ClassTotals totals = default!;
-                        col.Item().PaddingTop(5).Element(e => { totals = RenderClassSummaryRows(e, payments); });
-                        decimal totalGross      = totals?.Gross ?? 0;
-                        decimal totalCommission = totals?.Commission ?? 0;
-                        decimal totalPending    = totals?.Pending ?? 0;
 
                         // Settlement summary table
                         col.Item().PaddingTop(20).Table(t =>
@@ -504,7 +487,7 @@ namespace Tutorz.Infrastructure.Services
 
             var classes = await classQuery.ToListAsync();
 
-            bool combineAll = !instituteId.HasValue;
+            bool combineAll = !instituteId.HasValue || instituteId.Value == Guid.Empty;
             var groups = combineAll
                 ? classes.GroupBy(c => (Guid?)null)
                 : classes.GroupBy(c => (Guid?)c.InstituteId!.Value);
@@ -614,10 +597,10 @@ namespace Tutorz.Infrastructure.Services
                 }
             }
 
-            // Return sorting: Pending first, then by date descending
+            // Return sorting: Pending first, then by name/date descending
             return ServiceResponse<IEnumerable<WithdrawalOverviewRowDto>>.SuccessResponse(
-                rows.OrderBy(r => r.InstituteName)
-                    .ThenByDescending(r => r.IsPendingRow)
+                rows.OrderByDescending(r => r.IsPendingRow)
+                    .ThenBy(r => r.InstituteName)
                     .ThenByDescending(r => r.WithdrawalAt ?? DateTime.MaxValue));
         }
 
@@ -635,7 +618,7 @@ namespace Tutorz.Infrastructure.Services
 
             var classes = await classQuery.ToListAsync();
 
-            bool combineAll = !tutorId.HasValue;
+            bool combineAll = !tutorId.HasValue || tutorId.Value == Guid.Empty;
             var groups = combineAll
                 ? classes.GroupBy(c => (Guid?)null)
                 : classes.GroupBy(c => (Guid?)c.TutorId);
@@ -752,10 +735,10 @@ namespace Tutorz.Infrastructure.Services
                 }
             }
 
-            // Return sorting: Pending first, then by date descending
+            // Return sorting: Pending first, then by name/date descending
             return ServiceResponse<IEnumerable<WithdrawalOverviewRowDto>>.SuccessResponse(
-                rows.OrderBy(r => r.TutorName)
-                    .ThenByDescending(r => r.IsPendingRow)
+                rows.OrderByDescending(r => r.IsPendingRow)
+                    .ThenBy(r => r.TutorName)
                     .ThenByDescending(r => r.WithdrawalAt ?? DateTime.MaxValue));
         }
         // â”€â”€â”€ 2. Tutor pending earnings overview PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -854,27 +837,7 @@ namespace Tutorz.Infrastructure.Services
                             });
                         });
 
-                        // Group by institute, then class-wise summary
-                        var byInstitute = pendingPayments
-                            .GroupBy(p => p.Class?.Institute?.InstituteName ?? "Unknown Institute")
-                            .OrderBy(g => g.Key)
-                            .ToList();
-
-                        decimal grandGross = 0, grandCommission = 0, grandPending = 0;
-
-                        foreach (var instGroup in byInstitute)
-                        {
-                            col.Item().PaddingTop(20).Text($"Institute: {instGroup.Key}").Bold();
-
-                            ClassTotals instTotals = default!;
-                            col.Item().PaddingTop(5).Element(e => { instTotals = RenderClassSummaryRows(e, instGroup); });
-                            decimal ig = instTotals?.Gross ?? 0;
-                            decimal ic = instTotals?.Commission ?? 0;
-                            decimal ip = instTotals?.Pending ?? 0;
-                            grandGross += ig; grandCommission += ic; grandPending += ip;
-                        }
-
-                        // Grand totals table
+                        // Just the available balance table
                         col.Item().PaddingTop(20).Table(t =>
                         {
                             t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.ConstantColumn(130); });
@@ -891,9 +854,8 @@ namespace Tutorz.Infrastructure.Services
                                 var r = t.Cell().AlignRight().PaddingVertical(2).Text(val); if (bold) r.Bold();
                             }
 
-                            GRow("Total Gross Collected (All Classes)", $"{grandGross:N2}");
-                            GRow("Total Institute Commission Deducted", $"- {grandCommission:N2}");
-                            GRow("Total Net Accrued (All Time)", $"{grandPending:N2}");
+                            GRow("Total Net Accrued (All Time)", $"{totalTuitionAllTime:N2}");
+                            GRow("Total Withdrawn (All Time)", $"- {totalWithdrawnAllTime:N2}");
 
                             t.Footer(f =>
                             {
@@ -965,6 +927,35 @@ namespace Tutorz.Infrastructure.Services
             // Filter payments to only include those after the last withdrawal period for each tutor
             var pendingPayments = allPayments;
 
+            var tutorBalances = new Dictionary<string, decimal>();
+            if (!tutorId.HasValue)
+            {
+                var tutorTuitions = allPayments.GroupBy(p => new { p.Class.TutorId, p.Class.Tutor.FirstName, p.Class.Tutor.LastName })
+                    .Select(g => new { 
+                        Name = $"{g.Key.FirstName} {g.Key.LastName}".Trim(), 
+                        Tuition = g.Sum(p => p.TuitionAmount ?? 0),
+                        TutorId = g.Key.TutorId
+                    }).ToList();
+
+                var tutorWithdrawals = await _context.Withdrawals
+                    .Where(w => w.InstituteId == instituteId)
+                    .GroupBy(w => w.TutorId)
+                    .Select(g => new { TutorId = g.Key, Withdrawn = g.Sum(w => w.WithdrawalAmount) })
+                    .ToListAsync();
+
+                foreach(var tt in tutorTuitions)
+                {
+                    var w = tutorWithdrawals.FirstOrDefault(w => w.TutorId == tt.TutorId)?.Withdrawn ?? 0;
+                    var bal = tt.Tuition - w;
+                    if (bal > 0)
+                    {
+                        // Use tutor name or ID as fallback
+                        string tName = string.IsNullOrWhiteSpace(tt.Name) ? "Unknown Tutor" : tt.Name;
+                        tutorBalances[tName] = bal;
+                    }
+                }
+            }
+
             string scopeText = tutorId.HasValue
                 ? ((pendingPayments.First().Class?.Tutor?.FirstName ?? "") + " " + (pendingPayments.First().Class?.Tutor?.LastName ?? "")).Trim()
                 : "All Tutors";
@@ -1019,27 +1010,7 @@ namespace Tutorz.Infrastructure.Services
                             });
                         });
 
-                        // Group by Tutor, then class-wise summary rows
-                        var byTutor = pendingPayments
-                            .GroupBy(p => new { TId = p.Class?.TutorId, Name = p.Class?.Tutor != null ? $"{p.Class.Tutor.FirstName} {p.Class.Tutor.LastName}".Trim() : "Unknown Tutor" })
-                            .OrderBy(g => g.Key.Name)
-                            .ToList();
-
-                        decimal grandGross = 0, grandCommission = 0, grandPending = 0;
-
-                        foreach (var tutGroup in byTutor)
-                        {
-                            col.Item().PaddingTop(20).Text($"Tutor: {tutGroup.Key.Name}").Bold();
-
-                            ClassTotals tutTotals = default!;
-                            col.Item().PaddingTop(5).Element(e => { tutTotals = RenderClassSummaryRows(e, tutGroup); });
-                            decimal tg = tutTotals?.Gross ?? 0;
-                            decimal tc = tutTotals?.Commission ?? 0;
-                            decimal tp = tutTotals?.Pending ?? 0;
-                                                        grandGross += tg; grandCommission += tc; grandPending += tp;
-                        }
-
-                        // Grand totals table
+                        // Just the available balance table
                         col.Item().PaddingTop(20).Table(t =>
                         {
                             t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.ConstantColumn(130); });
@@ -1056,9 +1027,17 @@ namespace Tutorz.Infrastructure.Services
                                 var r = t.Cell().AlignRight().PaddingVertical(2).Text(val); if (bold) r.Bold();
                             }
 
-                            GRow("Total Gross Collected (All Tutors & Classes)", $"{grandGross:N2}");
-                            GRow("Total Institute Commission Earned", $"{grandCommission:N2}");
-                            GRow("Total Tutor Net Accrued (All Time)", $"{grandPending:N2}");
+                            if (!tutorId.HasValue && tutorBalances.Any())
+                            {
+                                t.Cell().ColumnSpan(2).PaddingVertical(4).Text("TUTOR BALANCES").Bold().Underline();
+                                foreach (var tb in tutorBalances.OrderByDescending(x => x.Value))
+                                {
+                                    GRow($"   {tb.Key}", $"{tb.Value:N2}");
+                                }
+                                t.Cell().ColumnSpan(2).PaddingVertical(6).BorderBottom(1).BorderColor(Colors.Grey.Lighten2);
+                            }
+
+                            GRow("Total Net Accrued (All Time)", $"{totalTuitionAllTime:N2}");
 
                             t.Footer(f =>
                             {
@@ -1079,6 +1058,263 @@ namespace Tutorz.Infrastructure.Services
                         x.Span("Page ");
                         x.CurrentPageNumber();
                     });
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        // New Monthly Fees methods
+        public async Task<ServiceResponse<IEnumerable<MonthlyFeeRowDto>>> GetTutorMonthlyFeesAsync(Guid tutorId, Guid? instituteId)
+        {
+            var query = _context.ClassPayments
+                .AsNoTracking()
+                .Include(p => p.Class)
+                .ThenInclude(c => c.Institute)
+                .Where(p => p.Class.TutorId == tutorId && p.InstituteId != null && (p.Status == "Paid" || p.Status == "PAID"));
+
+            if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+                query = query.Where(p => p.InstituteId == instituteId.Value);
+
+            var payments = await query.ToListAsync();
+
+            var monthlyGroup = payments
+                .GroupBy(p => new { p.Year, p.Month, p.InstituteId, InstituteName = p.Class.Institute?.InstituteName ?? "Unknown" })
+                .Select(g => new MonthlyFeeRowDto
+                {
+                    Year = g.Key.Year,
+                    Month = g.Key.Month,
+                    Period = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                    GrossCollected = g.Sum(p => p.BaseFee ?? p.AmountPaid),
+                    CommissionDeducted = g.Sum(p => p.InstituteAmount ?? 0),
+                    NetEarnings = g.Sum(p => p.TuitionAmount ?? 0),
+                    TutorId = tutorId,
+                    InstituteId = g.Key.InstituteId,
+                    InstituteName = g.Key.InstituteName
+                })
+                .OrderByDescending(r => r.Year)
+                .ThenByDescending(r => r.Month)
+                .ToList();
+
+            return ServiceResponse<IEnumerable<MonthlyFeeRowDto>>.SuccessResponse(monthlyGroup);
+        }
+
+        public async Task<ServiceResponse<IEnumerable<MonthlyFeeRowDto>>> GetInstituteMonthlyFeesAsync(Guid instituteId, Guid? tutorId)
+        {
+            var query = _context.ClassPayments
+                .AsNoTracking()
+                .Include(p => p.Class)
+                .ThenInclude(c => c.Tutor)
+                .Where(p => p.InstituteId == instituteId && (p.Status == "Paid" || p.Status == "PAID"));
+
+            if (tutorId.HasValue && tutorId.Value != Guid.Empty)
+                query = query.Where(p => p.Class.TutorId == tutorId.Value);
+
+            var payments = await query.ToListAsync();
+
+            bool combineAll = !tutorId.HasValue || tutorId.Value == Guid.Empty;
+            List<MonthlyFeeRowDto> monthlyGroup;
+
+            if (combineAll)
+            {
+                monthlyGroup = payments
+                    .GroupBy(p => new { p.Year, p.Month })
+                    .Select(g => new MonthlyFeeRowDto
+                    {
+                        Year = g.Key.Year,
+                        Month = g.Key.Month,
+                        Period = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                        GrossCollected = g.Sum(p => p.BaseFee ?? p.AmountPaid),
+                        CommissionDeducted = g.Sum(p => p.InstituteAmount ?? 0),
+                        NetEarnings = g.Sum(p => p.TuitionAmount ?? 0),
+                        TutorId = null,
+                        TutorName = "All Tutors",
+                        InstituteId = instituteId
+                    })
+                    .OrderByDescending(r => r.Year)
+                    .ThenByDescending(r => r.Month)
+                    .ToList();
+            }
+            else
+            {
+                monthlyGroup = payments
+                    .GroupBy(p => new { p.Year, p.Month, TutorId = p.Class.TutorId, TutorName = p.Class.Tutor != null ? $"{p.Class.Tutor.FirstName} {p.Class.Tutor.LastName}".Trim() : "Unknown Tutor" })
+                    .Select(g => new MonthlyFeeRowDto
+                    {
+                        Year = g.Key.Year,
+                        Month = g.Key.Month,
+                        Period = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                        GrossCollected = g.Sum(p => p.BaseFee ?? p.AmountPaid),
+                        CommissionDeducted = g.Sum(p => p.InstituteAmount ?? 0),
+                        NetEarnings = g.Sum(p => p.TuitionAmount ?? 0),
+                        TutorId = g.Key.TutorId,
+                        TutorName = g.Key.TutorName,
+                        InstituteId = instituteId
+                    })
+                    .OrderByDescending(r => r.Year)
+                    .ThenByDescending(r => r.Month)
+                    .ToList();
+            }
+
+            return ServiceResponse<IEnumerable<MonthlyFeeRowDto>>.SuccessResponse(monthlyGroup);
+        }
+
+        public async Task<byte[]> GenerateMonthlyFeesPdfAsync(Guid tutorId, Guid? instituteId, int year, int month)
+        {
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var tutor = await _context.Tutors
+                .Include(t => t.User)
+                .FirstOrDefaultAsync(t => t.TutorId == tutorId);
+            if (tutor == null) return Array.Empty<byte>();
+
+            var query = _context.ClassPayments
+                .Include(p => p.Class).ThenInclude(c => c.Institute)
+                .Where(p => p.Class.TutorId == tutorId && p.InstituteId != null && p.Year == year && p.Month == month && (p.Status == "Paid" || p.Status == "PAID"));
+
+            if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+                query = query.Where(p => p.InstituteId == instituteId.Value);
+
+            var payments = await query.ToListAsync();
+            if (!payments.Any()) return Array.Empty<byte>();
+
+            string scopeText = instituteId.HasValue
+                ? (payments.First().Class?.Institute?.InstituteName ?? "Specific Institute")
+                : "All Institutes";
+
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            bool hasLogo = File.Exists(logoPath);
+            string periodStr = new DateTime(year, month, 1).ToString("MMMM yyyy");
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(50);
+                    page.Size(PageSizes.A4);
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                    page.Header().Row(row =>
+                    {
+                        row.RelativeItem().Column(col =>
+                        {
+                            if (hasLogo) col.Item().MaxHeight(44).Image(logoPath);
+                            else col.Item().Text("Tutorz.lk").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+                            col.Item().Text("Kylix Technology");
+                        });
+                        row.RelativeItem().AlignRight().Column(col =>
+                        {
+                            col.Item().Text("FEES REPORT").FontSize(20).Bold();
+                            col.Item().Text($"Date Generated: {DateTime.Now:dd MMM yyyy}");
+                        });
+                    });
+
+                    page.Content().PaddingVertical(25).Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("Issued To:").Bold();
+                                c.Item().Text($"{tutor.FirstName} {tutor.LastName}");
+                                c.Item().Text("Role: Tutor");
+                            });
+                            row.RelativeItem().AlignRight().Column(c =>
+                            {
+                                c.Item().Text("Fees Period:").Bold();
+                                c.Item().Text(periodStr);
+                                c.Item().Text("Scope/Filter:").Bold();
+                                c.Item().Text(scopeText);
+                            });
+                        });
+
+                        var byInstitute = payments.GroupBy(p => p.Class?.Institute?.InstituteName ?? "Unknown").OrderBy(g => g.Key).ToList();
+                        foreach (var instGroup in byInstitute)
+                        {
+                            col.Item().PaddingTop(20).Text($"Institute: {instGroup.Key}").Bold();
+                            col.Item().PaddingTop(5).Element(e => RenderClassSummaryRows(e, instGroup));
+                        }
+                    });
+
+                    page.Footer().AlignCenter().Text(x => { x.Span("Page "); x.CurrentPageNumber(); });
+                });
+            });
+
+            return document.GeneratePdf();
+        }
+
+        public async Task<byte[]> GenerateInstituteMonthlyFeesPdfAsync(Guid instituteId, Guid? tutorId, int year, int month)
+        {
+            if (tutorId.HasValue && tutorId.Value != Guid.Empty)
+                return await GenerateMonthlyFeesPdfAsync(tutorId.Value, instituteId, year, month);
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var institute = await _context.Institutes.FindAsync(instituteId);
+            if (institute == null) return Array.Empty<byte>();
+
+            var payments = await _context.ClassPayments
+                .Include(p => p.Class).ThenInclude(c => c.Tutor)
+                .Where(p => p.InstituteId == instituteId && p.Year == year && p.Month == month && (p.Status == "Paid" || p.Status == "PAID"))
+                .ToListAsync();
+
+            if (!payments.Any()) return Array.Empty<byte>();
+
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            bool hasLogo = File.Exists(logoPath);
+            string periodStr = new DateTime(year, month, 1).ToString("MMMM yyyy");
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(50);
+                    page.Size(PageSizes.A4);
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                    page.Header().Row(row =>
+                    {
+                        row.RelativeItem().Column(col =>
+                        {
+                            if (hasLogo) col.Item().MaxHeight(44).Image(logoPath);
+                            else col.Item().Text("Tutorz.lk").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+                            col.Item().Text("Kylix Technology");
+                        });
+                        row.RelativeItem().AlignRight().Column(col =>
+                        {
+                            col.Item().Text("FEES REPORT").FontSize(20).Bold();
+                            col.Item().Text($"Date Generated: {DateTime.Now:dd MMM yyyy}");
+                        });
+                    });
+
+                    page.Content().PaddingVertical(25).Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("Issued To:").Bold();
+                                c.Item().Text(institute.InstituteName);
+                                c.Item().Text("Role: Institute");
+                            });
+                            row.RelativeItem().AlignRight().Column(c =>
+                            {
+                                c.Item().Text("Fees Period:").Bold();
+                                c.Item().Text(periodStr);
+                                c.Item().Text("Scope/Filter:").Bold();
+                                c.Item().Text("All Tutors");
+                            });
+                        });
+
+                        var byTutor = payments.GroupBy(p => p.Class?.Tutor != null ? $"{p.Class.Tutor.FirstName} {p.Class.Tutor.LastName}".Trim() : "Unknown").OrderBy(g => g.Key).ToList();
+                        foreach (var tutGroup in byTutor)
+                        {
+                            col.Item().PaddingTop(20).Text($"Tutor: {tutGroup.Key}").Bold();
+                            col.Item().PaddingTop(5).Element(e => RenderClassSummaryRows(e, tutGroup));
+                        }
+                    });
+
+                    page.Footer().AlignCenter().Text(x => { x.Span("Page "); x.CurrentPageNumber(); });
                 });
             });
 

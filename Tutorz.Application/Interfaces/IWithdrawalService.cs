@@ -30,5 +30,10 @@ namespace Tutorz.Application.Interfaces
 
         Task<byte[]> GeneratePendingEarningsPdfAsync(Guid tutorId, Guid? instituteId);
         Task<byte[]> GenerateInstitutePendingEarningsPdfAsync(Guid instituteId, Guid? tutorId);
+
+        Task<ServiceResponse<IEnumerable<MonthlyFeeRowDto>>> GetTutorMonthlyFeesAsync(Guid tutorId, Guid? instituteId);
+        Task<ServiceResponse<IEnumerable<MonthlyFeeRowDto>>> GetInstituteMonthlyFeesAsync(Guid instituteId, Guid? tutorId);
+        Task<byte[]> GenerateMonthlyFeesPdfAsync(Guid tutorId, Guid? instituteId, int year, int month);
+        Task<byte[]> GenerateInstituteMonthlyFeesPdfAsync(Guid instituteId, Guid? tutorId, int year, int month);
     }
 }

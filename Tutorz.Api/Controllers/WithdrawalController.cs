@@ -263,5 +263,80 @@ namespace Tutorz.Api.Controllers
 
             return File(pdfBytes, "application/pdf", $"Pending_Payouts_Report.pdf");
         }
+        // GET /api/withdrawal/tutor/fees
+        [HttpGet("tutor/fees")]
+        [Authorize(Roles = "Tutor")]
+        [ApiPurpose("Get Tutor Monthly Fees")]
+        public async Task<IActionResult> GetTutorMonthlyFees([FromQuery] Guid? instituteId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var tutorId = await GetTutorIdAsync(userId);
+            if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
+
+            var result = await _withdrawalService.GetTutorMonthlyFeesAsync(tutorId, instituteId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { data = result.Data });
+        }
+
+        // GET /api/withdrawal/institute/fees
+        [HttpGet("institute/fees")]
+        [Authorize(Roles = "Institute")]
+        [ApiPurpose("Get Institute Monthly Fees")]
+        public async Task<IActionResult> GetInstituteMonthlyFees([FromQuery] Guid? tutorId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var instituteId = await GetInstituteIdAsync(userId);
+            if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
+
+            var result = await _withdrawalService.GetInstituteMonthlyFeesAsync(instituteId, tutorId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { data = result.Data });
+        }
+
+        // GET /api/withdrawal/tutor/fees/pdf
+        [HttpGet("tutor/fees/pdf")]
+        [Authorize(Roles = "Tutor")]
+        [ApiPurpose("Download Tutor Monthly Fees PDF")]
+        public async Task<IActionResult> DownloadTutorMonthlyFeesPdf([FromQuery] Guid? instituteId, [FromQuery] int year, [FromQuery] int month)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var tutorId = await GetTutorIdAsync(userId);
+            if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
+
+            var pdfBytes = await _withdrawalService.GenerateMonthlyFeesPdfAsync(tutorId, instituteId, year, month);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+                return NotFound(new { message = "No fees found for the given selection." });
+
+            return File(pdfBytes, "application/pdf", $"Fees_Report_{year}_{month}.pdf");
+        }
+
+        // GET /api/withdrawal/institute/fees/pdf
+        [HttpGet("institute/fees/pdf")]
+        [Authorize(Roles = "Institute")]
+        [ApiPurpose("Download Institute Monthly Fees PDF")]
+        public async Task<IActionResult> DownloadInstituteMonthlyFeesPdf([FromQuery] Guid? tutorId, [FromQuery] int year, [FromQuery] int month)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var instituteId = await GetInstituteIdAsync(userId);
+            if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
+
+            var pdfBytes = await _withdrawalService.GenerateInstituteMonthlyFeesPdfAsync(instituteId, tutorId, year, month);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+                return NotFound(new { message = "No fees found for the given selection." });
+
+            return File(pdfBytes, "application/pdf", $"Fees_Report_{year}_{month}.pdf");
+        }
     }
 }
