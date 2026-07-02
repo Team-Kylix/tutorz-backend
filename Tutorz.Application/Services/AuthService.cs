@@ -83,7 +83,11 @@ namespace Tutorz.Application.Services
         {
             if (string.IsNullOrEmpty(request.Password))
             {
-                request.Password = new Random().Next(100000, 999999).ToString();
+                // If registered via an Institute, generate a secure random password.
+                // If self-registered (no InstituteId), a 6-digit numeric OTP-style password is fine.
+                request.Password = request.InstituteId.HasValue
+                    ? GenerateSecurePassword()
+                    : new Random().Next(100000, 999999).ToString();
             }
             else if (request.Password.Length < 6 || request.Password.Length > 10)
             {
@@ -1090,6 +1094,23 @@ namespace Tutorz.Application.Services
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private string GenerateSecurePassword()
+        {
+            const string validChars = "1234567890";
+            var result = new StringBuilder(6);
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                byte[] uintBuffer = new byte[sizeof(uint)];
+                while (result.Length < 6)
+                {
+                    rng.GetBytes(uintBuffer);
+                    uint num = BitConverter.ToUInt32(uintBuffer, 0);
+                    result.Append(validChars[(int)(num % (uint)validChars.Length)]);
+                }
+            }
+            return result.ToString();
         }
 
         public async Task<bool> CheckEmailExistsAsync(string email)
