@@ -72,6 +72,19 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("dashboard-stats")]
+        [ApiPurpose("Get Tutor Dashboard Statistics")]
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetDashboardStatsAsync(userId);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
         [HttpPost("classes/add-student")]
         [ApiPurpose("Add Student to Class")]
         public async Task<IActionResult> AddStudent(AddStudentRequest request)

@@ -29,6 +29,8 @@ namespace Tutorz.Application.Services
         private readonly INotificationService _notificationService;
         private readonly IGenericRepository<MarkSheet> _markSheetRepo;
         private readonly IGenericRepository<MarkRecord> _markRecordRepo;
+        private readonly IGenericRepository<ClassPayment> _paymentRepo;
+        private readonly IGenericRepository<Withdrawal> _withdrawalRepo;
 
         public TutorService(
             ITutorRepository tutorRepo,
@@ -45,7 +47,9 @@ namespace Tutorz.Application.Services
             IGenericRepository<District> districtRepo,
             INotificationService notificationService,
             IGenericRepository<MarkSheet> markSheetRepo,
-            IGenericRepository<MarkRecord> markRecordRepo)
+            IGenericRepository<MarkRecord> markRecordRepo,
+            IGenericRepository<ClassPayment> paymentRepo,
+            IGenericRepository<Withdrawal> withdrawalRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
@@ -62,6 +66,8 @@ namespace Tutorz.Application.Services
             _notificationService = notificationService;
             _markSheetRepo = markSheetRepo;
             _markRecordRepo = markRecordRepo;
+            _paymentRepo = paymentRepo;
+            _withdrawalRepo = withdrawalRepo;
         }
 
         public async Task<ServiceResponse<ClassDto>> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -1134,6 +1140,55 @@ namespace Tutorz.Application.Services
             await _markSheetRepo.SaveChangesAsync();
 
             return new ServiceResponse<bool> { Success = true, Data = true };
+        }
+
+        public async Task<ServiceResponse<TutorDashboardStatsDto>> GetDashboardStatsAsync(Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return ServiceResponse<TutorDashboardStatsDto>.ErrorResponse("Tutor not found.");
+
+            // 1. Total Students
+            var enrollments = await _enrollmentRepo.GetAllAsync(e => e.Class.TutorId == tutor.TutorId && e.Status == Tutorz.Domain.Entities.EnrollmentStatus.Approved, includeProperties: "Class");
+            var totalStudents = enrollments.Select(e => e.StudentId).Distinct().Count();
+
+            // 2. Active Classes
+            var activeClasses = (await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId && c.IsActive)).Count();
+
+            var currentMonth = DateTime.UtcNow.Month;
+            var currentYear = DateTime.UtcNow.Year;
+
+            // 3. Monthly Income
+            // Using BaseFee or AmountPaid as fallback, though TuitionAmount is preferred. Wait, TuitionAmount is calculated.
+            var monthlyPayments = await _paymentRepo.GetAllAsync(p => p.Class.TutorId == tutor.TutorId 
+                && p.Month == currentMonth 
+                && p.Year == currentYear 
+                && (p.Status == "Paid" || p.Status == "PAID"), includeProperties: "Class");
+                
+            var monthlyIncome = monthlyPayments.Sum(p => p.TuitionAmount ?? p.AmountPaid);
+
+            // 4. Pending Withdrawals (Only for classes tied to an institute)
+            var institutePayments = await _paymentRepo.GetAllAsync(p => p.Class.TutorId == tutor.TutorId 
+                && p.InstituteId != null 
+                && (p.Status == "Paid" || p.Status == "PAID"), includeProperties: "Class");
+            var totalInstituteEarnings = institutePayments.Sum(p => p.TuitionAmount ?? p.AmountPaid);
+
+            var withdrawals = await _withdrawalRepo.GetAllAsync(w => w.TutorId == tutor.TutorId && w.InstituteId != null);
+            var totalWithdrawn = withdrawals.Sum(w => w.WithdrawalAmount);
+
+            var pendingWithdrawals = totalInstituteEarnings - totalWithdrawn;
+
+            return new ServiceResponse<TutorDashboardStatsDto>
+            {
+                Success = true,
+                Data = new TutorDashboardStatsDto
+                {
+                    TotalStudents = totalStudents,
+                    ActiveClasses = activeClasses,
+                    MonthlyIncome = monthlyIncome,
+                    PendingWithdrawals = pendingWithdrawals > 0 ? pendingWithdrawals : 0
+                }
+            };
         }
     }
 }
