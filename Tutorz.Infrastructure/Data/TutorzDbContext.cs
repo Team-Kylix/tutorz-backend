@@ -47,6 +47,8 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Admin> Admins { get; set; }
         public DbSet<Bill> Bills { get; set; }
         public DbSet<Withdrawal> Withdrawals { get; set; }
+        public DbSet<MarkSheet> MarkSheets { get; set; }
+        public DbSet<MarkRecord> MarkRecords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -314,6 +316,42 @@ namespace Tutorz.Infrastructure.Data
             modelBuilder.Entity<Withdrawal>()
                 .HasIndex(w => w.ReferenceId)
                 .IsUnique();
+
+            // MarkSheet Configuration
+            modelBuilder.Entity<MarkSheet>()
+                .HasOne(m => m.Tutor)
+                .WithMany()
+                .HasForeignKey(m => m.TutorId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<MarkSheet>()
+                .HasOne(m => m.Class)
+                .WithMany()
+                .HasForeignKey(m => m.ClassId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<MarkSheet>()
+                .HasOne(m => m.Institute)
+                .WithMany()
+                .HasForeignKey(m => m.InstituteId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<MarkSheet>()
+                .HasIndex(m => m.ReferenceNumber)
+                .IsUnique();
+
+            // MarkRecord Configuration
+            modelBuilder.Entity<MarkRecord>()
+                .HasOne(r => r.Student)
+                .WithMany()
+                .HasForeignKey(r => r.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<MarkRecord>()
+                .HasOne(r => r.MarkSheet)
+                .WithMany(m => m.MarkRecords)
+                .HasForeignKey(r => r.MarkSheetId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

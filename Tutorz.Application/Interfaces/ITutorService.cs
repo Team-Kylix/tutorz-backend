@@ -33,5 +33,12 @@ namespace Tutorz.Application.Interfaces
 
         // Attendance History (for Tutor's own classes)
         Task<ServiceResponse<AttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid userId, Guid? classId, Guid? instituteId, bool noInstitute, string? searchQuery, int page, int pageSize);
+        
+        // MarkSheets
+        Task<ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>>> GetMarkSheetsAsync(Guid userId, Guid? classId, Guid? instituteId);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> GetMarkSheetByIdAsync(Guid userId, Guid markSheetId);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> CreateMarkSheetAsync(Guid userId, Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto dto);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> UpdateMarkSheetAsync(Guid userId, Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto dto);
+        Task<ServiceResponse<bool>> DeleteMarkSheetAsync(Guid userId, Guid markSheetId);
     }
 }

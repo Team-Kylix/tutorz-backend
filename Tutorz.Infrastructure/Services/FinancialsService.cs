@@ -38,6 +38,7 @@ namespace Tutorz.Infrastructure.Services
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IBillService _billService;
+        private readonly IPaymentNotificationService _paymentNotificationService;
 
         // PayHere config — loaded from appsettings PayHere section
         private string PayHereBaseUrl => _config["PayHere:BaseUrl"] ?? "https://sandbox.payhere.lk";
@@ -54,14 +55,17 @@ namespace Tutorz.Infrastructure.Services
             IEncryptionService enc,
             IConfiguration config,
             IHttpClientFactory httpClientFactory,
-            IBillService billService)
+            IBillService billService,
+            IPaymentNotificationService paymentNotificationService)
         {
             _context = context;
             _enc = enc;
             _config = config;
             _httpClientFactory = httpClientFactory;
             _billService = billService;
+            _paymentNotificationService = paymentNotificationService;
         }
+
 
         // ─────────────────────────────────────────────
         //  BANK DETAILS
@@ -574,7 +578,7 @@ namespace Tutorz.Infrastructure.Services
                     await CalculateCommissionsAsync(classEntity, classEntity.Fee);
 
                 // 4. Record the payment with all commission fields populated
-                _context.ClassPayments.Add(new Tutorz.Domain.Entities.ClassPayment
+                var autoChargePayment = new Tutorz.Domain.Entities.ClassPayment
                 {
                     StudentId                    = studentId,
                     ClassId                      = request.ClassId,
@@ -594,7 +598,8 @@ namespace Tutorz.Infrastructure.Services
                     InstituteCommission          = instComm,
                     TutorCommission              = tutComm,
                     TotalPlatformAmount          = totalComm
-                });
+                };
+                _context.ClassPayments.Add(autoChargePayment);
                 await _context.SaveChangesAsync();
 
                 // 5. Fire real-time bill update
@@ -606,6 +611,9 @@ namespace Tutorz.Infrastructure.Services
                     await _billService.IncrementPlatformCommissionAsync(
                         Guid.Empty, classEntity.TutorId,
                         instComm, tutComm, request.Month, request.Year);
+
+                // 6. Send payment notifications asynchronously
+                _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(autoChargePayment.PaymentId));
 
                 return Ok<object>(new
                 {
@@ -837,6 +845,9 @@ namespace Tutorz.Infrastructure.Services
                         payment.Month,
                         payment.Year);
                 }
+
+                // Send payment notifications asynchronously
+                _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(payment.PaymentId));
 
                 return Ok(true, "Payment successful.");
             }

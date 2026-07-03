@@ -27,6 +27,8 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
         private readonly INotificationService _notificationService;
+        private readonly IGenericRepository<MarkSheet> _markSheetRepo;
+        private readonly IGenericRepository<MarkRecord> _markRecordRepo;
 
         public TutorService(
             ITutorRepository tutorRepo,
@@ -41,7 +43,9 @@ namespace Tutorz.Application.Services
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
             IGenericRepository<District> districtRepo,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IGenericRepository<MarkSheet> markSheetRepo,
+            IGenericRepository<MarkRecord> markRecordRepo)
         {
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
@@ -56,6 +60,8 @@ namespace Tutorz.Application.Services
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
             _notificationService = notificationService;
+            _markSheetRepo = markSheetRepo;
+            _markRecordRepo = markRecordRepo;
         }
 
         public async Task<ServiceResponse<ClassDto>> CreateClassAsync(Guid userId, CreateClassRequest request)
@@ -939,6 +945,195 @@ namespace Tutorz.Application.Services
             };
 
             return new ServiceResponse<AttendanceHistoryResponseDto> { Success = true, Data = responseDto };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>>> GetMarkSheetsAsync(Guid userId, Guid? classId, Guid? instituteId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> { Success = false, Message = "Tutor not found" };
+
+            var query = await _markSheetRepo.GetAllAsync(m => m.TutorId == tutor.TutorId && !m.IsDeleted, includeProperties: "Institute,Class");
+            
+            if (classId.HasValue) query = query.Where(m => m.ClassId == classId.Value);
+            if (instituteId.HasValue) query = query.Where(m => m.InstituteId == instituteId.Value);
+
+            var dtos = query.Select(m => new Tutorz.Application.DTOs.MarkSheet.MarkSheetDto
+            {
+                MarkSheetId = m.MarkSheetId,
+                ReferenceNumber = m.ReferenceNumber,
+                InstituteId = m.InstituteId,
+                InstituteName = m.Institute?.InstituteName,
+                ClassId = m.ClassId,
+                ClassName = m.Class?.ClassName,
+                Grade = m.Class?.Grade,
+                Subject = m.Class?.Subject,
+                Title = m.Title,
+                CreatedAt = m.CreatedAt,
+                UpdatedAt = m.UpdatedAt
+            }).OrderByDescending(m => m.CreatedAt).ToList();
+
+            return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> GetMarkSheetByIdAsync(Guid userId, Guid markSheetId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Tutor not found" };
+
+            var m = await _markSheetRepo.GetAsync(ms => ms.MarkSheetId == markSheetId && ms.TutorId == tutor.TutorId && !ms.IsDeleted, includeProperties: "Institute,Class,MarkRecords,MarkRecords.Student");
+            if (m == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Mark sheet not found" };
+
+            var dto = new Tutorz.Application.DTOs.MarkSheet.MarkSheetDto
+            {
+                MarkSheetId = m.MarkSheetId,
+                ReferenceNumber = m.ReferenceNumber,
+                InstituteId = m.InstituteId,
+                InstituteName = m.Institute?.InstituteName,
+                ClassId = m.ClassId,
+                ClassName = m.Class?.ClassName,
+                Grade = m.Class?.Grade,
+                Subject = m.Class?.Subject,
+                Title = m.Title,
+                CreatedAt = m.CreatedAt,
+                UpdatedAt = m.UpdatedAt,
+                MarkRecords = m.MarkRecords.Select(r => new Tutorz.Application.DTOs.MarkSheet.MarkRecordDto
+                {
+                    MarkRecordId = r.MarkRecordId,
+                    StudentId = r.StudentId,
+                    StudentName = r.Student != null ? $"{r.Student.FirstName} {r.Student.LastName}" : "",
+                    RegistrationNumber = r.Student?.RegistrationNumber,
+                    Marks = r.Marks,
+                    Medal = r.Medal.ToString()
+                }).ToList()
+            };
+
+            return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = true, Data = dto };
+        }
+
+        private void CalculateMedals(List<MarkRecord> records)
+        {
+            foreach(var r in records) r.Medal = MedalType.None;
+            
+            if (records.Count <= 3) return; // No medals if <= 3 students
+
+            var distinctMarks = records.Select(r => r.Marks).Distinct().OrderByDescending(m => m).ToList();
+            
+            if (distinctMarks.Count > 0)
+            {
+                var goldMark = distinctMarks[0];
+                foreach (var r in records.Where(x => x.Marks == goldMark)) r.Medal = MedalType.Gold;
+            }
+            if (distinctMarks.Count > 1)
+            {
+                var silverMark = distinctMarks[1];
+                foreach (var r in records.Where(x => x.Marks == silverMark)) r.Medal = MedalType.Silver;
+            }
+            if (distinctMarks.Count > 2)
+            {
+                var bronzeMark = distinctMarks[2];
+                foreach (var r in records.Where(x => x.Marks == bronzeMark)) r.Medal = MedalType.Bronze;
+            }
+        }
+
+        public async Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> CreateMarkSheetAsync(Guid userId, Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto dto)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Tutor not found" };
+
+            var cls = await _classRepo.GetAsync(c => c.ClassId == dto.ClassId && c.TutorId == tutor.TutorId);
+            if (cls == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Class not found or access denied" };
+
+            string refNo = "MS" + DateTime.UtcNow.ToString("yyMMddHHmmss");
+
+            var markSheet = new MarkSheet
+            {
+                MarkSheetId = Guid.NewGuid(),
+                ReferenceNumber = refNo,
+                TutorId = tutor.TutorId,
+                ClassId = dto.ClassId,
+                InstituteId = dto.InstituteId,
+                Title = dto.Title,
+                CreatedAt = DateTime.UtcNow,
+                MarkRecords = new List<MarkRecord>()
+            };
+
+            foreach (var m in dto.Marks)
+            {
+                markSheet.MarkRecords.Add(new MarkRecord
+                {
+                    MarkRecordId = Guid.NewGuid(),
+                    MarkSheetId = markSheet.MarkSheetId,
+                    StudentId = m.StudentId,
+                    Marks = m.Marks,
+                    Medal = MedalType.None
+                });
+            }
+
+            CalculateMedals(markSheet.MarkRecords.ToList());
+
+            await _markSheetRepo.AddAsync(markSheet);
+            await _markSheetRepo.SaveChangesAsync();
+
+            return await GetMarkSheetByIdAsync(userId, markSheet.MarkSheetId);
+        }
+
+        public async Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> UpdateMarkSheetAsync(Guid userId, Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto dto)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Tutor not found" };
+
+            var m = await _markSheetRepo.GetAsync(ms => ms.MarkSheetId == markSheetId && ms.TutorId == tutor.TutorId, includeProperties: "MarkRecords");
+            if (m == null) return new ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto> { Success = false, Message = "Mark sheet not found" };
+
+            m.Title = dto.Title;
+            m.UpdatedAt = DateTime.UtcNow;
+
+            var existingRecords = m.MarkRecords.ToList();
+            
+            foreach(var er in existingRecords)
+            {
+                var input = dto.Marks.FirstOrDefault(x => x.StudentId == er.StudentId);
+                if (input != null)
+                {
+                    er.Marks = input.Marks;
+                }
+            }
+
+            foreach(var input in dto.Marks)
+            {
+                if (!existingRecords.Any(x => x.StudentId == input.StudentId))
+                {
+                    m.MarkRecords.Add(new MarkRecord
+                    {
+                        MarkRecordId = Guid.NewGuid(),
+                        MarkSheetId = m.MarkSheetId,
+                        StudentId = input.StudentId,
+                        Marks = input.Marks,
+                        Medal = MedalType.None
+                    });
+                }
+            }
+
+            CalculateMedals(m.MarkRecords.ToList());
+
+            await _markSheetRepo.SaveChangesAsync();
+
+            return await GetMarkSheetByIdAsync(userId, m.MarkSheetId);
+        }
+
+        public async Task<ServiceResponse<bool>> DeleteMarkSheetAsync(Guid userId, Guid markSheetId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return new ServiceResponse<bool> { Success = false, Message = "Tutor not found" };
+
+            var m = await _markSheetRepo.GetAsync(ms => ms.MarkSheetId == markSheetId && ms.TutorId == tutor.TutorId && !ms.IsDeleted);
+            if (m == null) return new ServiceResponse<bool> { Success = false, Message = "Mark sheet not found" };
+
+            m.IsDeleted = true;
+            m.UpdatedAt = DateTime.UtcNow;
+            await _markSheetRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true };
         }
     }
 }

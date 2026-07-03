@@ -22,6 +22,7 @@ namespace Tutorz.Application.Services
         private readonly ITutorRepository _tutorRepo;
         private readonly IGenericRepository<Class> _classRepo;
         private readonly INotificationService _notificationService;
+        private readonly IGenericRepository<MarkRecord> _markRecordRepo;
 
         public StudentService(
             IStudentRepository studentRepo,
@@ -31,7 +32,8 @@ namespace Tutorz.Application.Services
             IGenericRepository<District> districtRepo,
             ITutorRepository tutorRepo,
             IGenericRepository<Class> classRepo,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IGenericRepository<MarkRecord> markRecordRepo)
         {
             _studentRepo = studentRepo;
             _userRepo = userRepo;
@@ -41,6 +43,7 @@ namespace Tutorz.Application.Services
             _tutorRepo = tutorRepo;
             _classRepo = classRepo;
             _notificationService = notificationService;
+            _markRecordRepo = markRecordRepo;
         }
 
         public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
@@ -415,6 +418,40 @@ namespace Tutorz.Application.Services
                 response.Message = "Error fetching all students: " + ex.Message;
             }
             return response;
+        }
+
+        public async Task<ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>>> GetStudentMarksAsync(Guid userId)
+        {
+            var student = await _studentRepo.GetAsync(s => s.UserId == userId);
+            if (student == null) return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>> { Success = false, Message = "Student not found" };
+
+            var records = await _markRecordRepo.GetAllAsync(r => r.StudentId == student.StudentId && !r.MarkSheet.IsDeleted, includeProperties: "MarkSheet,MarkSheet.Class");
+
+            var dtos = records.Select(r => new Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto
+            {
+                MarkRecordId = r.MarkRecordId,
+                MarkSheetId = r.MarkSheetId,
+                Title = r.MarkSheet?.Title,
+                ClassName = r.MarkSheet?.Class?.ClassName,
+                Subject = r.MarkSheet?.Class?.Subject,
+                ReferenceNumber = r.MarkSheet?.ReferenceNumber,
+                Marks = r.Marks,
+                Medal = r.Medal.ToString(),
+                Date = r.MarkSheet != null ? r.MarkSheet.CreatedAt : DateTime.MinValue
+            }).OrderByDescending(r => r.Date).ToList();
+
+            return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<int>> GetStudentMedalsCountAsync(Guid userId)
+        {
+            var student = await _studentRepo.GetAsync(s => s.UserId == userId);
+            if (student == null) return new ServiceResponse<int> { Success = false, Message = "Student not found", Data = 0 };
+
+            var records = await _markRecordRepo.GetAllAsync(r => r.StudentId == student.StudentId && !r.MarkSheet.IsDeleted, includeProperties: "MarkSheet");
+            int count = records.Count(r => r.Medal == Tutorz.Domain.Enums.MedalType.Gold || r.Medal == Tutorz.Domain.Enums.MedalType.Silver || r.Medal == Tutorz.Domain.Enums.MedalType.Bronze);
+
+            return new ServiceResponse<int> { Success = true, Data = count };
         }
     }
 }

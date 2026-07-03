@@ -15,11 +15,13 @@ namespace Tutorz.Infrastructure.Services
     {
         private readonly TutorzDbContext _context;
         private readonly IBillService _billService;
+        private readonly IPaymentNotificationService _paymentNotificationService;
 
-        public PaymentService(TutorzDbContext context, IBillService billService)
+        public PaymentService(TutorzDbContext context, IBillService billService, IPaymentNotificationService paymentNotificationService)
         {
             _context = context;
             _billService = billService;
+            _paymentNotificationService = paymentNotificationService;
         }
 
         /// <inheritdoc/>
@@ -196,6 +198,9 @@ namespace Tutorz.Infrastructure.Services
                 instituteId == Guid.Empty ? Guid.Empty : instituteId,
                 cls.TutorId, instituteCommission, tutorCommission,
                 request.Month, request.Year);
+
+            // 4. Send Notifications (Fire and forget)
+            _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(payment.PaymentId));
 
             var dto = new ClassPaymentDto
             {

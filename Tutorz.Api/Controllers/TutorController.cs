@@ -318,5 +318,64 @@ namespace Tutorz.Api.Controllers
             var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
             return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
         }
+
+        [HttpGet("marks")]
+        [ApiPurpose("Get Tutor Mark Sheets")]
+        public async Task<IActionResult> GetMarkSheets([FromQuery] Guid? classId, [FromQuery] Guid? instituteId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetMarkSheetsAsync(userId, classId, instituteId);
+            return Ok(result);
+        }
+
+        [HttpGet("marks/{markSheetId}")]
+        [ApiPurpose("Get Mark Sheet Details")]
+        public async Task<IActionResult> GetMarkSheetById(Guid markSheetId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetMarkSheetByIdAsync(userId, markSheetId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpPost("marks")]
+        [ApiPurpose("Create Mark Sheet")]
+        public async Task<IActionResult> CreateMarkSheet(Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.CreateMarkSheetAsync(userId, request);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpPut("marks/{markSheetId}")]
+        [ApiPurpose("Update Mark Sheet")]
+        public async Task<IActionResult> UpdateMarkSheet(Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.UpdateMarkSheetAsync(userId, markSheetId, request);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpDelete("marks/{markSheetId}")]
+        [ApiPurpose("Soft Delete Mark Sheet")]
+        public async Task<IActionResult> DeleteMarkSheet(Guid markSheetId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.DeleteMarkSheetAsync(userId, markSheetId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
     }
 }

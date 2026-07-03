@@ -98,6 +98,7 @@ builder.Services.AddHttpClient("PayHere", client =>
 // Notification Services
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPaymentNotificationService, Tutorz.Infrastructure.Services.PaymentNotificationService>();
 builder.Services.AddScoped<INotificationPusher, NotificationPusher>();
 
 // SignalR
