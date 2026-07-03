@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,6 +27,7 @@ namespace Tutorz.Infrastructure.Services
 
             var client = new SmtpClient(_config["EmailSettings:SmtpServer"], int.Parse(_config["EmailSettings:Port"]))
             {
+                UseDefaultCredentials = false,
                 Credentials = new NetworkCredential(_config["EmailSettings:Username"], password),
                 EnableSsl = true
             };

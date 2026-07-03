@@ -1,0 +1,25 @@
+dotnet publish Tutorz.Api/Tutorz.Api.csproj -c Release -o ./publish
+
+Add-Migration [Name]
+Creates a new migration script based on changes in your DbContext and entities.
+Example: Add-Migration InitialCreate
+
+Update-Database
+Applies any pending migrations to your SQL Server database.
+Example: Update-Database -TargetMigration "MigrationName" (to roll back or move to a specific version).
+
+Before build:
+  1. Increment APP_VERSION in src/config/version.js
+     e.g.  0.1.0-beta  →  0.2.0-beta
+
+Build & Deploy:
+  2. npm run build
+  3. Deploy frontend to Azure App Service
+
+Backend (only for major releases where you want ALL users re-logged in):
+  4. Run this SQL on the production database:
+     UPDATE AppSettings 
+     SET Value = CONVERT(varchar, GETUTCDATE(), 127), UpdatedAt = GETUTCDATE()
+     WHERE [Key] = 'MinTokenDate'
+
+Note: Step 4 (SQL update) is optional. Layers 1 and 2 alone handle 99% of cases without touching the backend. Only use Layer 3 for critical security releases.
