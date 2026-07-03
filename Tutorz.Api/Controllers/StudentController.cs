@@ -266,5 +266,37 @@ namespace Tutorz.Api.Controllers
             var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
             return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
         }
+
+        [HttpGet("marks")]
+        [ApiPurpose("Get Student Marks")]
+        public async Task<IActionResult> GetStudentMarks()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _studentService.GetStudentMarksAsync(userId);
+            return Ok(result);
+        }
+
+        [HttpGet("medals/count")]
+        [ApiPurpose("Get Student Medals Count")]
+        public async Task<IActionResult> GetStudentMedalsCount()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _studentService.GetStudentMedalsCountAsync(userId);
+            return Ok(result);
+        }
+
+        private Guid GetUserId()
+        {
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (Guid.TryParse(userIdString, out var userId))
+            {
+                return userId;
+            }
+            return Guid.Empty;
+        }
     }
 }

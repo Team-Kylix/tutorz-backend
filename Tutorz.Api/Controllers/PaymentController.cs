@@ -16,11 +16,13 @@ namespace Tutorz.Api.Controllers
     {
         private readonly IPaymentService _paymentService;
         private readonly IInstituteService _instituteService;
+        private readonly IStudentBillService _studentBillService;
 
-        public PaymentController(IPaymentService paymentService, IInstituteService instituteService)
+        public PaymentController(IPaymentService paymentService, IInstituteService instituteService, IStudentBillService studentBillService)
         {
             _paymentService = paymentService;
             _instituteService = instituteService;
+            _studentBillService = studentBillService;
         }
 
         /// <summary>
@@ -76,6 +78,37 @@ namespace Tutorz.Api.Controllers
             var result = await _paymentService.GetClassPaymentHistoryAsync(instituteId, tutorId, classId, searchQuery, page, pageSize);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
+        }
+
+        /// <summary>
+        /// GET /api/payment/{paymentId}/pdf
+        /// Downloads a class payment invoice PDF for the calling institute.
+        /// </summary>
+        [HttpGet("{paymentId}/pdf")]
+        [Authorize(Roles = "Institute,Admin,SuperAdmin")]
+        public async Task<IActionResult> DownloadPaymentPdf(Guid paymentId)
+        {
+            byte[]? pdfBytes = null;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (role == "Admin" || role == "SuperAdmin")
+            {
+                pdfBytes = await _studentBillService.GenerateClassPaymentPdfForSystemAsync(paymentId);
+            }
+            else
+            {
+                var instituteId = GetInstituteIdFromToken();
+                if (instituteId == Guid.Empty)
+                    return Unauthorized("Institute ID not found in token.");
+
+                pdfBytes = await _studentBillService.GenerateClassPaymentPdfForInstituteAsync(paymentId, instituteId);
+            }
+
+            if (pdfBytes == null)
+                return NotFound("Payment not found or access denied.");
+
+            var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
+            return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
         }
 
         // ── Helpers ──────────────────────────────────────────────────────

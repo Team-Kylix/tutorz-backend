@@ -20,6 +20,9 @@ namespace Tutorz.Application.Services
         private readonly IGenericRepository<City> _cityRepo;
         private readonly IGenericRepository<District> _districtRepo;
         private readonly ITutorRepository _tutorRepo;
+        private readonly IGenericRepository<Class> _classRepo;
+        private readonly INotificationService _notificationService;
+        private readonly IGenericRepository<MarkRecord> _markRecordRepo;
 
         public StudentService(
             IStudentRepository studentRepo,
@@ -27,7 +30,10 @@ namespace Tutorz.Application.Services
             IProfilePictureService profilePictureService,
             IGenericRepository<City> cityRepo,
             IGenericRepository<District> districtRepo,
-            ITutorRepository tutorRepo)
+            ITutorRepository tutorRepo,
+            IGenericRepository<Class> classRepo,
+            INotificationService notificationService,
+            IGenericRepository<MarkRecord> markRecordRepo)
         {
             _studentRepo = studentRepo;
             _userRepo = userRepo;
@@ -35,6 +41,9 @@ namespace Tutorz.Application.Services
             _cityRepo = cityRepo;
             _districtRepo = districtRepo;
             _tutorRepo = tutorRepo;
+            _classRepo = classRepo;
+            _notificationService = notificationService;
+            _markRecordRepo = markRecordRepo;
         }
 
         public async Task<ServiceResponse<PaginatedResultDto<ClassSearchDto>>> SearchClassesAsync(string? grade, string? searchTerm, Guid? studentId = null, int? provinceId = null, int? districtId = null, int? cityId = null, int page = 1, int pageSize = 10)
@@ -63,6 +72,27 @@ namespace Tutorz.Application.Services
 
                 if (result == "Success")
                 {
+                    // Fetch class and student to construct notification
+                    var targetClass = await _classRepo.GetAsync(c => c.ClassId == classId, includeProperties: "Tutor,Tutor.User,Institute,Institute.User");
+                    var student = await _studentRepo.GetAsync(s => s.StudentId == studentId);
+                    
+                    if (targetClass != null && student != null)
+                    {
+                        var title = "New Student Request";
+                        var message = $"{student.FirstName} {student.LastName} has requested to join your class: {targetClass.ClassName}.";
+                        
+                        // Notify Tutor if class belongs to a tutor
+                        if (targetClass.Tutor != null && targetClass.Tutor.UserId != Guid.Empty)
+                        {
+                            await _notificationService.CreateAndPushAsync(targetClass.Tutor.UserId, title, message, "request_received", targetClass.ClassId);
+                        }
+                        // Or notify Institute if class belongs to an institute directly
+                        else if (targetClass.Institute != null && targetClass.Institute.UserId != Guid.Empty)
+                        {
+                            await _notificationService.CreateAndPushAsync(targetClass.Institute.UserId, title, message, "request_received", targetClass.ClassId);
+                        }
+                    }
+
                     response.Success = true;
                     response.Data = "Request Sent";
                     response.Message = "Request to join class sent successfully.";
@@ -388,6 +418,40 @@ namespace Tutorz.Application.Services
                 response.Message = "Error fetching all students: " + ex.Message;
             }
             return response;
+        }
+
+        public async Task<ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>>> GetStudentMarksAsync(Guid userId)
+        {
+            var student = await _studentRepo.GetAsync(s => s.UserId == userId);
+            if (student == null) return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>> { Success = false, Message = "Student not found" };
+
+            var records = await _markRecordRepo.GetAllAsync(r => r.StudentId == student.StudentId && !r.MarkSheet.IsDeleted, includeProperties: "MarkSheet,MarkSheet.Class");
+
+            var dtos = records.Select(r => new Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto
+            {
+                MarkRecordId = r.MarkRecordId,
+                MarkSheetId = r.MarkSheetId,
+                Title = r.MarkSheet?.Title,
+                ClassName = r.MarkSheet?.Class?.ClassName,
+                Subject = r.MarkSheet?.Class?.Subject,
+                ReferenceNumber = r.MarkSheet?.ReferenceNumber,
+                Marks = r.Marks,
+                Medal = r.Medal.ToString(),
+                Date = r.MarkSheet != null ? r.MarkSheet.CreatedAt : DateTime.MinValue
+            }).OrderByDescending(r => r.Date).ToList();
+
+            return new ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.StudentMarkRecordResponseDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<int>> GetStudentMedalsCountAsync(Guid userId)
+        {
+            var student = await _studentRepo.GetAsync(s => s.UserId == userId);
+            if (student == null) return new ServiceResponse<int> { Success = false, Message = "Student not found", Data = 0 };
+
+            var records = await _markRecordRepo.GetAllAsync(r => r.StudentId == student.StudentId && !r.MarkSheet.IsDeleted, includeProperties: "MarkSheet");
+            int count = records.Count(r => r.Medal == Tutorz.Domain.Enums.MedalType.Gold || r.Medal == Tutorz.Domain.Enums.MedalType.Silver || r.Medal == Tutorz.Domain.Enums.MedalType.Bronze);
+
+            return new ServiceResponse<int> { Success = true, Data = count };
         }
     }
 }

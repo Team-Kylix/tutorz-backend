@@ -232,6 +232,18 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("tutors/search-exact")]
+        [ApiPurpose("Search Institute Tutors Exact")]
+        public async Task<IActionResult> SearchTutorsExact([FromQuery] string query)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.SearchTutorExactAsync(instituteId, query);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data); // Return single profile instead of list
+        }
+
         // --- GET ASSIGNED ---
 
         [HttpPost("classes")]

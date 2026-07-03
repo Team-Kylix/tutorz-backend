@@ -15,10 +15,16 @@ namespace Tutorz.Api.Controllers
     public class TutorController : ControllerBase
     {
         private readonly ITutorService _tutorService;
+        private readonly IPaymentService _paymentService;
+        private readonly ITutorRepository _tutorRepo;
+        private readonly IStudentBillService _studentBillService;
 
-        public TutorController(ITutorService tutorService)
+        public TutorController(ITutorService tutorService, IPaymentService paymentService, ITutorRepository tutorRepo, IStudentBillService studentBillService)
         {
             _tutorService = tutorService;
+            _paymentService = paymentService;
+            _tutorRepo = tutorRepo;
+            _studentBillService = studentBillService;
         }
 
         private Guid GetUserId()
@@ -37,6 +43,8 @@ namespace Tutorz.Api.Controllers
             if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _tutorService.CreateClassAsync(userId, request);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
             return Ok(result);
         }
 
@@ -48,6 +56,8 @@ namespace Tutorz.Api.Controllers
             if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _tutorService.UpdateClassAsync(id, userId, request);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
             return Ok(result);
         }
 
@@ -62,6 +72,19 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("dashboard-stats")]
+        [ApiPurpose("Get Tutor Dashboard Statistics")]
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetDashboardStatsAsync(userId);
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
         [HttpPost("classes/add-student")]
         [ApiPurpose("Add Student to Class")]
         public async Task<IActionResult> AddStudent(AddStudentRequest request)
@@ -69,8 +92,15 @@ namespace Tutorz.Api.Controllers
             var userId = GetUserId();
             if (userId == Guid.Empty) return Unauthorized();
 
-            await _tutorService.AddStudentToClassAsync(userId, request);
-            return Ok(new { message = "Student added successfully" });
+            try
+            {
+                await _tutorService.AddStudentToClassAsync(userId, request);
+                return Ok(new { message = "Student added successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete("classes/{id}")]
@@ -226,6 +256,139 @@ namespace Tutorz.Api.Controllers
             
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
+        }
+
+        [HttpGet("institutes/search-exact")]
+        [ApiPurpose("Search Institute Exact")]
+        public async Task<IActionResult> SearchInstitutesExact([FromQuery] string query)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.SearchInstituteExactAsync(userId, query);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data); // Return single profile instead of list
+        }
+
+        [HttpGet("attendance/history")]
+        [ApiPurpose("Get Tutor Attendance History")]
+        public async Task<IActionResult> GetAttendanceHistory(
+            [FromQuery] Guid? classId,
+            [FromQuery] Guid? instituteId,
+            [FromQuery] bool noInstitute = false,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetAttendanceHistoryAsync(userId, classId, instituteId, noInstitute, searchQuery, page, pageSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("payments/history")]
+        [ApiPurpose("Get Tutor Payment History")]
+        public async Task<IActionResult> GetPaymentHistory(
+            [FromQuery] Guid? instituteId,
+            [FromQuery] bool noInstitute = false,
+            [FromQuery] Guid? classId = null,
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            // Resolve the tutor entity to get the internal TutorId
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return NotFound(new { message = "Tutor profile not found." });
+
+            var result = await _paymentService.GetTutorPaymentHistoryAsync(
+                tutor.TutorId, instituteId, noInstitute, classId, searchQuery, page, pageSize);
+
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("payments/{paymentId}/pdf")]
+        [ApiPurpose("Download Tutor Class Payment PDF")]
+        public async Task<IActionResult> DownloadPaymentPdf(Guid paymentId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null) return NotFound(new { message = "Tutor profile not found." });
+
+            var pdfBytes = await _studentBillService.GenerateClassPaymentPdfForTutorAsync(paymentId, tutor.TutorId);
+
+            if (pdfBytes == null)
+                return NotFound("Payment not found or access denied.");
+
+            var reference = $"ClassFee_{paymentId.ToString()[..8].ToUpper()}";
+            return File(pdfBytes, "application/pdf", $"Tutorz_{reference}.pdf");
+        }
+
+        [HttpGet("marks")]
+        [ApiPurpose("Get Tutor Mark Sheets")]
+        public async Task<IActionResult> GetMarkSheets([FromQuery] Guid? classId, [FromQuery] Guid? instituteId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetMarkSheetsAsync(userId, classId, instituteId);
+            return Ok(result);
+        }
+
+        [HttpGet("marks/{markSheetId}")]
+        [ApiPurpose("Get Mark Sheet Details")]
+        public async Task<IActionResult> GetMarkSheetById(Guid markSheetId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetMarkSheetByIdAsync(userId, markSheetId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpPost("marks")]
+        [ApiPurpose("Create Mark Sheet")]
+        public async Task<IActionResult> CreateMarkSheet(Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.CreateMarkSheetAsync(userId, request);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpPut("marks/{markSheetId}")]
+        [ApiPurpose("Update Mark Sheet")]
+        public async Task<IActionResult> UpdateMarkSheet(Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto request)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.UpdateMarkSheetAsync(userId, markSheetId, request);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpDelete("marks/{markSheetId}")]
+        [ApiPurpose("Soft Delete Mark Sheet")]
+        public async Task<IActionResult> DeleteMarkSheet(Guid markSheetId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.DeleteMarkSheetAsync(userId, markSheetId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
         }
     }
 }

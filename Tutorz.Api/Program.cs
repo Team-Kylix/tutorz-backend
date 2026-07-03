@@ -79,12 +79,15 @@ builder.Services.AddScoped<IPaymentService, Tutorz.Infrastructure.Services.Payme
 builder.Services.AddScoped<IProfilePictureService, Tutorz.Infrastructure.Services.ProfilePictureService>();
 builder.Services.AddScoped<IEncryptionService, Tutorz.Infrastructure.Services.EncryptionService>();
 builder.Services.AddScoped<IFinancialsService, Tutorz.Infrastructure.Services.FinancialsService>();
+builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
+builder.Services.AddScoped<IWithdrawalService, WithdrawalService>();
 
 // Dispute / Ticketing System
 builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
 builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
 builder.Services.AddScoped<IBillService, BillService>();
 builder.Services.AddScoped<IStudentBillService, StudentBillService>();
+builder.Services.AddScoped<IReportService, Tutorz.Infrastructure.Services.ReportService>();
 
 // Named HTTP client for PayHere API calls (Charging API, OAuth)
 builder.Services.AddHttpClient("PayHere", client =>
@@ -95,6 +98,7 @@ builder.Services.AddHttpClient("PayHere", client =>
 // Notification Services
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPaymentNotificationService, Tutorz.Infrastructure.Services.PaymentNotificationService>();
 builder.Services.AddScoped<INotificationPusher, NotificationPusher>();
 
 // SignalR

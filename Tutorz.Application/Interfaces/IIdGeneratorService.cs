@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,5 +15,6 @@ namespace Tutorz.Application.Interfaces
         /// <param name="gradeOrClass">Only required for Students (e.g., "Grade 10")</param>
         /// <returns>Formatted ID (e.g., STU256800084)</returns>
         Task<string> GenerateNextIdAsync(string roleName, string? gradeOrClass = null);
+        Task<string> GenerateWithdrawalReferenceAsync();
     }
 }

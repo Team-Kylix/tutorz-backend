@@ -478,6 +478,32 @@ namespace Tutorz.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task AddEnrollmentAsync(Enrollment enrollment)
+        {
+            var db = _context as TutorzDbContext;
+            db.Enrollments.Add(enrollment);
+            await Task.CompletedTask;
+        }
+
+        public async Task<Student?> GetStudentByPhoneOrRegNoAsync(string registrationNumber, string? normalizedPhone)
+        {
+            var db = _context as TutorzDbContext;
+
+            var query = db.Students
+                .Include(s => s.User)
+                .Where(s => s.RegistrationNumber == registrationNumber);
+
+            if (!string.IsNullOrEmpty(normalizedPhone))
+            {
+                query = db.Students
+                    .Include(s => s.User)
+                    .Where(s => s.RegistrationNumber == registrationNumber
+                             || s.User.PhoneNumber == normalizedPhone);
+            }
+
+            return await query.FirstOrDefaultAsync();
+        }
+
         public async Task<PaginatedResultDto<StudentProfileDto>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize)
         {
             var db = _context as TutorzDbContext;

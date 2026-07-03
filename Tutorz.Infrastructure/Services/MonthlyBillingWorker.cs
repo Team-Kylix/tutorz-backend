@@ -54,14 +54,23 @@ namespace Tutorz.Infrastructure.Services
                         // Wait for an hour to avoid multiple triggers in the same hour window
                         await Task.Delay(TimeSpan.FromHours(1.1), stoppingToken);
                     }
+
+                    // Check every 30 minutes
+                    await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected on graceful shutdown — exit cleanly
+                    break;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error occurred in Monthly Billing Worker.");
-                }
 
-                // Check every 30 minutes
-                await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
+                    // Back off briefly before retrying after an unexpected error
+                    try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); }
+                    catch (OperationCanceledException) { break; }
+                }
             }
 
             _logger.LogInformation("Monthly Billing Worker stopped.");

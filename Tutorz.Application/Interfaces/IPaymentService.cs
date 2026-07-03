@@ -27,5 +27,18 @@ namespace Tutorz.Application.Interfaces
         /// </summary>
         Task<ServiceResponse<FinancialHistoryResponseDto>> GetClassPaymentHistoryAsync(
             Guid instituteId, Guid? tutorId, Guid? classId, string? searchQuery = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Gets the payment history for a tutor's own classes, optionally filtered by
+        /// instituteId (null = all, Guid.Empty = own-place/no-institute) and classId.
+        /// </summary>
+        Task<ServiceResponse<FinancialHistoryResponseDto>> GetTutorPaymentHistoryAsync(
+            Guid tutorId, Guid? instituteId, bool noInstitute, Guid? classId, string? searchQuery = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Gets all system payment history for Admins, optionally filtered by institute, tutor, or class.
+        /// </summary>
+        Task<ServiceResponse<FinancialHistoryResponseDto>> GetAllSystemPaymentHistoryAsync(
+            Guid? instituteId, Guid? tutorId, Guid? classId, string? searchQuery = null, int page = 1, int pageSize = 10);
     }
 }

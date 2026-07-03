@@ -9,9 +9,10 @@ namespace Tutorz.Application.Interfaces
 {
     public interface ITutorService
     {
-        Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequest request);
-        Task<ClassDto> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request);
+        Task<ServiceResponse<ClassDto>> CreateClassAsync(Guid userId, CreateClassRequest request);
+        Task<ServiceResponse<ClassDto>> UpdateClassAsync(Guid classId, Guid userId, CreateClassRequest request);
         Task<List<ClassDto>> GetClassesAsync(Guid userId);
+        Task<ServiceResponse<TutorDashboardStatsDto>> GetDashboardStatsAsync(Guid userId);
         Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request);
         Task DeleteClassAsync(Guid classId, Guid userId);
         Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId);
@@ -28,6 +29,17 @@ namespace Tutorz.Application.Interfaces
         // Joined Institutes
         Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid tutorId, string query);
+        Task<ServiceResponse<SearchUserResultDto>> SearchInstituteExactAsync(Guid tutorId, string query);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize);
+
+        // Attendance History (for Tutor's own classes)
+        Task<ServiceResponse<AttendanceHistoryResponseDto>> GetAttendanceHistoryAsync(Guid userId, Guid? classId, Guid? instituteId, bool noInstitute, string? searchQuery, int page, int pageSize);
+        
+        // MarkSheets
+        Task<ServiceResponse<IEnumerable<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>>> GetMarkSheetsAsync(Guid userId, Guid? classId, Guid? instituteId);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> GetMarkSheetByIdAsync(Guid userId, Guid markSheetId);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> CreateMarkSheetAsync(Guid userId, Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto dto);
+        Task<ServiceResponse<Tutorz.Application.DTOs.MarkSheet.MarkSheetDto>> UpdateMarkSheetAsync(Guid userId, Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto dto);
+        Task<ServiceResponse<bool>> DeleteMarkSheetAsync(Guid userId, Guid markSheetId);
     }
 }

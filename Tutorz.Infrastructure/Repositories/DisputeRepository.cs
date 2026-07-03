@@ -19,8 +19,8 @@ namespace Tutorz.Infrastructure.Repositories
 
         public async Task<string> GenerateDisputeNumberAsync()
         {
-            int nextId = await _context.Disputes.AnyAsync()
-                ? (await _context.Disputes.MaxAsync(d => d.Id)) + 1
+            int nextId = await _context.Disputes.IgnoreQueryFilters().AnyAsync()
+                ? (await _context.Disputes.IgnoreQueryFilters().MaxAsync(d => d.Id)) + 1
                 : 1;
             return $"CMP-{nextId:D5}";
         }

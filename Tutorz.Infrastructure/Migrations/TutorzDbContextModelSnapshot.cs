@@ -550,6 +550,9 @@ namespace Tutorz.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("RaisedByUserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -830,6 +833,81 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasIndex("TutorId");
 
                     b.ToTable("InstituteTutors");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.MarkRecord", b =>
+                {
+                    b.Property<Guid>("MarkRecordId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MarkSheetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Marks")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Medal")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("MarkRecordId");
+
+                    b.HasIndex("MarkSheetId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("MarkRecords");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.MarkSheet", b =>
+                {
+                    b.Property<Guid>("MarkSheetId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClassId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TutorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MarkSheetId");
+
+                    b.HasIndex("ClassId");
+
+                    b.HasIndex("InstituteId");
+
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TutorId");
+
+                    b.ToTable("MarkSheets");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
@@ -1191,6 +1269,64 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("UserSequences");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Withdrawal", b =>
+                {
+                    b.Property<Guid>("WithdrawalId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ClassId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("InstituteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("PayoutCommission")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReferenceId")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<decimal>("RemainingBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("TutorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("WithdrawalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("WithdrawalAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WithdrawalId");
+
+                    b.HasIndex("InstituteId");
+
+                    b.HasIndex("ReferenceId")
+                        .IsUnique();
+
+                    b.HasIndex("TutorId");
+
+                    b.ToTable("Withdrawals");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.APIMonthlyUsageSummary", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
@@ -1470,6 +1606,51 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Tutor");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.MarkRecord", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.MarkSheet", "MarkSheet")
+                        .WithMany("MarkRecords")
+                        .HasForeignKey("MarkSheetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("MarkSheet");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.MarkSheet", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Class", "Class")
+                        .WithMany()
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
+                        .WithMany()
+                        .HasForeignKey("TutorId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Tutor");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.User", "User")
@@ -1522,6 +1703,25 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("City");
                 });
 
+            modelBuilder.Entity("Tutorz.Domain.Entities.Withdrawal", b =>
+                {
+                    b.HasOne("Tutorz.Domain.Entities.Institute", "Institute")
+                        .WithMany()
+                        .HasForeignKey("InstituteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
+                        .WithMany()
+                        .HasForeignKey("TutorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Institute");
+
+                    b.Navigation("Tutor");
+                });
+
             modelBuilder.Entity("Tutorz.Domain.Entities.Bank", b =>
                 {
                     b.Navigation("Branches");
@@ -1542,6 +1742,11 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("InstituteStudents");
 
                     b.Navigation("InstituteTutors");
+                });
+
+            modelBuilder.Entity("Tutorz.Domain.Entities.MarkSheet", b =>
+                {
+                    b.Navigation("MarkRecords");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Province", b =>

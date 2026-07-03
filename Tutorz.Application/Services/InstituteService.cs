@@ -208,7 +208,7 @@ namespace Tutorz.Application.Services
         {
             var requests = await _joinRequestRepository.GetAllAsync(
                 r => r.InstituteId == instituteId && r.Status == AssignmentStatus.Pending && r.InitiatedBy == RequestInitiator.User && r.TutorId != null,
-                includeProperties: "Tutor"
+                includeProperties: "Tutor,Tutor.User"
             );
 
             var dtos = requests.Select(r => new JoinRequestDto
@@ -217,6 +217,8 @@ namespace Tutorz.Application.Services
                 InstituteId = r.InstituteId,
                 TutorId = r.TutorId,
                 TutorName = r.Tutor != null ? $"{r.Tutor.FirstName} {r.Tutor.LastName}" : null,
+                TutorRegNumber = r.Tutor != null ? r.Tutor.RegistrationNumber : null,
+                TutorPhoneNumber = r.Tutor != null && r.Tutor.User != null ? r.Tutor.User.PhoneNumber : null,
                 Status = r.Status.ToString(),
                 InitiatedBy = r.InitiatedBy.ToString(),
                 RequestedAt = r.RequestedAt
@@ -405,6 +407,61 @@ namespace Tutorz.Application.Services
             }
 
             return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = results };
+        }
+
+        public async Task<ServiceResponse<SearchUserResultDto>> SearchTutorExactAsync(Guid instituteId, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Search query is empty." };
+
+            query = query.ToLower().Trim();
+
+            // Normalize phone for exact matching
+            string cleanPhone = query.Replace(" ", "").Replace("-", "");
+            string exactPhone = cleanPhone;
+            if (cleanPhone.StartsWith("0")) exactPhone = "+94" + cleanPhone.Substring(1);
+            else if (!cleanPhone.StartsWith("+") && cleanPhone.Length == 9) exactPhone = "+94" + cleanPhone;
+
+            try
+            {
+                var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId);
+                if (institute == null) return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Institute not found." };
+
+                var tutors = await _tutorRepository.GetAllAsync(
+                    t => t.IsActive && (t.RegistrationNumber.ToLower() == query || (t.User != null && t.User.PhoneNumber == exactPhone)),
+                    includeProperties: "User,User.City"
+                );
+
+                var tutor = tutors.FirstOrDefault();
+
+                if (tutor == null)
+                    return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "No active tutor found with the exact Reg No or Mobile Number." };
+
+                var existingAssignment = await _instituteTutorRepository.GetAsync(
+                    it => it.InstituteId == institute.InstituteId && it.TutorId == tutor.TutorId);
+
+                var pendingRequest = await _joinRequestRepository.GetAsync(
+                    r => r.InstituteId == institute.InstituteId && r.TutorId == tutor.TutorId && r.Status == AssignmentStatus.Pending);
+
+                var result = new SearchUserResultDto
+                {
+                    UserId = tutor.UserId,
+                    RoleSpecificId = tutor.TutorId,
+                    RegistrationNumber = tutor.RegistrationNumber,
+                    Name = $"{tutor.FirstName} {tutor.LastName}",
+                    PhoneNumber = tutor.User?.PhoneNumber,
+                    Email = tutor.User?.Email,
+                    ProfileImageUrlSmall = tutor.ProfileImageUrlSmall,
+                    ProfileImageUrlLarge = tutor.ProfileImageUrlLarge,
+                    IsAlreadyAssigned = existingAssignment != null || pendingRequest != null
+                };
+
+                return new ServiceResponse<SearchUserResultDto> { Success = true, Data = result };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponse<SearchUserResultDto> { Success = false, Message = "Error searching tutor: " + ex.Message };
+            }
         }
 
         public async Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetAssignedStudentsAsync(Guid instituteId, string searchQuery = "", int page = 1, int pageSize = 10)
@@ -1155,6 +1212,11 @@ namespace Tutorz.Application.Services
             var enrollments = await _enrollmentRepository.GetAllAsync(e => classIds.Contains(e.ClassId) && e.Status == EnrollmentStatus.Approved, includeProperties: "Student");
             var distinctStudents = enrollments.Select(e => e.Student).GroupBy(s => s.StudentId).Select(g => g.First()).ToList();
 
+            // Build a lookup: studentId -> set of classIds they are enrolled in
+            var studentToClassIds = enrollments
+                .GroupBy(e => e.StudentId)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ClassId).ToHashSet());
+
             // Fetch User details for students (for email/phone search)
             var userIds = distinctStudents.Select(s => s.UserId).Distinct().ToList();
             var allUsersQuery = await _userRepository.GetAllAsync();
@@ -1214,13 +1276,23 @@ namespace Tutorz.Application.Services
                     attendanceRecord[date] = record != null && record.IsPresent;
                 }
 
+                // Per-student conducted dates: only dates when THIS student's class(es) ran
+                var myClassIds = studentToClassIds.GetValueOrDefault(student.StudentId, new HashSet<Guid>());
+                var myClassConductedDates = attendancesList
+                    .Where(a => myClassIds.Contains(a.ClassId))
+                    .Select(a => a.Date.Date)
+                    .Distinct()
+                    .OrderBy(d => d)
+                    .ToList();
+
                 rowDtos.Add(new StudentAttendanceRowDto
                 {
                     StudentId = student.StudentId,
                     Name = $"{student.FirstName} {student.LastName}".Trim(),
                     RegistrationNumber = student.RegistrationNumber ?? "",
                     MobileNumber = phone,
-                    AttendanceRecord = attendanceRecord
+                    AttendanceRecord = attendanceRecord,
+                    ClassConductedDates = myClassConductedDates
                 });
             }
 

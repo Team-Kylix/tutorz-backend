@@ -60,6 +60,9 @@ namespace Tutorz.Application.DTOs.Payment
         public string MobileNumber { get; set; }
         public string MonthYear { get; set; } // e.g. "March 2026"
         public decimal AmountPaid { get; set; }
+        public decimal ClassFee { get; set; }   // BaseFee — the class's base fee
+        public string? ClassName { get; set; }
+        public string? Subject { get; set; }
         public DateTime PaidAt { get; set; }
         public string Status { get; set; }
         public string? Note { get; set; }

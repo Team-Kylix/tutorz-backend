@@ -33,5 +33,10 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<bool>> UpdateDisputeStatusAsync(
             int disputeId, UpdateDisputeStatusDto dto,
             Guid callerAdminUserId, bool isSuperAdmin);
+
+        /// <summary>
+        /// Soft deletes a dispute if it is in Pending status and belongs to the caller.
+        /// </summary>
+        Task<ServiceResponse<bool>> DeleteDisputeAsync(int disputeId, Guid callerUserId);
     }
 }

@@ -111,7 +111,8 @@ namespace Tutorz.Infrastructure.Services
             }
             catch (Exception ex)
             {
-                return Fail<DisputeResponseDto>($"Failed to submit complaint: {ex.Message}");
+                var innerMsg = ex.InnerException != null ? ex.InnerException.Message : "";
+                return Fail<DisputeResponseDto>($"Failed to submit complaint: {ex.Message}. Inner: {innerMsg}");
             }
         }
 
@@ -187,6 +188,23 @@ namespace Tutorz.Infrastructure.Services
             catch { /* Ignore notification failures */ }
 
             return new ServiceResponse<bool> { Success = true, Data = true, Message = "Status updated successfully." };
+        }
+        public async Task<ServiceResponse<bool>> DeleteDisputeAsync(int disputeId, Guid callerUserId)
+        {
+            var dispute = await _dbContext.Disputes.FirstOrDefaultAsync(d => d.Id == disputeId);
+            if (dispute == null)
+                return Fail<bool>("Dispute not found.");
+
+            if (dispute.RaisedByUserId != callerUserId)
+                return Fail<bool>("You do not have permission to delete this dispute.");
+
+            if (dispute.Status != Tutorz.Domain.Enums.DisputeStatus.Pending)
+                return Fail<bool>("Only pending disputes can be deleted.");
+
+            dispute.IsDeleted = true;
+            await _dbContext.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Dispute deleted successfully." };
         }
 
         // ─── Screenshot Upload ─────────────────────────────────────────────────

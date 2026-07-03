@@ -78,6 +78,9 @@ namespace Tutorz.Infrastructure.Repositories
         public async Task<List<Enrollment>> GetEnrollmentsByIdsAsync(List<Guid> enrollmentIds)
         {
             return await _context.Enrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.User)
+                .Include(e => e.Class)
                 .Where(e => enrollmentIds.Contains(e.Id))
                 .ToListAsync();
         }
