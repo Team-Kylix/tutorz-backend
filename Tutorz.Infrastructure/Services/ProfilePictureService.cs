@@ -65,59 +65,29 @@ namespace Tutorz.Infrastructure.Services
             using var smallImageStream = await ResizeImageAsync(memoryStream.ToArray(), SmallWidth, SmallHeight);
             using var largeImageStream = await ResizeImageAsync(memoryStream.ToArray(), LargeWidth, LargeHeight);
 
-            if (_env.IsDevelopment())
-            {
-                // Local Dev Save
-                string uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "profile-pictures");
-                if (!Directory.Exists(uploadsFolder))
-                {
-                    Directory.CreateDirectory(uploadsFolder);
-                }
+            // Azure Blob Save
+            string connectionString = _configuration.GetConnectionString("AzureBlobStorage");
+            if (string.IsNullOrEmpty(connectionString))
+                throw new Exception("AzureBlobStorage connection string is not configured.");
 
-                string smallFilePath = Path.Combine(uploadsFolder, smallFileName);
-                string largeFilePath = Path.Combine(uploadsFolder, largeFileName);
+            string containerName = "profile-pictures";
+            var blobServiceClient = new BlobServiceClient(connectionString);
+            var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
-                using (var fileStream = new FileStream(smallFilePath, FileMode.Create))
-                {
-                    await smallImageStream.CopyToAsync(fileStream);
-                }
+            // Ensure container exists and is public
+            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
 
-                using (var fileStream = new FileStream(largeFilePath, FileMode.Create))
-                {
-                    largeImageStream.Position = 0;
-                    await largeImageStream.CopyToAsync(fileStream);
-                }
+            // Upload Small
+            var smallBlobClient = containerClient.GetBlobClient(smallFileName);
+            smallImageStream.Position = 0;
+            await smallBlobClient.UploadAsync(smallImageStream, new BlobHttpHeaders { ContentType = "image/jpeg" });
+            smallUrl = smallBlobClient.Uri.ToString();
 
-                // Assuming host is localhost, we construct relative paths
-                smallUrl = $"/profile-pictures/{smallFileName}";
-                largeUrl = $"/profile-pictures/{largeFileName}";
-            }
-            else
-            {
-                // Production Azure Blob Save
-                string connectionString = _configuration.GetConnectionString("AzureBlobStorage");
-                if (string.IsNullOrEmpty(connectionString))
-                    throw new Exception("AzureBlobStorage connection string is not configured.");
-
-                string containerName = "profile-pictures";
-                var blobServiceClient = new BlobServiceClient(connectionString);
-                var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-
-                // Ensure container exists and is public
-                await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
-
-                // Upload Small
-                var smallBlobClient = containerClient.GetBlobClient(smallFileName);
-                smallImageStream.Position = 0;
-                await smallBlobClient.UploadAsync(smallImageStream, new BlobHttpHeaders { ContentType = "image/jpeg" });
-                smallUrl = smallBlobClient.Uri.ToString();
-
-                // Upload Large
-                var largeBlobClient = containerClient.GetBlobClient(largeFileName);
-                largeImageStream.Position = 0;
-                await largeBlobClient.UploadAsync(largeImageStream, new BlobHttpHeaders { ContentType = "image/jpeg" });
-                largeUrl = largeBlobClient.Uri.ToString();
-            }
+            // Upload Large
+            var largeBlobClient = containerClient.GetBlobClient(largeFileName);
+            largeImageStream.Position = 0;
+            await largeBlobClient.UploadAsync(largeImageStream, new BlobHttpHeaders { ContentType = "image/jpeg" });
+            largeUrl = largeBlobClient.Uri.ToString();
 
             // Update Database Entity
             await UpdateEntityProfileUrlsAsync(entityId, role, smallUrl, largeUrl);
