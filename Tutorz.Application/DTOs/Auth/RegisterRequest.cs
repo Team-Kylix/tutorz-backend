@@ -24,5 +24,6 @@ namespace Tutorz.Application.DTOs.Auth
         public Guid? InstituteId { get; set; }
         public Guid? ClassId { get; set; }
         public string? OtpCode { get; set; }
+        public Guid? TutorId { get; set; }
     }
 }

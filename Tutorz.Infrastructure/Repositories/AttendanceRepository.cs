@@ -15,27 +15,25 @@ namespace Tutorz.Infrastructure.Repositories
         {
         }
 
-        public async Task<bool> HasAttendanceAsync(Guid studentId, Guid classId, Guid instituteId, DateTime date)
+        public async Task<bool> HasAttendanceAsync(Guid studentId, Guid classId, DateTime date)
         {
             return await _context.Attendances
                 .AnyAsync(a => a.StudentId == studentId && 
                                a.ClassId == classId && 
-                               a.InstituteId == instituteId &&
                                a.Date.Date == date.Date);
         }
 
-        public async Task<IEnumerable<Attendance>> GetAttendancesByClassAndDateAsync(Guid classId, Guid instituteId, DateTime date)
+        public async Task<IEnumerable<Attendance>> GetAttendancesByClassAndDateAsync(Guid classId, DateTime date)
         {
             return await _context.Attendances
                 .Include(a => a.Student)
                 .ThenInclude(s => s.User)
                 .Where(a => a.ClassId == classId && 
-                            a.InstituteId == instituteId &&
                             a.Date.Date == date.Date)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<Attendance>> GetStudentAttendancesAsync(Guid studentId, Guid instituteId)
+        public async Task<IEnumerable<Attendance>> GetStudentAttendancesAsync(Guid studentId, Guid? instituteId)
         {
             return await _context.Attendances
                 .Include(a => a.Class)
