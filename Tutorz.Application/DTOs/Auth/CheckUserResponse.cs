@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,5 +15,6 @@ namespace Tutorz.Application.DTOs.Auth
         public string Role { get; set; }
         public string PhoneNumber { get; set; }
         public string Email { get; set; }
+        public Guid? RoleSpecificId { get; set; }
     }
 }

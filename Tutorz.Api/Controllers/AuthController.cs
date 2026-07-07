@@ -29,6 +29,30 @@ namespace Tutorz.Api.Controllers
         {
             try
             {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value
+                                ?? User.FindFirst("role")?.Value;
+
+                if (!string.IsNullOrEmpty(userIdClaim) && !string.IsNullOrEmpty(roleClaim))
+                {
+                    if (Guid.TryParse(userIdClaim, out var userId))
+                    {
+                        if (roleClaim.Equals("Tutor", StringComparison.OrdinalIgnoreCase))
+                        {
+                            request.TutorId = userId;
+                        }
+                        else if (roleClaim.Equals("Institute", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var instClaim = User.FindFirst("InstituteId")?.Value;
+                            if (!string.IsNullOrEmpty(instClaim) && Guid.TryParse(instClaim, out var parsedInstId))
+                            {
+                                request.InstituteId = parsedInstId;
+                            }
+                        }
+                    }
+                }
+
                 var response = await _authService.RegisterAsync(request);
                 return Ok(response);
             }
@@ -108,6 +132,21 @@ namespace Tutorz.Api.Controllers
                 // Return the object containing the phone number
                 var result = await _authService.VerifyOtpAsync(request);
                 return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("verify-reset-otp")]
+        [ApiPurpose("Verify Reset Password OTP")]
+        public async Task<IActionResult> VerifyResetOtp([FromBody] VerifyUserRequest request)
+        {
+            try
+            {
+                await _authService.VerifyResetOtpAsync(request);
+                return Ok(new { success = true, message = "OTP verified successfully." });
             }
             catch (Exception ex)
             {

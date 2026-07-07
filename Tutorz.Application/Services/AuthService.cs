@@ -105,8 +105,8 @@ namespace Tutorz.Application.Services
             if (await _userRepository.GetAsync(u => u.PhoneNumber == normalizedPhone) != null)
                 throw new Exception("This phone number is already registered. Please log in.");
 
-            // OTP Verification for Registration (Bypass if registered by an Institute or a Tutor via Class)
-            if (!request.InstituteId.HasValue && !request.ClassId.HasValue)
+            // OTP Verification for Registration (Bypass if registered by an Institute, Tutor, or Class)
+            if (!request.InstituteId.HasValue && !request.ClassId.HasValue && !request.TutorId.HasValue)
             {
                 if (!_cache.TryGetValue($"registration_otp_{normalizedPhone}", out string cachedOtp) || cachedOtp != request.OtpCode)
                 {
@@ -123,6 +123,23 @@ namespace Tutorz.Application.Services
 
             var role = await _roleRepository.GetAsync(r => r.Name == request.Role);
             if (role == null) throw new Exception($"Role '{request.Role}' does not exist.");
+
+            // Inherit CityId from the registering Tutor/Institute if not explicitly provided
+            if (!request.CityId.HasValue)
+            {
+                if (request.TutorId.HasValue)
+                {
+                    var tutorUser = await _userRepository.GetAsync(u => u.UserId == request.TutorId.Value);
+                    if (tutorUser?.CityId.HasValue == true)
+                        request.CityId = tutorUser.CityId;
+                }
+                else if (request.InstituteId.HasValue)
+                {
+                    var instituteUser = await _userRepository.GetAsync(u => u.UserId == request.InstituteId.Value);
+                    if (instituteUser?.CityId.HasValue == true)
+                        request.CityId = instituteUser.CityId;
+                }
+            }
 
             // Generate Unique Registration ID
             string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
@@ -691,27 +708,44 @@ namespace Tutorz.Application.Services
             // Fetch Details
             var role = await _roleRepository.GetAsync(r => r.RoleId == user.RoleId);
             string name = "Unknown User";
+            Guid? roleSpecificId = null;
 
             if (role.Name == "Student")
             {
                 var student = (await _studentRepository.GetAllAsync(s => s.UserId == user.UserId))
                               .OrderByDescending(s => s.IsPrimary).FirstOrDefault();
-                if (student != null) name = $"{student.FirstName} {student.LastName}";
+                if (student != null)
+                {
+                    name = $"{student.FirstName} {student.LastName}";
+                    roleSpecificId = student.StudentId;
+                }
             }
             else if (role.Name == "Tutor")
             {
                 var tutor = await _tutorRepository.GetAsync(t => t.UserId == user.UserId);
-                if (tutor != null) name = $"{tutor.FirstName} {tutor.LastName}";
+                if (tutor != null)
+                {
+                    name = $"{tutor.FirstName} {tutor.LastName}";
+                    roleSpecificId = tutor.TutorId;
+                }
             }
             else if (role.Name == "Institute")
             {
                 var institute = await _instituteRepository.GetAsync(i => i.UserId == user.UserId);
-                if (institute != null) name = institute.InstituteName;
+                if (institute != null)
+                {
+                    name = institute.InstituteName;
+                    roleSpecificId = institute.InstituteId;
+                }
             }
             else if (role.Name == "Admin")
             {
                 var admin = await _adminRepository.GetAsync(a => a.UserId == user.UserId);
-                if (admin != null) name = $"{admin.FirstName} {admin.LastName}";
+                if (admin != null)
+                {
+                    name = $"{admin.FirstName} {admin.LastName}";
+                    roleSpecificId = admin.AdminId;
+                }
             }
 
             response.Success = true;
@@ -722,7 +756,8 @@ namespace Tutorz.Application.Services
                 Name = name,
                 Role = role.Name,
                 Email = user.Email,
-                PhoneNumber = user.PhoneNumber
+                PhoneNumber = user.PhoneNumber,
+                RoleSpecificId = roleSpecificId
             };
 
             return response;
@@ -1241,6 +1276,31 @@ namespace Tutorz.Application.Services
                 Success = true,
                 PhoneNumber = user.PhoneNumber
             };
+        }
+
+        public async Task VerifyResetOtpAsync(VerifyUserRequest request)
+        {
+            User user = null;
+            if (request.Identifier.Contains("@"))
+            {
+                user = await _userRepository.GetAsync(u => u.Email == request.Identifier);
+            }
+            else
+            {
+                string cleanPhone = NormalizePhone(request.Identifier);
+                user = await _userRepository.GetAsync(u => u.PhoneNumber == cleanPhone);
+            }
+
+            if (user == null)
+                throw new Exception("User not found.");
+
+            if (user.PasswordResetToken != request.Otp)
+                throw new Exception("Invalid OTP code.");
+
+            if (user.ResetTokenExpires < DateTime.UtcNow)
+                throw new Exception("OTP code has expired.");
+                
+            // Do NOT clear the token here, as it will be used in the ResetPassword step.
         }
 
         public async Task ResetPasswordAsync(ResetPasswordRequest request)

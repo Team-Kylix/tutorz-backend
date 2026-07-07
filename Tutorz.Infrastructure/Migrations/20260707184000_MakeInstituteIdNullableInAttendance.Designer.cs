@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707184000_MakeInstituteIdNullableInAttendance")]
+    partial class MakeInstituteIdNullableInAttendance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -194,9 +197,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("TutorId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ClassId");
@@ -204,8 +204,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.HasIndex("InstituteId");
 
                     b.HasIndex("StudentId");
-
-                    b.HasIndex("TutorId");
 
                     b.ToTable("Attendances");
                 });
@@ -1394,17 +1392,11 @@ namespace Tutorz.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("Tutorz.Domain.Entities.Tutor", "Tutor")
-                        .WithMany()
-                        .HasForeignKey("TutorId");
-
                     b.Navigation("Class");
 
                     b.Navigation("Institute");
 
                     b.Navigation("Student");
-
-                    b.Navigation("Tutor");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Bill", b =>

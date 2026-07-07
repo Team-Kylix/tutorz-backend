@@ -1003,6 +1003,8 @@ namespace Tutorz.Application.Services
             var enrolledClassIds = activeEnrollments.Select(e => e.ClassId).ToHashSet();
 
             var studentEnrolledClasses = instituteClasses.Where(c => enrolledClassIds.Contains(c.ClassId)).ToList();
+            var todayAttendances = await _attendanceRepository.GetAllAsync(a => a.StudentId == studentId && a.Date.Date == DateTime.UtcNow.Date);
+            var markedClassIds = todayAttendances.Select(a => a.ClassId).ToHashSet();
 
             var dtos = studentEnrolledClasses.Select(c => new InstituteClassDto
             {
@@ -1021,7 +1023,8 @@ namespace Tutorz.Application.Services
                 HallName = c.HallName,
                 Fee = c.Fee,
                 StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
-                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0
+                StudentRegisteredCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                IsAttendanceMarkedToday = markedClassIds.Contains(c.ClassId)
             }).ToList();
 
             return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = dtos };
@@ -1053,7 +1056,7 @@ namespace Tutorz.Application.Services
 
             var attendanceDate = dto.Date ?? DateTime.UtcNow;
 
-            var exists = await _attendanceRepository.HasAttendanceAsync(dto.StudentId, dto.ClassId, institute.InstituteId, attendanceDate);
+            var exists = await _attendanceRepository.HasAttendanceAsync(dto.StudentId, dto.ClassId, attendanceDate);
             if (exists)
                 return new ServiceResponse<bool> { Success = false, Message = "Attendance already marked for this date." };
 
@@ -1063,6 +1066,7 @@ namespace Tutorz.Application.Services
                 StudentId = dto.StudentId,
                 ClassId = dto.ClassId,
                 InstituteId = institute.InstituteId,
+                TutorId = null,
                 Date = attendanceDate,
                 IsPresent = true,
                 MarkedAt = DateTime.UtcNow

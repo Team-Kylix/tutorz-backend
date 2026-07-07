@@ -6,6 +6,7 @@ using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Institute;
 using Tutorz.Api.Attributes;
+using Tutorz.Domain.Entities;
 
 namespace Tutorz.Api.Controllers
 {
@@ -196,6 +197,18 @@ namespace Tutorz.Api.Controllers
             }
         }
 
+        [HttpGet("students/{studentId}/classes")]
+        [ApiPurpose("Get Student Classes for Tutor")]
+        public async Task<IActionResult> GetStudentClassesForTutor(Guid studentId)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetStudentClassesForTutorAsync(userId, studentId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
 
         [HttpPost("institutes/{instituteId}/request")]
         [ApiPurpose("Request Join Institute")]
@@ -253,6 +266,19 @@ namespace Tutorz.Api.Controllers
             if (userId == Guid.Empty) return Unauthorized();
 
             var result = await _tutorService.SearchStudentsAsync(userId, query);
+            
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
+        [HttpGet("students/search-global")]
+        [ApiPurpose("Search All Students in System globally for Tutor")]
+        public async Task<IActionResult> SearchStudentsGlobal([FromQuery] string query)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.SearchStudentsGlobalAsync(query);
             
             if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
@@ -388,6 +414,57 @@ namespace Tutorz.Api.Controllers
 
             var result = await _tutorService.DeleteMarkSheetAsync(userId, markSheetId);
             if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result);
+        }
+
+        [HttpPost("attendance/mark")]
+        [ApiPurpose("Mark Attendance for Tutor's Student")]
+        public async Task<IActionResult> MarkAttendance([FromBody] Tutorz.Application.DTOs.Institute.MarkAttendanceDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.MarkAttendanceAsync(userId, dto);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("payments/record")]
+        [ApiPurpose("Record Class Payment for Tutor's Student")]
+        public async Task<IActionResult> RecordPayment(
+            [FromBody] Tutorz.Application.DTOs.Payment.RecordPaymentRequest request,
+            [FromServices] IGenericRepository<Class> classRepo)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var cls = await classRepo.GetAsync(c => c.ClassId == request.ClassId);
+            if (cls == null) return BadRequest("Class not found.");
+
+            Guid targetInstituteId = cls.InstituteId ?? Guid.Empty;
+
+            var result = await _paymentService.RecordPaymentAsync(request, targetInstituteId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("payments/status")]
+        [ApiPurpose("Get Tutor Student Payment Status Strip")]
+        public async Task<IActionResult> GetPaymentStatus(
+            [FromQuery] Guid classId,
+            [FromQuery] Guid studentId,
+            [FromServices] IGenericRepository<Class> classRepo)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var cls = await classRepo.GetAsync(c => c.ClassId == classId);
+            if (cls == null) return BadRequest("Class not found.");
+
+            Guid targetInstituteId = cls.InstituteId ?? Guid.Empty;
+
+            var result = await _paymentService.GetPaymentStatusAsync(classId, studentId, targetInstituteId);
+            if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
     }
