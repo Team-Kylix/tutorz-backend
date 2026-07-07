@@ -20,6 +20,9 @@ namespace Tutorz.Application.Interfaces
         Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);
         Task<bool> ProcessStudentRequestsAsync(ProcessRequestDto request);
         Task<StudentFullProfileDto> GetStudentProfileAsync(Guid studentId);
+        Task<ServiceResponse<IEnumerable<ClassDto>>> GetStudentClassesForTutorAsync(Guid userId, Guid studentId);
+        Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid userId, Tutorz.Application.DTOs.Institute.MarkAttendanceDto dto);
+        Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsGlobalAsync(string query);
 
         // Institute Join Requests
         Task<ServiceResponse<bool>> SendInstituteRequestAsync(Guid tutorId, Guid instituteId);

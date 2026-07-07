@@ -23,6 +23,7 @@ namespace Tutorz.Application.Interfaces
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
         Task SendOtpAsync(CheckUserRequest request);
         Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
+        Task VerifyResetOtpAsync(VerifyUserRequest request);
         
         // --- Credential Updates ---
         Task RequestEmailUpdateAsync(Guid userId, string newEmail);

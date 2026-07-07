@@ -318,21 +318,23 @@ namespace Tutorz.Application.Services
 
             if (existingClass == null) throw new Exception("Class not found or access denied.");
 
-            if (existingClass.InstituteId.HasValue)
+            Student student = null;
+            if (request.StudentId.HasValue && request.StudentId.Value != Guid.Empty)
             {
-                var instName = existingClass.Institute?.InstituteName ?? "an institute";
-                throw new Exception($"This class is held at {instName}. Only the institute can add students directly to the class, or the student should send a request to join the class.");
+                student = await _studentRepo.GetAsync(s => s.StudentId == request.StudentId.Value);
             }
-
-            // Normalize the input: if the user typed a local mobile (e.g. 0712345678), convert to +94 format
-            string lookup = request.StudentRegistrationNumber?.Trim() ?? "";
-            string normalizedPhone = null;
-            if (System.Text.RegularExpressions.Regex.IsMatch(lookup, @"^07\d{8}$"))
+            else
             {
-                normalizedPhone = "+94" + lookup.Substring(1);
-            }
+                // Normalize the input: if the user typed a local mobile (e.g. 0712345678), convert to +94 format
+                string lookup = request.StudentRegistrationNumber?.Trim() ?? "";
+                string normalizedPhone = null;
+                if (System.Text.RegularExpressions.Regex.IsMatch(lookup, @"^07\d{8}$"))
+                {
+                    normalizedPhone = "+94" + lookup.Substring(1);
+                }
 
-            var student = await _studentRepo.GetStudentByPhoneOrRegNoAsync(lookup, normalizedPhone);
+                student = await _studentRepo.GetStudentByPhoneOrRegNoAsync(lookup, normalizedPhone);
+            }
 
             if (student == null) throw new Exception("Student not found. Please enter the full Registration Number (e.g. STU-XXXXXX) or Mobile Number (e.g. 07XXXXXXXX).");
 
@@ -532,6 +534,110 @@ namespace Tutorz.Application.Services
         public async Task<StudentFullProfileDto> GetStudentProfileAsync(Guid studentId)
         {
             return await _tutorRepo.GetStudentProfileForTutorAsync(studentId);
+        }
+
+        public async Task<ServiceResponse<IEnumerable<ClassDto>>> GetStudentClassesForTutorAsync(Guid userId, Guid studentId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<IEnumerable<ClassDto>> { Success = false, Message = "Tutor not found." };
+
+            // Find all classes conducted by this tutor
+            var tutorClasses = await _classRepo.GetAllAsync(c => c.TutorId == tutor.TutorId && c.IsActive && !c.IsDeleted, includeProperties: "Institute,Enrollments");
+
+            // Find all active enrollments for this student
+            var activeEnrollments = await _enrollmentRepo.GetAllAsync(e => e.StudentId == studentId && e.Status == EnrollmentStatus.Approved);
+            var enrolledClassIds = activeEnrollments.Select(e => e.ClassId).ToHashSet();
+
+            var studentEnrolledClasses = tutorClasses.Where(c => enrolledClassIds.Contains(c.ClassId)).ToList();
+
+            var todayAttendances = await _attendanceRepo.GetAllAsync(a => a.StudentId == studentId && a.Date.Date == DateTime.UtcNow.Date);
+            var markedClassIds = todayAttendances.Select(a => a.ClassId).ToHashSet();
+
+            var dtos = studentEnrolledClasses.Select(c => 
+            {
+                var dto = MapToDto(c);
+                dto.IsAttendanceMarkedToday = markedClassIds.Contains(c.ClassId);
+                return dto;
+            });
+
+            return new ServiceResponse<IEnumerable<ClassDto>> { Success = true, Data = dtos };
+        }
+
+        public async Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid userId, Tutorz.Application.DTOs.Institute.MarkAttendanceDto dto)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+
+            // Ensure the class belongs to this tutor
+            var tutorClass = await _classRepo.GetAsync(c => c.ClassId == dto.ClassId && c.TutorId == tutor.TutorId);
+            if (tutorClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or access denied." };
+
+            var attendanceDate = dto.Date ?? DateTime.UtcNow;
+            
+            // If class is conducted at an institute, use tutorClass.InstituteId. Otherwise, use null.
+            Guid? targetInstituteId = tutorClass.InstituteId;
+
+            var exists = await _attendanceRepo.HasAttendanceAsync(dto.StudentId, dto.ClassId, attendanceDate);
+            if (exists)
+                return new ServiceResponse<bool> { Success = false, Message = "Attendance already marked for this date." };
+
+            var attendance = new Attendance
+            {
+                Id = Guid.NewGuid(),
+                StudentId = dto.StudentId,
+                ClassId = dto.ClassId,
+                InstituteId = targetInstituteId,
+                TutorId = tutor.TutorId,
+                Date = attendanceDate,
+                IsPresent = true,
+                MarkedAt = DateTime.UtcNow
+            };
+
+            await _attendanceRepo.AddAsync(attendance);
+            await _attendanceRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Attendance marked successfully." };
+        }
+
+        public async Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsGlobalAsync(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = new List<SearchUserResultDto>() };
+
+            query = query.ToLower().Trim();
+
+            // Normalize phone if query is a local phone number
+            string normalizedPhone = null;
+            if (System.Text.RegularExpressions.Regex.IsMatch(query, @"^07\d{8}$"))
+            {
+                normalizedPhone = "+94" + query.Substring(1);
+            }
+
+            var students = await _studentRepo.GetAllAsync(includeProperties: "User");
+            var matching = students.Where(s =>
+                (s.FirstName != null && s.FirstName.ToLower().Contains(query)) ||
+                (s.LastName != null && s.LastName.ToLower().Contains(query)) ||
+                (s.RegistrationNumber != null && s.RegistrationNumber.ToLower().Contains(query)) ||
+                (s.User?.PhoneNumber != null && s.User.PhoneNumber.Contains(query)) ||
+                (s.User?.PhoneNumber != null && normalizedPhone != null && s.User.PhoneNumber.Contains(normalizedPhone)) ||
+                (s.User?.Email != null && s.User.Email.ToLower().Contains(query))
+            ).ToList();
+
+            var dtos = matching.Select(student => new SearchUserResultDto
+            {
+                UserId = student.UserId,
+                RoleSpecificId = student.StudentId,
+                RegistrationNumber = student.RegistrationNumber,
+                Name = $"{student.FirstName} {student.LastName}",
+                PhoneNumber = student.User?.PhoneNumber,
+                Email = student.User?.Email,
+                IsAlreadyAssigned = false // Frontend will check enrollment status
+            });
+
+            return new ServiceResponse<IEnumerable<SearchUserResultDto>> { Success = true, Data = dtos };
         }
 
         public async Task<ServiceResponse<bool>> SendInstituteRequestAsync(Guid userId, Guid instituteId)

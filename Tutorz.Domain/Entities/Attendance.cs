@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -17,7 +17,11 @@ namespace Tutorz.Domain.Entities
         [ForeignKey("ClassId")]
         public virtual Class Class { get; set; }
 
-        public Guid InstituteId { get; set; }
+        public Guid? TutorId { get; set; }
+        [ForeignKey("TutorId")]
+        public virtual Tutor Tutor { get; set; }
+
+        public Guid? InstituteId { get; set; }
         [ForeignKey("InstituteId")]
         public virtual Institute Institute { get; set; }
 
