@@ -63,7 +63,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("min-token-date")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetMinTokenDate()
         {
             var setting = await _dbContext.AppSettings.FindAsync("MinTokenDate");
@@ -71,14 +71,14 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("online-count")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public IActionResult GetOnlineCount()
         {
             return Ok(new { onlineCount = NotificationHub.ConnectedUsers });
         }
 
         [HttpGet("dashboard-stats")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetDashboardStats()
         {
             try
@@ -95,7 +95,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _studentService.GetAllStudentsAsync(searchQuery, page, pageSize);
@@ -122,7 +122,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("institutes")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetInstitutes([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _instituteService.GetAllInstitutesAsync(searchQuery, page, pageSize);
@@ -137,7 +137,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("force-logout")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> ForceLogout([FromBody] ForceLogoutRequest request)
         {
             try
