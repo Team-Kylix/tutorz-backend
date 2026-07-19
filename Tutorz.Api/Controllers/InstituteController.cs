@@ -282,6 +282,30 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
 
+        [HttpPost("classes/{id}/remove-students")]
+        [ApiPurpose("Remove all students from Institute Class")]
+        public async Task<IActionResult> RemoveAllStudents(Guid id, [FromQuery] int batchSize = 10)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.RemoveAllStudentsFromInstituteClassAsync(instituteId, id, batchSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("classes/{id}/reassign")]
+        [ApiPurpose("Reassign all students to another Institute Class")]
+        public async Task<IActionResult> ReassignAllStudents(Guid id, [FromBody] ReassignClassDto dto)
+        {
+            var instituteId = GetInstituteIdFromToken();
+            if (instituteId == Guid.Empty) return Unauthorized("Institute ID not found.");
+
+            var result = await _instituteService.ReassignAllStudentsInInstituteClassAsync(instituteId, id, dto.NewClassId, dto.BatchSize);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpPatch("classes/{id}/status")]
         [ApiPurpose("Toggle Institute Class Status")]
         public async Task<IActionResult> ToggleClassStatus(Guid id)

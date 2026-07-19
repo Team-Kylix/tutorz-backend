@@ -15,6 +15,8 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<TutorDashboardStatsDto>> GetDashboardStatsAsync(Guid userId);
         Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request);
         Task DeleteClassAsync(Guid classId, Guid userId);
+        Task<ServiceResponse<BatchOperationResponse>> RemoveAllStudentsFromClassAsync(Guid classId, Guid userId, int batchSize = 10);
+        Task<ServiceResponse<BatchOperationResponse>> ReassignAllStudentsAsync(Guid oldClassId, Guid newClassId, Guid userId, int batchSize = 10);
         Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId);
         Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, UpdateTutorProfileDto request);
         Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);

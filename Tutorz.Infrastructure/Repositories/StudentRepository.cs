@@ -478,6 +478,21 @@ namespace Tutorz.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<(int TotalActive, IEnumerable<Enrollment> Batch)> GetActiveEnrollmentsBatchAsync(Guid classId, int batchSize)
+        {
+            var db = _context as TutorzDbContext;
+            var query = db.Enrollments
+                .Where(e => e.ClassId == classId && e.Status != EnrollmentStatus.Dropped);
+                
+            int totalActive = await query.CountAsync();
+            
+            var batch = await query
+                .Take(batchSize > 0 ? batchSize : int.MaxValue)
+                .ToListAsync();
+                
+            return (totalActive, batch);
+        }
+
         public async Task AddEnrollmentAsync(Enrollment enrollment)
         {
             var db = _context as TutorzDbContext;

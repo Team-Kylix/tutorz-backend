@@ -115,6 +115,30 @@ namespace Tutorz.Api.Controllers
             return Ok(new { message = "Class deleted successfully" });
         }
 
+        [HttpPost("classes/{id}/remove-students")]
+        [ApiPurpose("Remove all students from Tutor Class")]
+        public async Task<IActionResult> RemoveAllStudents(Guid id, [FromQuery] int batchSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.RemoveAllStudentsFromClassAsync(id, userId, batchSize);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result.Data); // Return the BatchOperationResponse
+        }
+
+        [HttpPost("classes/{id}/reassign")]
+        [ApiPurpose("Reassign all students to another Class")]
+        public async Task<IActionResult> ReassignAllStudents(Guid id, [FromBody] ReassignClassDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.ReassignAllStudentsAsync(id, dto.NewClassId, userId, dto.BatchSize);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result.Data); // Return the BatchOperationResponse
+        }
+
         [HttpGet("profile")]
         [ApiPurpose("Get Tutor Profile")]
         public async Task<IActionResult> GetProfile()

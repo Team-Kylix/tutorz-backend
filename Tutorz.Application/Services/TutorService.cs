@@ -305,7 +305,107 @@ namespace Tutorz.Application.Services
             var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
             if (existingClass == null) throw new Exception("Class not found.");
 
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+if (enrollments.Any(e => e.Status != EnrollmentStatus.Dropped))
+            {
+                throw new Exception("If you need to delete this class, you must first reassign all students to another class or remove all students from this class.");
+            }
+
             await _classRepo.DeleteAsync(existingClass);
+        }
+
+        public async Task<ServiceResponse<BatchOperationResponse>> RemoveAllStudentsFromClassAsync(Guid classId, Guid userId, int batchSize = 10)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            if (existingClass == null) 
+                return new ServiceResponse<BatchOperationResponse> { Success = false, Message = "Class not found." };
+
+            var (totalActive, batch) = await _studentRepo.GetActiveEnrollmentsBatchAsync(classId, batchSize);
+            
+            bool updated = false;
+            int processedCount = 0;
+            foreach (var enrollment in batch)
+            {
+                if (enrollment.Status != EnrollmentStatus.Dropped)
+                {
+                    enrollment.Status = EnrollmentStatus.Dropped;
+                    updated = true;
+                    processedCount++;
+                }
+            }
+
+            if (updated)
+            {
+                await _studentRepo.SaveChangesAsync();
+            }
+
+            return ServiceResponse<BatchOperationResponse>.SuccessResponse(new BatchOperationResponse
+            {
+                ProcessedCount = processedCount,
+                TotalCount = totalActive,
+                RemainingCount = Math.Max(0, totalActive - processedCount),
+                IsComplete = totalActive <= processedCount
+            });
+        }
+
+        public async Task<ServiceResponse<BatchOperationResponse>> ReassignAllStudentsAsync(Guid oldClassId, Guid newClassId, Guid userId, int batchSize = 10)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            var oldClass = await _classRepo.GetAsync(c => c.ClassId == oldClassId && c.TutorId == tutor.TutorId);
+            var newClass = await _classRepo.GetAsync(c => c.ClassId == newClassId && c.TutorId == tutor.TutorId);
+            
+            if (oldClass == null || newClass == null)
+                return new ServiceResponse<BatchOperationResponse> { Success = false, Message = "One or both classes not found." };
+
+            var (totalActive, batch) = await _studentRepo.GetActiveEnrollmentsBatchAsync(oldClassId, batchSize);
+            var newEnrollments = await _studentRepo.GetEnrollmentsByClassAsync(newClassId);
+            
+            bool updated = false;
+            int processedCount = 0;
+            foreach (var enrollment in batch)
+            {
+                // Mark old enrollment as dropped
+                if (enrollment.Status != EnrollmentStatus.Dropped)
+                {
+                    enrollment.Status = EnrollmentStatus.Dropped;
+                    updated = true;
+                    processedCount++;
+                }
+
+                // Check if already in new class (any status)
+                var existingEnrollment = newEnrollments.FirstOrDefault(ne => ne.StudentId == enrollment.StudentId);
+                    
+                if (existingEnrollment == null)
+                {
+                    await _studentRepo.AddEnrollmentAsync(new Enrollment
+                    {
+                        StudentId = enrollment.StudentId,
+                        ClassId = newClassId,
+                        Status = EnrollmentStatus.Approved,
+                        EnrolledAt = DateTime.UtcNow
+                    });
+                    updated = true;
+                }
+                else if (existingEnrollment.Status == EnrollmentStatus.Dropped)
+                {
+                    existingEnrollment.Status = EnrollmentStatus.Approved;
+                    updated = true;
+                }
+            }
+
+            if (updated)
+            {
+                await _studentRepo.SaveChangesAsync();
+            }
+
+            return ServiceResponse<BatchOperationResponse>.SuccessResponse(new BatchOperationResponse
+            {
+                ProcessedCount = processedCount,
+                TotalCount = totalActive,
+                RemainingCount = Math.Max(0, totalActive - processedCount),
+                IsComplete = totalActive <= processedCount
+            });
         }
 
         public async Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request)

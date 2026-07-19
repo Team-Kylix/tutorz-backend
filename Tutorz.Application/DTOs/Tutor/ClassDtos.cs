@@ -67,4 +67,10 @@ namespace Tutorz.Application.DTOs.Tutor
         public string? StudentRegistrationNumber { get; set; }
         public Guid? StudentId { get; set; }
     }
+
+    public class ReassignClassDto
+    {
+        public Guid NewClassId { get; set; }
+        public int BatchSize { get; set; } = 10;
+    }
 }
