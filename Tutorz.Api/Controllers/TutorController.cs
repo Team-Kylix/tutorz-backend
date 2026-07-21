@@ -165,6 +165,19 @@ namespace Tutorz.Api.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet("students")]
+        [ApiPurpose("Get Tutor Students")]
+        public async Task<IActionResult> GetTutorStudents([FromQuery] Guid? instituteId, [FromQuery] Guid? classId, [FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetTutorStudentsAsync(userId, instituteId, classId, searchQuery, page, pageSize);
+            
+            if (!result.Success) return BadRequest(result);
+            return Ok(result.Data);
+        }
+
         [HttpGet("requests")]
         [ApiPurpose("Get Student Requests")]
         public async Task<IActionResult> GetRequests()

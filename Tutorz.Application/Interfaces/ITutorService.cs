@@ -1,3 +1,4 @@
+using Tutorz.Application.DTOs.Student;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -34,6 +35,7 @@ namespace Tutorz.Application.Interfaces
         // Joined Institutes
         Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid tutorId, string query);
+        Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetTutorStudentsAsync(Guid userId, Guid? instituteId, Guid? classId, string searchQuery = "", int page = 1, int pageSize = 10);
         Task<ServiceResponse<SearchUserResultDto>> SearchInstituteExactAsync(Guid tutorId, string query);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize);
 

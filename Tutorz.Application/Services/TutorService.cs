@@ -1,3 +1,4 @@
+using Tutorz.Application.DTOs.Student;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -1396,5 +1397,89 @@ if (enrollments.Any(e => e.Status != EnrollmentStatus.Dropped))
                 }
             };
         }
+public async Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetTutorStudentsAsync(Guid userId, Guid? instituteId, Guid? classId, string searchQuery = "", int page = 1, int pageSize = 10)
+{
+    var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+    if (tutor == null)
+    {
+        return new ServiceResponse<PaginatedResultDto<StudentProfileDto>> { Success = false, Message = "Tutor not found" };
+    }
+
+    var query = await _enrollmentRepo.GetAllAsync(e => e.Class.TutorId == tutor.TutorId && e.Status == EnrollmentStatus.Approved, includeProperties: "Class,Student,Student.User");
+    
+    if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+    {
+        query = query.Where(e => e.Class.InstituteId == instituteId.Value);
+    }
+    
+    if (classId.HasValue && classId.Value != Guid.Empty)
+    {
+        query = query.Where(e => e.ClassId == classId.Value);
+    }
+    
+    // Group by student to avoid duplicates if they are enrolled in multiple classes of this tutor
+    var groupedByStudent = query.GroupBy(e => e.StudentId).Select(g => new 
+    {
+        Student = g.First().Student,
+        Classes = g.Select(e => e.Class).ToList()
+    });
+
+    if (!string.IsNullOrWhiteSpace(searchQuery))
+    {
+        var lowerQuery = searchQuery.ToLower();
+        groupedByStudent = groupedByStudent.Where(x => 
+            x.Student.FirstName.ToLower().Contains(lowerQuery) || 
+            x.Student.LastName.ToLower().Contains(lowerQuery) ||
+            x.Student.RegistrationNumber.ToLower().Contains(lowerQuery) ||
+            (x.Student.User != null && x.Student.User.PhoneNumber != null && x.Student.User.PhoneNumber.Contains(lowerQuery))
+        );
+    }
+
+    var totalCount = groupedByStudent.Count();
+    var pagedStudents = groupedByStudent
+        .OrderBy(x => x.Student.FirstName) // Predictable ordering
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToList();
+
+    var profiles = new List<StudentProfileDto>();
+    foreach (var item in pagedStudents)
+    {
+        var student = item.Student;
+        var user = student.User; // Ensure we get the User from the include
+        
+        // Ensure User is loaded if not included properly
+        if (user == null) 
+        {
+            user = await _userRepo.GetAsync(u => u.UserId == student.UserId);
+        }
+
+        profiles.Add(new StudentProfileDto
+        {
+            StudentId = student.StudentId,
+            FirstName = student.FirstName,
+            LastName = student.LastName,
+            Grade = student.Grade,
+            IsPrimary = student.IsPrimary,
+            RegistrationNumber = student.RegistrationNumber,
+            Email = user?.Email,
+            PhoneNumber = user?.PhoneNumber,
+            ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+            ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+            Address = student.Address,
+            SchoolName = student.SchoolName,
+            ParentName = student.ParentName,
+            DateOfBirth = student.DateOfBirth
+        });
+    }
+
+    return ServiceResponse<PaginatedResultDto<StudentProfileDto>>.SuccessResponse(new PaginatedResultDto<StudentProfileDto>
+    {
+        Items = profiles,
+        TotalCount = totalCount,
+        Page = page,
+        PageSize = pageSize
+    });
+}
     }
 }
