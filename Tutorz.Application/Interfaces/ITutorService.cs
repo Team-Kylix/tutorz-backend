@@ -1,3 +1,4 @@
+using Tutorz.Application.DTOs.Student;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -15,6 +16,10 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<TutorDashboardStatsDto>> GetDashboardStatsAsync(Guid userId);
         Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request);
         Task DeleteClassAsync(Guid classId, Guid userId);
+        Task<ServiceResponse<BatchOperationResponse>> RemoveAllStudentsFromClassAsync(Guid classId, Guid userId, int batchSize = 10);
+        Task<ServiceResponse<BatchOperationResponse>> ReassignAllStudentsAsync(Guid oldClassId, Guid newClassId, Guid userId, int batchSize = 10);
+        Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid classId, Guid studentId, Guid userId);
+        Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid studentId, Guid oldClassId, Guid newClassId, Guid userId);
         Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId);
         Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, UpdateTutorProfileDto request);
         Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);
@@ -32,6 +37,7 @@ namespace Tutorz.Application.Interfaces
         // Joined Institutes
         Task<ServiceResponse<IEnumerable<InstituteDto>>> GetJoinedInstitutesAsync(Guid userId);
         Task<ServiceResponse<IEnumerable<SearchUserResultDto>>> SearchStudentsAsync(Guid tutorId, string query);
+        Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetTutorStudentsAsync(Guid userId, Guid? instituteId, Guid? classId, string searchQuery = "", int page = 1, int pageSize = 10);
         Task<ServiceResponse<SearchUserResultDto>> SearchInstituteExactAsync(Guid tutorId, string query);
         Task<ServiceResponse<PaginatedResultDto<TutorProfileDto>>> GetAllTutorsAsync(string? searchQuery, int page, int pageSize);
 

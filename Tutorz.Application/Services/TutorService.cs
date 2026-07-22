@@ -1,3 +1,4 @@
+using Tutorz.Application.DTOs.Student;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -305,7 +306,107 @@ namespace Tutorz.Application.Services
             var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
             if (existingClass == null) throw new Exception("Class not found.");
 
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+if (enrollments.Any(e => e.Status != EnrollmentStatus.Dropped))
+            {
+                throw new Exception("If you need to delete this class, you must first reassign all students to another class or remove all students from this class.");
+            }
+
             await _classRepo.DeleteAsync(existingClass);
+        }
+
+        public async Task<ServiceResponse<BatchOperationResponse>> RemoveAllStudentsFromClassAsync(Guid classId, Guid userId, int batchSize = 10)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            var existingClass = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            if (existingClass == null) 
+                return new ServiceResponse<BatchOperationResponse> { Success = false, Message = "Class not found." };
+
+            var (totalActive, batch) = await _studentRepo.GetActiveEnrollmentsBatchAsync(classId, batchSize);
+            
+            bool updated = false;
+            int processedCount = 0;
+            foreach (var enrollment in batch)
+            {
+                if (enrollment.Status != EnrollmentStatus.Dropped)
+                {
+                    enrollment.Status = EnrollmentStatus.Dropped;
+                    updated = true;
+                    processedCount++;
+                }
+            }
+
+            if (updated)
+            {
+                await _studentRepo.SaveChangesAsync();
+            }
+
+            return ServiceResponse<BatchOperationResponse>.SuccessResponse(new BatchOperationResponse
+            {
+                ProcessedCount = processedCount,
+                TotalCount = totalActive,
+                RemainingCount = Math.Max(0, totalActive - processedCount),
+                IsComplete = totalActive <= processedCount
+            });
+        }
+
+        public async Task<ServiceResponse<BatchOperationResponse>> ReassignAllStudentsAsync(Guid oldClassId, Guid newClassId, Guid userId, int batchSize = 10)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            var oldClass = await _classRepo.GetAsync(c => c.ClassId == oldClassId && c.TutorId == tutor.TutorId);
+            var newClass = await _classRepo.GetAsync(c => c.ClassId == newClassId && c.TutorId == tutor.TutorId);
+            
+            if (oldClass == null || newClass == null)
+                return new ServiceResponse<BatchOperationResponse> { Success = false, Message = "One or both classes not found." };
+
+            var (totalActive, batch) = await _studentRepo.GetActiveEnrollmentsBatchAsync(oldClassId, batchSize);
+            var newEnrollments = await _studentRepo.GetEnrollmentsByClassAsync(newClassId);
+            
+            bool updated = false;
+            int processedCount = 0;
+            foreach (var enrollment in batch)
+            {
+                // Mark old enrollment as dropped
+                if (enrollment.Status != EnrollmentStatus.Dropped)
+                {
+                    enrollment.Status = EnrollmentStatus.Dropped;
+                    updated = true;
+                    processedCount++;
+                }
+
+                // Check if already in new class (any status)
+                var existingEnrollment = newEnrollments.FirstOrDefault(ne => ne.StudentId == enrollment.StudentId);
+                    
+                if (existingEnrollment == null)
+                {
+                    await _studentRepo.AddEnrollmentAsync(new Enrollment
+                    {
+                        StudentId = enrollment.StudentId,
+                        ClassId = newClassId,
+                        Status = EnrollmentStatus.Approved,
+                        EnrolledAt = DateTime.UtcNow
+                    });
+                    updated = true;
+                }
+                else if (existingEnrollment.Status == EnrollmentStatus.Dropped)
+                {
+                    existingEnrollment.Status = EnrollmentStatus.Approved;
+                    updated = true;
+                }
+            }
+
+            if (updated)
+            {
+                await _studentRepo.SaveChangesAsync();
+            }
+
+            return ServiceResponse<BatchOperationResponse>.SuccessResponse(new BatchOperationResponse
+            {
+                ProcessedCount = processedCount,
+                TotalCount = totalActive,
+                RemainingCount = Math.Max(0, totalActive - processedCount),
+                IsComplete = totalActive <= processedCount
+            });
         }
 
         public async Task<bool> AddStudentToClassAsync(Guid userId, AddStudentRequest request)
@@ -378,6 +479,73 @@ namespace Tutorz.Application.Services
             return classes.Select(c => MapToDto(c)).ToList();
         }
 
+        public async Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid classId, Guid studentId, Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+
+            var classEntity = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            if (classEntity == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or unauthorized." };
+
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found." };
+
+            enrollment.Status = EnrollmentStatus.Dropped;
+            await _studentRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student removed from class." };
+        }
+
+        public async Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid studentId, Guid oldClassId, Guid newClassId, Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+
+            var oldClass = await _classRepo.GetAsync(c => c.ClassId == oldClassId && c.TutorId == tutor.TutorId);
+            var newClass = await _classRepo.GetAsync(c => c.ClassId == newClassId && c.TutorId == tutor.TutorId);
+
+            if (oldClass == null || newClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "One or both classes not found or unauthorized." };
+
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(oldClassId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found in the old class." };
+
+            // Drop old
+            enrollment.Status = EnrollmentStatus.Dropped;
+
+            // Create or update new
+            var newClassEnrollments = await _studentRepo.GetEnrollmentsByClassAsync(newClassId);
+            var existingNewEnrollment = newClassEnrollments.FirstOrDefault(e => e.StudentId == studentId);
+
+            if (existingNewEnrollment != null)
+            {
+                existingNewEnrollment.Status = EnrollmentStatus.Approved;
+            }
+            else
+            {
+                await _studentRepo.AddEnrollmentAsync(new Enrollment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = studentId,
+                    ClassId = newClassId,
+                    Status = EnrollmentStatus.Approved,
+                    RequestedAt = DateTime.UtcNow,
+                    EnrolledAt = DateTime.UtcNow
+                });
+            }
+
+            await _studentRepo.SaveChangesAsync();
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student reassigned successfully." };
+        }
         public async Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId)
         {
             var response = new ServiceResponse<TutorProfileDto>();
@@ -1296,5 +1464,89 @@ namespace Tutorz.Application.Services
                 }
             };
         }
+public async Task<ServiceResponse<PaginatedResultDto<StudentProfileDto>>> GetTutorStudentsAsync(Guid userId, Guid? instituteId, Guid? classId, string searchQuery = "", int page = 1, int pageSize = 10)
+{
+    var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+    if (tutor == null)
+    {
+        return new ServiceResponse<PaginatedResultDto<StudentProfileDto>> { Success = false, Message = "Tutor not found" };
+    }
+
+    var query = await _enrollmentRepo.GetAllAsync(e => e.Class.TutorId == tutor.TutorId && e.Status == EnrollmentStatus.Approved, includeProperties: "Class,Student,Student.User");
+    
+    if (instituteId.HasValue && instituteId.Value != Guid.Empty)
+    {
+        query = query.Where(e => e.Class.InstituteId == instituteId.Value);
+    }
+    
+    if (classId.HasValue && classId.Value != Guid.Empty)
+    {
+        query = query.Where(e => e.ClassId == classId.Value);
+    }
+    
+    // Group by student to avoid duplicates if they are enrolled in multiple classes of this tutor
+    var groupedByStudent = query.GroupBy(e => e.StudentId).Select(g => new 
+    {
+        Student = g.First().Student,
+        Classes = g.Select(e => e.Class).ToList()
+    });
+
+    if (!string.IsNullOrWhiteSpace(searchQuery))
+    {
+        var lowerQuery = searchQuery.ToLower();
+        groupedByStudent = groupedByStudent.Where(x => 
+            x.Student.FirstName.ToLower().Contains(lowerQuery) || 
+            x.Student.LastName.ToLower().Contains(lowerQuery) ||
+            x.Student.RegistrationNumber.ToLower().Contains(lowerQuery) ||
+            (x.Student.User != null && x.Student.User.PhoneNumber != null && x.Student.User.PhoneNumber.Contains(lowerQuery))
+        );
+    }
+
+    var totalCount = groupedByStudent.Count();
+    var pagedStudents = groupedByStudent
+        .OrderBy(x => x.Student.FirstName) // Predictable ordering
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToList();
+
+    var profiles = new List<StudentProfileDto>();
+    foreach (var item in pagedStudents)
+    {
+        var student = item.Student;
+        var user = student.User; // Ensure we get the User from the include
+        
+        // Ensure User is loaded if not included properly
+        if (user == null) 
+        {
+            user = await _userRepo.GetAsync(u => u.UserId == student.UserId);
+        }
+
+        profiles.Add(new StudentProfileDto
+        {
+            StudentId = student.StudentId,
+            FirstName = student.FirstName,
+            LastName = student.LastName,
+            Grade = student.Grade,
+            IsPrimary = student.IsPrimary,
+            RegistrationNumber = student.RegistrationNumber,
+            Email = user?.Email,
+            PhoneNumber = user?.PhoneNumber,
+            ProfileImageUrlSmall = student.ProfileImageUrlSmall,
+            ProfileImageUrlLarge = student.ProfileImageUrlLarge,
+            Address = student.Address,
+            SchoolName = student.SchoolName,
+            ParentName = student.ParentName,
+            DateOfBirth = student.DateOfBirth
+        });
+    }
+
+    return ServiceResponse<PaginatedResultDto<StudentProfileDto>>.SuccessResponse(new PaginatedResultDto<StudentProfileDto>
+    {
+        Items = profiles,
+        TotalCount = totalCount,
+        Page = page,
+        PageSize = pageSize
+    });
+}
     }
 }

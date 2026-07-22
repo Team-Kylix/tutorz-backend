@@ -17,6 +17,7 @@ namespace Tutorz.Application.Interfaces
         Task<StudentAttendanceHistoryResponseDto> GetStudentAttendanceHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, DateTime? date);
         Task<StudentPaymentHistoryResponseDto> GetStudentPaymentHistoryAsync(Guid studentId, Guid? tutorId, Guid? classId, string? monthYear, int page, int pageSize);
         Task<IEnumerable<Enrollment>> GetEnrollmentsByClassAsync(Guid classId);
+        Task<(int TotalActive, IEnumerable<Enrollment> Batch)> GetActiveEnrollmentsBatchAsync(Guid classId, int batchSize);
         Task<PaginatedResultDto<StudentProfileDto>> GetAllStudentsAsync(string? searchQuery, int page, int pageSize);
         Task AddEnrollmentAsync(Enrollment enrollment);
         Task<Student?> GetStudentByPhoneOrRegNoAsync(string registrationNumber, string? normalizedPhone);

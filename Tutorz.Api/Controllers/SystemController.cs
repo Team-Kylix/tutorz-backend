@@ -63,7 +63,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("min-token-date")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetMinTokenDate()
         {
             var setting = await _dbContext.AppSettings.FindAsync("MinTokenDate");
@@ -71,14 +71,14 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("online-count")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public IActionResult GetOnlineCount()
         {
             return Ok(new { onlineCount = NotificationHub.ConnectedUsers });
         }
 
         [HttpGet("dashboard-stats")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetDashboardStats()
         {
             try
@@ -95,7 +95,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetStudents([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _studentService.GetAllStudentsAsync(searchQuery, page, pageSize);
@@ -122,7 +122,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("institutes")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> GetInstitutes([FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _instituteService.GetAllInstitutesAsync(searchQuery, page, pageSize);
@@ -137,7 +137,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("force-logout")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
         public async Task<IActionResult> ForceLogout([FromBody] ForceLogoutRequest request)
         {
             try
@@ -157,21 +157,22 @@ namespace Tutorz.Api.Controllers
                 }
                 await _dbContext.SaveChangesAsync();
 
-                // 2. Bulk insert SystemUpdate Notification to all users using Raw SQL for performance
+                // 2. Insert ONE System Announcement instead of looping millions of rows
                 var title = $"System Update {request.VersionNumber} 🚀";
                 var message = string.IsNullOrWhiteSpace(request.ReleaseNotes) 
                                 ? "A new version of Tutorz is now live! Please enjoy the new features." 
                                 : request.ReleaseNotes;
 
-                // Executing Raw SQL to avoid loading all users into memory 
-                // NEWID() generates a unique Guid for each notification.
-                var sql = @"
-                    INSERT INTO Notifications (NotificationId, UserId, Title, Message, [Type], IsRead, CreatedAt)
-                    SELECT NEWID(), UserId, {0}, {1}, 'SystemUpdate', 0, GETUTCDATE()
-                    FROM Users;
-                ";
-                
-                await _dbContext.Database.ExecuteSqlRawAsync(sql, title, message);
+                var announcement = new Tutorz.Domain.Entities.SystemAnnouncement
+                {
+                    Title = title,
+                    Message = message,
+                    Type = "SystemUpdate",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _dbContext.SystemAnnouncements.Add(announcement);
+                await _dbContext.SaveChangesAsync();
 
                 // 3. Broadcast SignalR event to all connected clients for instant logout
                 await _notificationPusher.BroadcastToAllAsync(new { 

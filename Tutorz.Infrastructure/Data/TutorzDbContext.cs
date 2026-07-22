@@ -41,6 +41,8 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Bank> Banks { get; set; }
         public DbSet<Branch> Branches { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SystemAnnouncement> SystemAnnouncements { get; set; }
+        public DbSet<UserAnnouncementRead> UserAnnouncementReads { get; set; }
         // Global application settings (e.g., MinTokenDate for forced logout on deploy)
         public DbSet<AppSetting> AppSettings { get; set; }
         public DbSet<Dispute> Disputes { get; set; }
@@ -53,6 +55,25 @@ namespace Tutorz.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // Configure SystemAnnouncements
+            modelBuilder.Entity<SystemAnnouncement>()
+                .HasKey(sa => sa.AnnouncementId);
+
+            modelBuilder.Entity<UserAnnouncementRead>()
+                .HasKey(uar => new { uar.UserId, uar.AnnouncementId });
+
+            modelBuilder.Entity<UserAnnouncementRead>()
+                .HasOne(uar => uar.User)
+                .WithMany()
+                .HasForeignKey(uar => uar.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserAnnouncementRead>()
+                .HasOne(uar => uar.Announcement)
+                .WithMany(sa => sa.UserReads)
+                .HasForeignKey(uar => uar.AnnouncementId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Tutor>()
                 .HasOne(t => t.User)

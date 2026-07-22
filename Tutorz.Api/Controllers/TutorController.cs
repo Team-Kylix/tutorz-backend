@@ -115,6 +115,56 @@ namespace Tutorz.Api.Controllers
             return Ok(new { message = "Class deleted successfully" });
         }
 
+        [HttpPost("classes/{id}/remove-students")]
+        [ApiPurpose("Remove all students from Tutor Class")]
+        public async Task<IActionResult> RemoveAllStudents(Guid id, [FromQuery] int batchSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.RemoveAllStudentsFromClassAsync(id, userId, batchSize);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result.Data); // Return the BatchOperationResponse
+        }
+
+        [HttpPost("classes/{id}/reassign")]
+        [ApiPurpose("Reassign all students to another Class")]
+        public async Task<IActionResult> ReassignAllStudents(Guid id, [FromBody] ReassignClassDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.ReassignAllStudentsAsync(id, dto.NewClassId, userId, dto.BatchSize);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(result.Data); // Return the BatchOperationResponse
+        }
+
+
+        [HttpPost("students/{studentId}/drop-class/{classId}")]
+        [ApiPurpose("Drop student from a specific class")]
+        public async Task<IActionResult> DropStudentFromClass(Guid studentId, Guid classId)
+        {
+            var userId = GetUserId();
+            var result = await _tutorService.DropStudentFromClassAsync(classId, studentId, userId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        public class TutorReassignStudentRequest
+        {
+            public Guid OldClassId { get; set; }
+            public Guid NewClassId { get; set; }
+        }
+
+        [HttpPost("students/{studentId}/reassign-class")]
+        [ApiPurpose("Reassign a student from one class to another")]
+        public async Task<IActionResult> ReassignStudentToClass(Guid studentId, [FromBody] TutorReassignStudentRequest request)
+        {
+            var userId = GetUserId();
+            var result = await _tutorService.ReassignStudentToClassAsync(studentId, request.OldClassId, request.NewClassId, userId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
         [HttpGet("profile")]
         [ApiPurpose("Get Tutor Profile")]
         public async Task<IActionResult> GetProfile()
@@ -138,6 +188,19 @@ namespace Tutorz.Api.Controllers
 
             if (!result.Success) return BadRequest(result.Message);
 
+            return Ok(result.Data);
+        }
+
+        [HttpGet("students")]
+        [ApiPurpose("Get Tutor Students")]
+        public async Task<IActionResult> GetTutorStudents([FromQuery] Guid? instituteId, [FromQuery] Guid? classId, [FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _tutorService.GetTutorStudentsAsync(userId, instituteId, classId, searchQuery, page, pageSize);
+            
+            if (!result.Success) return BadRequest(result);
             return Ok(result.Data);
         }
 

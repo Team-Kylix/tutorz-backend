@@ -246,7 +246,7 @@ namespace Tutorz.Application.Services
                     try
                     {
                         string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                        string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nURL to Tutorz: {frontendUrl}";
+                        string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nLog in to Tutorz system for more details.";
                         await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, institute.UserId);
                     }
                     catch (Exception ex)
@@ -285,7 +285,7 @@ namespace Tutorz.Application.Services
                 try
                 {
                     string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                    string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nURL to Tutorz: {frontendUrl}";
+                    string welcomeMessage = $"Hi {request.FirstName},\nYour user name is {request.PhoneNumber} and password is {request.Password}\nLog in to Tutorz system for more details.";
                     await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage);
                 }
                 catch (Exception ex)
@@ -439,7 +439,7 @@ namespace Tutorz.Application.Services
             // Send Welcome SMS
             try
             {
-                string welcomeMessage = $"Hi {request.FirstName},\nYou've been added as an Admin. Your user name is {request.PhoneNumber} and password is {rawPassword}\nURL: https://www.tutorz.lk";
+                string welcomeMessage = $"Hi {request.FirstName},\nYou've been added as an Admin. Your user name is {request.PhoneNumber} and password is {rawPassword}\nLog in to Tutorz system for more details.";
                 await _smsService.SendSmsAsync(normalizedPhone, welcomeMessage, user.UserId);
             }
             catch (Exception ex)
@@ -830,7 +830,7 @@ namespace Tutorz.Application.Services
                         try
                         {
                             string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nURL to Tutorz: {frontendUrl}";
+                            string welcomeMessage = $"Hi,\nA new student profile {newStudentId} for {request.FirstName} has been added to your account by {institute.InstituteName}.\nLog in to Tutorz system for more details.";
                             await _smsService.SendSmsAsync(user.PhoneNumber, welcomeMessage, institute.UserId);
                         }
                         catch (Exception ex)
@@ -1183,7 +1183,7 @@ namespace Tutorz.Application.Services
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
                 string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nURL to Tutorz: {frontendUrl}"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Password Reset Code is {otp}\nLog in to Tutorz system for more details."); } catch { }
             }
         }
 
@@ -1237,7 +1237,7 @@ namespace Tutorz.Application.Services
             if (!string.IsNullOrEmpty(user.PhoneNumber))
             {
                 string frontendUrl = _configuration["FrontendUrl"] ?? "https://www.tutorz.lk";
-                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nURL to Tutorz: {frontendUrl}"); } catch { }
+                try { await _smsService.SendSmsAsync(user.PhoneNumber, $"Your Tutorz Verification Code is {otp}\nLog in to Tutorz system for more details."); } catch { }
             }
         }
 
