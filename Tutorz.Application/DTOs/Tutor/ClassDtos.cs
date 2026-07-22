@@ -23,6 +23,8 @@ namespace Tutorz.Application.DTOs.Tutor
         public DateTime? Date { get; set; }
         public bool IsAttendanceMarkedToday { get; set; }
 
+        public string TutorName { get; set; }
+        
         /// <summary>Snapshot of the institute commission rate at the time of class creation.</summary>
         public decimal InstituteCommissionRate { get; set; }
     }
