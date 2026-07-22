@@ -1083,6 +1083,95 @@ namespace Tutorz.Application.Services
         }
 
 
+        public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesAsync(Guid instituteId, Guid studentId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = false, Message = "Institute not found." };
+
+            var classes = await _classRepository.GetAllAsync(c => c.InstituteId == institute.InstituteId && !c.IsDeleted, includeProperties: "Tutor,Institute,Enrollments");
+
+            var studentClasses = classes.Where(c => c.Enrollments != null && c.Enrollments.Any(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped)).ToList();
+
+            var mapped = studentClasses.Select(c => new InstituteClassDto
+            {
+                ClassId = c.ClassId,
+                ClassName = c.ClassName,
+                ClassType = c.ClassType,
+                Grade = c.Grade,
+                StudentCount = c.Enrollments?.Count(en => en.Status == EnrollmentStatus.Approved) ?? 0,
+                TutorName = c.Tutor != null ? $"{c.Tutor.FirstName} {c.Tutor.LastName}" : null
+            }).ToList();
+            return new ServiceResponse<IEnumerable<InstituteClassDto>> { Success = true, Data = mapped };
+        }
+
+        public async Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid instituteId, Guid studentId, Guid classId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            var classEntity = await _classRepository.GetAsync(c => c.ClassId == classId && c.InstituteId == institute.InstituteId);
+            if (classEntity == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or unauthorized." };
+
+            var enrollments = await _studentRepository.GetEnrollmentsByClassAsync(classId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found." };
+
+            enrollment.Status = EnrollmentStatus.Dropped;
+            await _studentRepository.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student removed from class." };
+        }
+
+        public async Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid instituteId, Guid studentId, Guid oldClassId, Guid newClassId)
+        {
+            var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);
+            if (institute == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Institute not found." };
+
+            var oldClass = await _classRepository.GetAsync(c => c.ClassId == oldClassId && c.InstituteId == institute.InstituteId);
+            var newClass = await _classRepository.GetAsync(c => c.ClassId == newClassId && c.InstituteId == institute.InstituteId);
+
+            if (oldClass == null || newClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "One or both classes not found or unauthorized." };
+
+            var enrollments = await _studentRepository.GetEnrollmentsByClassAsync(oldClassId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found in the old class." };
+
+            // Drop old
+            enrollment.Status = EnrollmentStatus.Dropped;
+
+            // Create or update new
+            var newClassEnrollments = await _studentRepository.GetEnrollmentsByClassAsync(newClassId);
+            var existingNewEnrollment = newClassEnrollments.FirstOrDefault(e => e.StudentId == studentId);
+
+            if (existingNewEnrollment != null)
+            {
+                existingNewEnrollment.Status = EnrollmentStatus.Approved;
+            }
+            else
+            {
+                await _studentRepository.AddEnrollmentAsync(new Enrollment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = studentId,
+                    ClassId = newClassId,
+                    Status = EnrollmentStatus.Approved,
+                    RequestedAt = DateTime.UtcNow,
+                    EnrolledAt = DateTime.UtcNow
+                });
+            }
+
+            await _studentRepository.SaveChangesAsync();
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student reassigned successfully." };
+        }
         public async Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId)
         {
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId || i.UserId == instituteId);

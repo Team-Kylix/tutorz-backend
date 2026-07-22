@@ -42,6 +42,9 @@ namespace Tutorz.Application.Interfaces
 
         // Attendance
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesForAttendanceAsync(Guid instituteId, Guid studentId);
+        Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetStudentClassesAsync(Guid instituteId, Guid studentId);
+        Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid instituteId, Guid studentId, Guid classId);
+        Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid instituteId, Guid studentId, Guid oldClassId, Guid newClassId);
         Task<ServiceResponse<bool>> MarkAttendanceAsync(Guid instituteId, MarkAttendanceDto dto);
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetInstituteClassesTodayAsync(Guid instituteId, DateTime clientDate);
         Task<ServiceResponse<IEnumerable<InstituteClassDto>>> GetClassesByDateAsync(Guid instituteId, DateTime date);

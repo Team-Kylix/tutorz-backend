@@ -139,6 +139,32 @@ namespace Tutorz.Api.Controllers
             return Ok(result.Data); // Return the BatchOperationResponse
         }
 
+
+        [HttpPost("students/{studentId}/drop-class/{classId}")]
+        [ApiPurpose("Drop student from a specific class")]
+        public async Task<IActionResult> DropStudentFromClass(Guid studentId, Guid classId)
+        {
+            var userId = GetUserId();
+            var result = await _tutorService.DropStudentFromClassAsync(classId, studentId, userId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        public class TutorReassignStudentRequest
+        {
+            public Guid OldClassId { get; set; }
+            public Guid NewClassId { get; set; }
+        }
+
+        [HttpPost("students/{studentId}/reassign-class")]
+        [ApiPurpose("Reassign a student from one class to another")]
+        public async Task<IActionResult> ReassignStudentToClass(Guid studentId, [FromBody] TutorReassignStudentRequest request)
+        {
+            var userId = GetUserId();
+            var result = await _tutorService.ReassignStudentToClassAsync(studentId, request.OldClassId, request.NewClassId, userId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
         [HttpGet("profile")]
         [ApiPurpose("Get Tutor Profile")]
         public async Task<IActionResult> GetProfile()

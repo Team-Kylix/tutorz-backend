@@ -18,6 +18,8 @@ namespace Tutorz.Application.Interfaces
         Task DeleteClassAsync(Guid classId, Guid userId);
         Task<ServiceResponse<BatchOperationResponse>> RemoveAllStudentsFromClassAsync(Guid classId, Guid userId, int batchSize = 10);
         Task<ServiceResponse<BatchOperationResponse>> ReassignAllStudentsAsync(Guid oldClassId, Guid newClassId, Guid userId, int batchSize = 10);
+        Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid classId, Guid studentId, Guid userId);
+        Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid studentId, Guid oldClassId, Guid newClassId, Guid userId);
         Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId);
         Task<ServiceResponse<TutorProfileDto>> UpdateTutorProfileAsync(Guid userId, UpdateTutorProfileDto request);
         Task<List<StudentRequestDto>> GetStudentRequestsAsync(Guid userId);

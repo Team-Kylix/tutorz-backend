@@ -479,6 +479,73 @@ if (enrollments.Any(e => e.Status != EnrollmentStatus.Dropped))
             return classes.Select(c => MapToDto(c)).ToList();
         }
 
+        public async Task<ServiceResponse<bool>> DropStudentFromClassAsync(Guid classId, Guid studentId, Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+
+            var classEntity = await _classRepo.GetAsync(c => c.ClassId == classId && c.TutorId == tutor.TutorId);
+            if (classEntity == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Class not found or unauthorized." };
+
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(classId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found." };
+
+            enrollment.Status = EnrollmentStatus.Dropped;
+            await _studentRepo.SaveChangesAsync();
+
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student removed from class." };
+        }
+
+        public async Task<ServiceResponse<bool>> ReassignStudentToClassAsync(Guid studentId, Guid oldClassId, Guid newClassId, Guid userId)
+        {
+            var tutor = await _tutorRepo.GetAsync(t => t.UserId == userId);
+            if (tutor == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Tutor not found." };
+
+            var oldClass = await _classRepo.GetAsync(c => c.ClassId == oldClassId && c.TutorId == tutor.TutorId);
+            var newClass = await _classRepo.GetAsync(c => c.ClassId == newClassId && c.TutorId == tutor.TutorId);
+
+            if (oldClass == null || newClass == null)
+                return new ServiceResponse<bool> { Success = false, Message = "One or both classes not found or unauthorized." };
+
+            var enrollments = await _studentRepo.GetEnrollmentsByClassAsync(oldClassId);
+            var enrollment = enrollments.FirstOrDefault(e => e.StudentId == studentId && e.Status != EnrollmentStatus.Dropped);
+            
+            if (enrollment == null)
+                return new ServiceResponse<bool> { Success = false, Message = "Active enrollment not found in the old class." };
+
+            // Drop old
+            enrollment.Status = EnrollmentStatus.Dropped;
+
+            // Create or update new
+            var newClassEnrollments = await _studentRepo.GetEnrollmentsByClassAsync(newClassId);
+            var existingNewEnrollment = newClassEnrollments.FirstOrDefault(e => e.StudentId == studentId);
+
+            if (existingNewEnrollment != null)
+            {
+                existingNewEnrollment.Status = EnrollmentStatus.Approved;
+            }
+            else
+            {
+                await _studentRepo.AddEnrollmentAsync(new Enrollment
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = studentId,
+                    ClassId = newClassId,
+                    Status = EnrollmentStatus.Approved,
+                    RequestedAt = DateTime.UtcNow,
+                    EnrolledAt = DateTime.UtcNow
+                });
+            }
+
+            await _studentRepo.SaveChangesAsync();
+            return new ServiceResponse<bool> { Success = true, Data = true, Message = "Student reassigned successfully." };
+        }
         public async Task<ServiceResponse<TutorProfileDto>> GetTutorProfileAsync(Guid userId)
         {
             var response = new ServiceResponse<TutorProfileDto>();
