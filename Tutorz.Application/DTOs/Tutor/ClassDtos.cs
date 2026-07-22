@@ -23,6 +23,8 @@ namespace Tutorz.Application.DTOs.Tutor
         public DateTime? Date { get; set; }
         public bool IsAttendanceMarkedToday { get; set; }
 
+        public string TutorName { get; set; }
+        
         /// <summary>Snapshot of the institute commission rate at the time of class creation.</summary>
         public decimal InstituteCommissionRate { get; set; }
     }
@@ -66,5 +68,11 @@ namespace Tutorz.Application.DTOs.Tutor
         [Required] public Guid ClassId { get; set; }
         public string? StudentRegistrationNumber { get; set; }
         public Guid? StudentId { get; set; }
+    }
+
+    public class ReassignClassDto
+    {
+        public Guid NewClassId { get; set; }
+        public int BatchSize { get; set; } = 10;
     }
 }

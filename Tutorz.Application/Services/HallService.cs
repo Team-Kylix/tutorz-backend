@@ -96,6 +96,8 @@ namespace Tutorz.Application.Services
                 };
             }
 
+            var oldName = hall.Name;
+
             hall.Name = dto.Name;
             hall.Capacity = dto.Capacity;
             
@@ -105,6 +107,16 @@ namespace Tutorz.Application.Services
             var institute = await _instituteRepository.GetAsync(i => i.InstituteId == instituteId);
             string regNum = institute?.RegistrationNumber ?? "UNKNOWN";
             hall.HallCode = $"{regNum}HALL{dto.Name}";
+
+            // Update HallName in all associated active/inactive classes
+            if (oldName != dto.Name)
+            {
+                var classesToUpdate = await _classRepository.GetAllAsync(c => c.InstituteId == instituteId && c.HallName == oldName && !c.IsDeleted);
+                foreach (var cls in classesToUpdate)
+                {
+                    cls.HallName = dto.Name;
+                }
+            }
 
             await _hallRepository.SaveChangesAsync();
 

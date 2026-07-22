@@ -27,10 +27,19 @@ var builder = WebApplication.CreateBuilder(args);
 var kvVaultUri = builder.Configuration["KeyVault:VaultUri"];
 if (!string.IsNullOrEmpty(kvVaultUri))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(kvVaultUri),
-        new DefaultAzureCredential(),
-        new EnvironmentPrefixSecretManager(builder.Environment.EnvironmentName));
+    try
+    {
+        builder.Configuration.AddAzureKeyVault(
+            new Uri(kvVaultUri),
+            new DefaultAzureCredential(),
+            new EnvironmentPrefixSecretManager(builder.Environment.EnvironmentName));
+        Console.WriteLine($"Successfully connected to Azure Key Vault: {kvVaultUri}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"WARNING: Failed to connect to Azure Key Vault at {kvVaultUri}. Ensure you have internet connectivity and the vault exists. Running with local configuration only.");
+        Console.WriteLine($"Details: {ex.Message}");
+    }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 

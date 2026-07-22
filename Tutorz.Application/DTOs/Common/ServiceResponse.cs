@@ -24,4 +24,12 @@ namespace Tutorz.Application.DTOs.Common
             return new ServiceResponse<T> { Success = false, Message = message, Errors = errors ?? new List<string>() };
         }
     }
+
+    public class BatchOperationResponse
+    {
+        public int ProcessedCount { get; set; }
+        public int TotalCount { get; set; }
+        public int RemainingCount { get; set; }
+        public bool IsComplete { get; set; }
+    }
 }
