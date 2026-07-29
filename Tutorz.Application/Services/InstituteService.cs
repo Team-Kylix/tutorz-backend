@@ -550,6 +550,7 @@ namespace Tutorz.Application.Services
                 var user = await _userRepository.GetAsync(u => u.UserId == tutor.UserId);
                 profiles.Add(new TutorProfileDto
                 {
+                    UserId = tutor.UserId,
                     TutorId = tutor.TutorId,
                     FirstName = tutor.FirstName,
                     LastName = tutor.LastName,

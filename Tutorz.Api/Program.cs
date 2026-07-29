@@ -97,7 +97,7 @@ builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.Dispu
 builder.Services.AddScoped<IBillService, BillService>();
 builder.Services.AddScoped<IStudentBillService, StudentBillService>();
 builder.Services.AddScoped<IReportService, Tutorz.Infrastructure.Services.ReportService>();
-builder.Services.AddScoped<IClassQrPdfService, Tutorz.Infrastructure.Services.ClassQrPdfService>();
+builder.Services.AddScoped<IQrPdfService, Tutorz.Infrastructure.Services.QrPdfService>();
 
 // Named HTTP client for PayHere API calls (Charging API, OAuth)
 builder.Services.AddHttpClient("PayHere", client =>

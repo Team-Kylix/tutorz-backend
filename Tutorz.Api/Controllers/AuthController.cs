@@ -393,5 +393,29 @@ namespace Tutorz.Api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [HttpGet("profile/qr-pdf")]
+        [Authorize]
+        [ApiPurpose("Download authenticated user's own QR code PDF")]
+        public async Task<IActionResult> GetMyQrPdf([FromServices] IQrPdfService qrPdfService)
+        {
+            try
+            {
+                var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                                   ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                                   
+                if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized("User ID not found in token.");
+                }
+
+                var pdfBytes = await qrPdfService.GenerateUserQrPdfAsync(userId);
+                return File(pdfBytes, "application/pdf", $"My_QRCode.pdf");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

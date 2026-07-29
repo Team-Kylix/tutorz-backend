@@ -9,6 +9,7 @@ using Tutorz.Domain.Entities;
 using Tutorz.Api.Hubs;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Billing;
+using Tutorz.Api.Attributes;
 
 namespace Tutorz.Api.Controllers
 {
@@ -310,6 +311,21 @@ namespace Tutorz.Api.Controllers
                 .ToListAsync();
 
             return Ok(classes);
+        }
+
+        [HttpGet("users/{userId}/qr-pdf")]
+        [ApiPurpose("Generate QR code PDF for any user")]
+        public async Task<IActionResult> GetSystemUserQrPdf(Guid userId, [FromServices] IQrPdfService qrPdfService)
+        {
+            try
+            {
+                var pdfBytes = await qrPdfService.GenerateUserQrPdfAsync(userId);
+                return File(pdfBytes, "application/pdf", $"User_{userId}_QRCode.pdf");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

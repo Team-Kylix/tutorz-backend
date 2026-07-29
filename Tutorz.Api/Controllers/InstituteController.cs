@@ -371,8 +371,9 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("classes/{classId}/qr-codes")]
-        [ApiPurpose("Generate QR codes PDF for a class")]
-        public async Task<IActionResult> GetClassQrCodes(Guid classId, [FromServices] IClassQrPdfService qrPdfService)
+        [ApiPurpose("Generate QR codes")]
+        [Authorize(Roles = "Institute")]
+        public async Task<IActionResult> GetClassQrCodes(Guid classId, [FromServices] IQrPdfService qrPdfService)
         {
             try
             {
