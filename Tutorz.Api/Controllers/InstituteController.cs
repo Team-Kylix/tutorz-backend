@@ -368,6 +368,21 @@ namespace Tutorz.Api.Controllers
 
             var result = await _instituteService.GetInstituteClassesAsync(instituteId, searchQuery, tutorId, page, pageSize);
             return Ok(result);
+        }
+
+        [HttpGet("classes/{classId}/qr-codes")]
+        [ApiPurpose("Generate QR codes PDF for a class")]
+        public async Task<IActionResult> GetClassQrCodes(Guid classId, [FromServices] IClassQrPdfService qrPdfService)
+        {
+            try
+            {
+                var pdfBytes = await qrPdfService.GenerateClassQrCodesPdfAsync(classId);
+                return File(pdfBytes, "application/pdf", $"Class_{classId}_QRCodes.pdf");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }   
 
         [HttpGet("students")]
