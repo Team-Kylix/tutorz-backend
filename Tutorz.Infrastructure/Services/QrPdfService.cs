@@ -108,7 +108,7 @@ namespace Tutorz.Infrastructure.Services
                 phoneNumber = "0" + phoneNumber.Substring(3);
             }
 
-            var logoPath = @"D:\Projects\Tutorz\tutorz-backend\Tutorz.Api\Assets\FullLogo.png";
+            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "FullLogo.png");
             byte[]? logoBytes = null;
             if (File.Exists(logoPath))
             {
@@ -239,7 +239,7 @@ namespace Tutorz.Infrastructure.Services
             const int rowsPerPage = 5;
             const int cardsPerPage = cardsPerRow * rowsPerPage;
 
-            var logoPath = @"D:\Projects\Tutorz\tutorz-backend\Tutorz.Api\Assets\FullLogo.png";
+            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "FullLogo.png");
             byte[]? logoBytes = null;
             if (File.Exists(logoPath))
             {
