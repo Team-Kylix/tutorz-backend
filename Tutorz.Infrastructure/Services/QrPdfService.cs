@@ -177,25 +177,8 @@ namespace Tutorz.Infrastructure.Services
                             columns.RelativeColumn();
                         });
 
-                        table.Cell().Padding(2, Unit.Millimetre).Container()
-                            .Height(53.98f, Unit.Millimetre) // Standard ID height
-                            .Border(0.5f)
-                            .BorderColor(Colors.Grey.Lighten2)
-                            .AlignCenter()
-                            .AlignMiddle()
-                            .Column(col =>
-                            {
-                                if (logoBytes != null)
-                                {
-                                    col.Item().AlignCenter().Height(30, Unit.Millimetre).Image(logoBytes).FitArea();
-                                }
-                                else
-                                {
-                                    col.Item().AlignCenter().Text("Tutorz").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                                }
-                                col.Item().AlignCenter().PaddingTop(4).Text("Tutorz Platform - www.tutorz.lk").FontSize(10);
-                                col.Item().AlignCenter().Text("Empowering Education").FontSize(8).FontColor(Colors.Grey.Medium);
-                            });
+                        table.Cell(); // Empty cell to shift to the right side
+                        RenderBackCard(table.Cell(), logoBytes);
                     });
                 });
             });
@@ -322,29 +305,21 @@ namespace Tutorz.Infrastructure.Services
                                 columns.RelativeColumn();
                             });
 
-                            // The back page is mirrored horizontally, but since all backs are identical,
-                            // we just render the same number of cards as the front page.
-                            for (int i = 0; i < pageStudents.Count; i++)
+                            // The back page is mirrored horizontally to align perfectly on duplex printouts
+                            for (int i = 0; i < pageStudents.Count; i += 2)
                             {
-                                table.Cell().Padding(2, Unit.Millimetre).Container()
-                                    .Height(53.98f, Unit.Millimetre) // Standard ID height
-                                    .Border(0.5f)
-                                    .BorderColor(Colors.Grey.Lighten2)
-                                    .AlignCenter()
-                                    .AlignMiddle()
-                                    .Column(col =>
-                                    {
-                                        if (logoBytes != null)
-                                        {
-                                            col.Item().AlignCenter().Height(30, Unit.Millimetre).Image(logoBytes).FitArea();
-                                        }
-                                        else
-                                        {
-                                            col.Item().AlignCenter().Text("Tutorz").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                                        }
-                                        col.Item().AlignCenter().PaddingTop(4).Text("Tutorz Platform - www.tutorz.lk").FontSize(10);
-                                        col.Item().AlignCenter().Text("Empowering Education").FontSize(8).FontColor(Colors.Grey.Medium);
-                                    });
+                                if (i + 1 < pageStudents.Count)
+                                {
+                                    // Full row with 2 cards.
+                                    RenderBackCard(table.Cell(), logoBytes);
+                                    RenderBackCard(table.Cell(), logoBytes);
+                                }
+                                else
+                                {
+                                    // Row with 1 card. The front is on the Left, so the back MUST be on the Right.
+                                    table.Cell(); // Empty cell on the Left
+                                    RenderBackCard(table.Cell(), logoBytes); // Card on the Right
+                                }
                             }
                         });
                     });
@@ -352,6 +327,29 @@ namespace Tutorz.Infrastructure.Services
             });
 
             return document.GeneratePdf();
+        }
+
+        private void RenderBackCard(QuestPDF.Infrastructure.IContainer container, byte[]? logoBytes)
+        {
+            container.Padding(2, Unit.Millimetre).Container()
+                .Height(53.98f, Unit.Millimetre) // Standard ID height
+                .Border(0.5f)
+                .BorderColor(Colors.Grey.Lighten2)
+                .AlignCenter()
+                .AlignMiddle()
+                .Column(col =>
+                {
+                    if (logoBytes != null)
+                    {
+                        col.Item().AlignCenter().Height(30, Unit.Millimetre).Image(logoBytes).FitArea();
+                    }
+                    else
+                    {
+                        col.Item().AlignCenter().Text("Tutorz").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
+                    }
+                    col.Item().AlignCenter().PaddingTop(4).Text("Tutorz Platform - www.tutorz.lk").FontSize(10);
+                    col.Item().AlignCenter().Text("Empowering Education").FontSize(8).FontColor(Colors.Grey.Medium);
+                });
         }
 
         private byte[] GenerateQrCode(string data)
