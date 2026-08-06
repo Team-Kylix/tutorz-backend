@@ -148,9 +148,21 @@ namespace Tutorz.Infrastructure.Services
                                 // Right: Info
                                 row.RelativeItem().PaddingLeft(5, Unit.Millimetre).AlignMiddle().Column(info =>
                                 {
-                                    var nameText = string.IsNullOrWhiteSpace(lastName) ? firstName : $"{firstName} {lastName}";
-                                    info.Item().Text(nameText)
-                                        .FontSize(12).Bold().FontColor(Colors.Black);
+                                    var fName = firstName ?? "";
+                                    var lName = lastName ?? "";
+                                    var fullName = string.IsNullOrWhiteSpace(lName) ? fName : $"{fName} {lName}";
+
+                                    if (fullName.Length > 15 && !string.IsNullOrWhiteSpace(lName))
+                                    {
+                                        float fnSize = Math.Max(6f, fName.Length > 15 ? 12f * 15f / fName.Length : 12f);
+                                        float lnSize = Math.Max(6f, lName.Length > 15 ? 12f * 15f / lName.Length : 12f);
+                                        info.Item().Text(fName).FontSize(fnSize).Bold().FontColor(Colors.Black);
+                                        info.Item().Text(lName).FontSize(lnSize).Bold().FontColor(Colors.Black);
+                                    }
+                                    else
+                                    {
+                                        info.Item().Text(fullName).FontSize(12).Bold().FontColor(Colors.Black);
+                                    }
                                     info.Item().Text(registrationNumber ?? "")
                                         .FontSize(9).FontColor(Colors.Grey.Darken3);
                                     info.Item().Text(phoneNumber)
@@ -219,7 +231,7 @@ namespace Tutorz.Infrastructure.Services
 
             // Cards per page setting
             const int cardsPerRow = 2;
-            const int rowsPerPage = 5;
+            const int rowsPerPage = 4;
             const int cardsPerPage = cardsPerRow * rowsPerPage;
 
             var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "FullLogo.png");
@@ -276,8 +288,21 @@ namespace Tutorz.Infrastructure.Services
                                         // Right: Info
                                         row.RelativeItem().PaddingLeft(5, Unit.Millimetre).AlignMiddle().Column(info =>
                                         {
-                                            info.Item().Text($"{student.FirstName} {student.LastName}")
-                                                .FontSize(12).Bold().FontColor(Colors.Black);
+                                            var fName = student.FirstName ?? "";
+                                            var lName = student.LastName ?? "";
+                                            var fullName = string.IsNullOrWhiteSpace(lName) ? fName : $"{fName} {lName}";
+
+                                            if (fullName.Length > 15 && !string.IsNullOrWhiteSpace(lName))
+                                            {
+                                                float fnSize = Math.Max(6f, fName.Length > 15 ? 12f * 15f / fName.Length : 12f);
+                                                float lnSize = Math.Max(6f, lName.Length > 15 ? 12f * 15f / lName.Length : 12f);
+                                                info.Item().Text(fName).FontSize(fnSize).Bold().FontColor(Colors.Black);
+                                                info.Item().Text(lName).FontSize(lnSize).Bold().FontColor(Colors.Black);
+                                            }
+                                            else
+                                            {
+                                                info.Item().Text(fullName).FontSize(12).Bold().FontColor(Colors.Black);
+                                            }
                                             info.Item().Text(student.RegistrationNumber ?? "")
                                                 .FontSize(9).FontColor(Colors.Grey.Darken3);
                                             info.Item().Text(phoneNumber)
