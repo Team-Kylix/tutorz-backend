@@ -64,7 +64,7 @@ namespace Tutorz.Infrastructure.Services
             decimal gatewaySurcharge = isPaid ? Math.Max(0, amountPaid - classFee) : 0;
 
             // ── Assets ───────────────────────────────────────────────────────
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             // ── Build PDF document ────────────────────────────────────────────
@@ -268,7 +268,7 @@ namespace Tutorz.Infrastructure.Services
             decimal amountPaid      = payment.AmountPaid;
             decimal gatewaySurcharge = isPaid ? Math.Max(0, amountPaid - classFee) : 0;
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>
@@ -459,7 +459,7 @@ namespace Tutorz.Infrastructure.Services
             decimal amountPaid       = payment.AmountPaid;
             decimal gatewaySurcharge = isPaid ? Math.Max(0, amountPaid - classFee) : 0;
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>
@@ -651,7 +651,7 @@ namespace Tutorz.Infrastructure.Services
             decimal amountPaid       = payment.AmountPaid;
             decimal gatewaySurcharge = isPaid ? Math.Max(0, amountPaid - classFee) : 0;
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>

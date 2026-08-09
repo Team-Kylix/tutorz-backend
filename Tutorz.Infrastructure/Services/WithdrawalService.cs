@@ -342,7 +342,7 @@ namespace Tutorz.Infrastructure.Services
 
 
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>
@@ -785,7 +785,7 @@ namespace Tutorz.Infrastructure.Services
                 ? (pendingPayments.First().Class?.Institute?.InstituteName ?? "Specific Institute")
                 : "All Institutes";
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>
@@ -960,7 +960,7 @@ namespace Tutorz.Infrastructure.Services
                 ? ((pendingPayments.First().Class?.Tutor?.FirstName ?? "") + " " + (pendingPayments.First().Class?.Tutor?.LastName ?? "")).Trim()
                 : "All Tutors";
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
 
             var document = Document.Create(container =>
@@ -1182,7 +1182,7 @@ namespace Tutorz.Infrastructure.Services
                 ? (payments.First().Class?.Institute?.InstituteName ?? "Specific Institute")
                 : "All Institutes";
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
             string periodStr = new DateTime(year, month, 1).ToString("MMMM yyyy");
 
@@ -1260,7 +1260,7 @@ namespace Tutorz.Infrastructure.Services
 
             if (!payments.Any()) return Array.Empty<byte>();
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
             string periodStr = new DateTime(year, month, 1).ToString("MMMM yyyy");
 

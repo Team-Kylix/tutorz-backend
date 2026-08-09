@@ -496,6 +496,7 @@ namespace Tutorz.Application.Services
                 profiles.Add(new StudentProfileDto
                 {
                     StudentId = student.StudentId,
+                    UserId = student.UserId,
                     FirstName = student.FirstName,
                     LastName = student.LastName,
                     Grade = student.Grade,

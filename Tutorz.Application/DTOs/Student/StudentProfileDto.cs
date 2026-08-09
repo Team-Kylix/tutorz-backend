@@ -10,6 +10,7 @@ namespace Tutorz.Application.DTOs.Student
     public class StudentProfileDto
     {
         public Guid StudentId { get; set; }
+        public Guid UserId { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
         public string SchoolName { get; set; }

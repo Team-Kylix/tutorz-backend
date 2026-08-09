@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,9 @@ using QRCoder;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using Tutorz.Application.Interfaces;
 using Tutorz.Domain.Entities;
 using Tutorz.Infrastructure.Data;
@@ -27,20 +31,26 @@ namespace Tutorz.Infrastructure.Services
         {
             QuestPDF.Settings.License = LicenseType.Community;
 
+            Student? targetStudent = null;
+
             var user = await _context.Users
                 .Include(u => u.Tutor)
                 .Include(u => u.Students)
                 .FirstOrDefaultAsync(u => u.UserId == id);
 
-            if (user == null)
+            if (user != null)
             {
-                var dbStudent = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == id);
-                if (dbStudent != null)
+                targetStudent = user.Students.FirstOrDefault();
+            }
+            else
+            {
+                targetStudent = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == id);
+                if (targetStudent != null)
                 {
                     user = await _context.Users
                         .Include(u => u.Tutor)
                         .Include(u => u.Students)
-                        .FirstOrDefaultAsync(u => u.UserId == dbStudent.UserId);
+                        .FirstOrDefaultAsync(u => u.UserId == targetStudent.UserId);
                 }
                 else
                 {
@@ -76,12 +86,11 @@ namespace Tutorz.Infrastructure.Services
             var registrationNumber = user.RegistrationNumber;
             var userId = user.UserId;
 
-            var student = user.Students.FirstOrDefault();
-            if (student != null)
+            if (targetStudent != null)
             {
-                firstName = student.FirstName;
-                lastName = student.LastName;
-                if (string.IsNullOrEmpty(registrationNumber)) registrationNumber = student.RegistrationNumber;
+                firstName = targetStudent.FirstName;
+                lastName = targetStudent.LastName;
+                registrationNumber = !string.IsNullOrEmpty(targetStudent.RegistrationNumber) ? targetStudent.RegistrationNumber : user.RegistrationNumber;
             }
             else if (user.Tutor != null)
             {
@@ -108,7 +117,7 @@ namespace Tutorz.Infrastructure.Services
                 phoneNumber = "0" + phoneNumber.Substring(3);
             }
 
-            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "SmallLogo.png");
             byte[]? logoBytes = null;
             if (File.Exists(logoPath))
             {
@@ -217,7 +226,7 @@ namespace Tutorz.Infrastructure.Services
                 .Select(e => new
                 {
                     e.Student.UserId,
-                    RegistrationNumber = string.IsNullOrEmpty(e.Student.User.RegistrationNumber) ? e.Student.RegistrationNumber : e.Student.User.RegistrationNumber,
+                    RegistrationNumber = !string.IsNullOrEmpty(e.Student.RegistrationNumber) ? e.Student.RegistrationNumber : e.Student.User.RegistrationNumber,
                     e.Student.FirstName,
                     e.Student.LastName,
                     PhoneNumber = e.Student.User.PhoneNumber
@@ -234,12 +243,23 @@ namespace Tutorz.Infrastructure.Services
             const int rowsPerPage = 4;
             const int cardsPerPage = cardsPerRow * rowsPerPage;
 
-            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "SmallLogo.png");
             byte[]? logoBytes = null;
             if (File.Exists(logoPath))
             {
                 logoBytes = await File.ReadAllBytesAsync(logoPath);
             }
+
+            // Pre-generate all QR codes in parallel before building the PDF
+            // This is the most CPU-intensive step — parallelising it cuts generation time significantly
+            var qrCache = new ConcurrentDictionary<string, byte[]>();
+            await Task.WhenAll(students.Select(student => Task.Run(() =>
+            {
+                var key = !string.IsNullOrEmpty(student.RegistrationNumber)
+                    ? student.RegistrationNumber
+                    : student.UserId.ToString();
+                qrCache.TryAdd(key, GenerateQrCode(key));
+            })));
 
             var document = Document.Create(container =>
             {
@@ -279,11 +299,11 @@ namespace Tutorz.Infrastructure.Services
                                     .Padding(5, Unit.Millimetre)
                                     .Row(row =>
                                     {
-                                        // Left: QR Code
+                                        // Left: QR Code (use pre-generated cache)
                                         var qrData = !string.IsNullOrEmpty(student.RegistrationNumber) ? student.RegistrationNumber : student.UserId.ToString();
                                         row.ConstantItem(42, Unit.Millimetre)
                                             .AlignMiddle()
-                                            .Image(GenerateQrCode(qrData));
+                                            .Image(qrCache.TryGetValue(qrData, out var cachedQr) ? cachedQr : GenerateQrCode(qrData));
 
                                         // Right: Info
                                         row.RelativeItem().PaddingLeft(5, Unit.Millimetre).AlignMiddle().Column(info =>
@@ -380,9 +400,11 @@ namespace Tutorz.Infrastructure.Services
         private byte[] GenerateQrCode(string data)
         {
             using var qrGenerator = new QRCodeGenerator();
-            using var qrCodeData = qrGenerator.CreateQrCode(data, QRCodeGenerator.ECCLevel.Q);
+            // ECCLevel.M = ~15% error correction — smaller matrix than Q, still reliable for printing
+            using var qrCodeData = qrGenerator.CreateQrCode(data, QRCodeGenerator.ECCLevel.M);
             using var qrCode = new PngByteQRCode(qrCodeData);
-            return qrCode.GetGraphic(20);
+            // 5 pixels per module → ~150x150px PNG ≈ 3-5 KB instead of 50-100 KB at size 20
+            return qrCode.GetGraphic(5);
         }
     }
 }

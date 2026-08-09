@@ -631,7 +631,7 @@ namespace Tutorz.Infrastructure.Services
             var data = billResult.Data;
 
             // Logo â€” falls back to "Tutorz.lk" blue text if image not found
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo = File.Exists(logoPath);
             bool isPaid = data.Status == "Paid";
 

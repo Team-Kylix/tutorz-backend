@@ -286,7 +286,7 @@ namespace Tutorz.Infrastructure.Services
                                    .ToString("X")[..4];
             string reference = $"RPT{year % 100:D2}{month:D2}{hash}";
 
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "FullLogo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
             bool hasLogo  = File.Exists(logoPath);
 
             // ── Build QuestPDF document ───────────────────────────────────────
