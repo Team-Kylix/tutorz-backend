@@ -51,6 +51,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Withdrawal> Withdrawals { get; set; }
         public DbSet<MarkSheet> MarkSheets { get; set; }
         public DbSet<MarkRecord> MarkRecords { get; set; }
+        public DbSet<PreRegistration> PreRegistrations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

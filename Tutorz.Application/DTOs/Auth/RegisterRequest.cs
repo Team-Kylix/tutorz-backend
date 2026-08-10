@@ -25,5 +25,10 @@ namespace Tutorz.Application.DTOs.Auth
         public Guid? ClassId { get; set; }
         public string? OtpCode { get; set; }
         public Guid? TutorId { get; set; }
+        
+        // Pre-Allocation Fields
+        public string? PreAllocatedRegNo { get; set; }
+        public Guid? PreAllocatedUserId { get; set; }
+        public Guid? PreAllocatedStudentId { get; set; }
     }
 }

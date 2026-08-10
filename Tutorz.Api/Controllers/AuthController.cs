@@ -92,6 +92,30 @@ namespace Tutorz.Api.Controllers
             return Ok(result.Data);
         }
 
+        [HttpPost("bind-pre-allocated-student")]
+        [Authorize]
+        [ApiPurpose("Bind Pre-Allocated Student")]
+        public async Task<IActionResult> BindPreAllocatedStudent([FromQuery] string mobileNumber)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+                var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value
+                                ?? User.FindFirst("role")?.Value;
+
+                if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(roleClaim))
+                    return Unauthorized();
+
+                var response = await _authService.BindPreAllocatedStudentAsync(Guid.Parse(userIdClaim), roleClaim, mobileNumber);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("send-otp")]
         public async Task<IActionResult> SendOtp([FromBody] CheckUserRequest request)
         {

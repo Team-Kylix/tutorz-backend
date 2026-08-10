@@ -114,6 +114,10 @@ builder.Services.AddScoped<INotificationPusher, NotificationPusher>();
 // SignalR
 builder.Services.AddSignalR();
 
+// Replenishment Service for Pre-Allocation
+builder.Services.AddSingleton<IReplenishmentQueue, ReplenishmentQueue>();
+builder.Services.AddHostedService<Tutorz.Api.HostedServices.ReplenishmentBackgroundService>();
+
 // API Usage Tracking Services
 builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
 builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());

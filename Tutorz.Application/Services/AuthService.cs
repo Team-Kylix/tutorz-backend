@@ -40,6 +40,8 @@ namespace Tutorz.Application.Services
         private readonly IMemoryCache _cache;
         private readonly IGenericRepository<Admin> _adminRepository;
         private readonly IGenericRepository<Class> _classRepository;
+        private readonly IGenericRepository<PreRegistration> _preRegistrationRepository;
+        private readonly IReplenishmentQueue _replenishmentQueue;
 
         public AuthService(
             IUserRepository userRepository,
@@ -57,7 +59,9 @@ namespace Tutorz.Application.Services
             INotificationService notificationService,
             IMemoryCache cache,
             IGenericRepository<Admin> adminRepository,
-            IGenericRepository<Class> classRepository)
+            IGenericRepository<Class> classRepository,
+            IGenericRepository<PreRegistration> preRegistrationRepository,
+            IReplenishmentQueue replenishmentQueue)
         {
             _userRepository = userRepository;
             _adminRepository = adminRepository;
@@ -76,6 +80,8 @@ namespace Tutorz.Application.Services
             _notificationService = notificationService;
             _cache = cache;
             _classRepository = classRepository;
+            _preRegistrationRepository = preRegistrationRepository;
+            _replenishmentQueue = replenishmentQueue;
         }
 
         // --- REGISTER (First Time User) ---
@@ -142,12 +148,14 @@ namespace Tutorz.Application.Services
             }
 
             // Generate Unique Registration ID
-            string customId = await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
+            string customId = !string.IsNullOrEmpty(request.PreAllocatedRegNo)
+                ? request.PreAllocatedRegNo
+                : await _idGeneratorService.GenerateNextIdAsync(request.Role, request.Grade);
 
             // Create User
             var user = new User
             {
-                UserId = Guid.NewGuid(),
+                UserId = request.PreAllocatedUserId ?? Guid.NewGuid(),
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 RoleId = role.RoleId,
@@ -183,7 +191,7 @@ namespace Tutorz.Application.Services
             {
                 var student = new Student
                 {
-                    StudentId = Guid.NewGuid(),
+                    StudentId = request.PreAllocatedStudentId ?? Guid.NewGuid(),
                     UserId = user.UserId,
                     RegistrationNumber = customId,
                     FirstName = request.FirstName,
@@ -330,6 +338,21 @@ namespace Tutorz.Application.Services
             }
 
             await _userRepository.SaveChangesAsync();
+
+            // Update PreRegistration Status to Completed if used
+            if (!string.IsNullOrEmpty(request.PreAllocatedRegNo))
+            {
+                var preReg = await _preRegistrationRepository.GetAsync(pr => pr.PreAllocatedRegNo == request.PreAllocatedRegNo);
+                if (preReg != null)
+                {
+                    preReg.Status = 2; // Completed
+                    preReg.UpdatedAt = DateTime.UtcNow;
+                    // Because IGenericRepository might not have an Update method that saves immediately,
+                    // we'll rely on SaveChangesAsync again or use the repository method if available.
+                    // Wait, we can just call SaveChangesAsync since it's tracked.
+                    await _userRepository.SaveChangesAsync();
+                }
+            }
 
             // Fetch InstituteId if role is Institute
             Guid? instituteId = null;
@@ -770,6 +793,77 @@ namespace Tutorz.Application.Services
             if (clean.StartsWith("0")) return "+94" + clean.Substring(1);
             if (!clean.StartsWith("+")) return "+94" + clean;
             return clean;
+        }
+
+        // --- PRE-ALLOCATION ---
+        public async Task<PreAllocatedStudentResponse> BindPreAllocatedStudentAsync(Guid creatorId, string creatorRole, string mobileNumber)
+        {
+            string cleanPhone = NormalizePhone(mobileNumber);
+
+            // 1. Check if there's already an 'InProgress' one for this exact mobile number and creator
+            var inProgress = (await _preRegistrationRepository.GetAllAsync(pr => 
+                pr.CreatorId == creatorId && 
+                pr.MobileNumber == cleanPhone && 
+                pr.Status == 1)).FirstOrDefault();
+
+            if (inProgress != null)
+            {
+                // Re-use it (user might have refreshed or gone back and forth)
+                return new PreAllocatedStudentResponse
+                {
+                    PreAllocatedRegNo = inProgress.PreAllocatedRegNo,
+                    PreAllocatedUserId = inProgress.PreAllocatedUserId,
+                    PreAllocatedStudentId = inProgress.PreAllocatedStudentId
+                };
+            }
+
+            // 2. Fetch the next Available one
+            var available = (await _preRegistrationRepository.GetAllAsync(pr => 
+                pr.CreatorId == creatorId && 
+                pr.Status == 0)).OrderBy(pr => pr.CreatedAt).FirstOrDefault();
+
+            if (available == null)
+            {
+                // Fallback: If the background worker hasn't caught up, we have to generate synchronously.
+                // Ideally this shouldn't happen, but we must not break the flow.
+                string nextRegNo = await _idGeneratorService.GenerateNextIdAsync("Student", null);
+                
+                available = new PreRegistration
+                {
+                    Id = Guid.NewGuid(),
+                    CreatorId = creatorId,
+                    CreatorRole = creatorRole,
+                    PreAllocatedRegNo = nextRegNo,
+                    PreAllocatedUserId = Guid.NewGuid(),
+                    PreAllocatedStudentId = Guid.NewGuid(),
+                    MobileNumber = cleanPhone,
+                    Status = 1, // InProgress
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _preRegistrationRepository.AddAsync(available);
+            }
+            else
+            {
+                available.MobileNumber = cleanPhone;
+                available.Status = 1; // InProgress
+                available.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _userRepository.SaveChangesAsync();
+
+            // 3. Trigger replenishment for this creator
+            await _replenishmentQueue.QueueReplenishmentAsync(new ReplenishRequest
+            {
+                CreatorId = creatorId,
+                CreatorRole = creatorRole
+            });
+
+            return new PreAllocatedStudentResponse
+            {
+                PreAllocatedRegNo = available.PreAllocatedRegNo,
+                PreAllocatedUserId = available.PreAllocatedUserId,
+                PreAllocatedStudentId = available.PreAllocatedStudentId
+            };
         }
 
         // --- REGISTER SIBLING ---

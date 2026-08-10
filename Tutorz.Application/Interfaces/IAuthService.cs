@@ -21,6 +21,7 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<CheckUserResponse>> CheckUserStatusAsync(CheckUserRequest request);
         Task<AuthResponse> RegisterSiblingAsync(SiblingRegistrationRequest request);
         Task<AuthResponse> SwitchProfileAsync(Guid userId, Guid targetStudentId);
+        Task<PreAllocatedStudentResponse> BindPreAllocatedStudentAsync(Guid creatorId, string creatorRole, string mobileNumber);
         Task SendOtpAsync(CheckUserRequest request);
         Task<VerifyUserResponse> VerifyOtpAsync(VerifyUserRequest request);
         Task VerifyResetOtpAsync(VerifyUserRequest request);
