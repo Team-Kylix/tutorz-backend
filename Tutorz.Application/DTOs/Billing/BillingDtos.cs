@@ -68,6 +68,18 @@ namespace Tutorz.Application.DTOs.Billing
         // Dynamic Line Items for Platform Commission
         public decimal PlatformCommissionRate { get; set; }
         public List<ClassCommissionItemDto> ClassCommissions { get; set; } = new();
+
+        public bool IsUsagePaidByInstitute { get; set; }
+        public List<TutorUsageItemDto> TutorUsages { get; set; } = new();
+    }
+
+    public class TutorUsageItemDto
+    {
+        public string TutorName { get; set; } = string.Empty;
+        public int SmsCount { get; set; }
+        public decimal SmsAmount { get; set; }
+        public int ApiCount { get; set; }
+        public decimal ApiAmount { get; set; }
     }
 
     /// <summary>

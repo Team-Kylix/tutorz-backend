@@ -91,6 +91,17 @@ namespace Tutorz.Infrastructure.Services
 
         public async Task<ServiceResponse<BillPagedResult>> GetMyBillsAsync(Guid userId, int page, int pageSize)
         {
+            // Auto-sync bills to fix legacy data discrepancy with PDF logic
+            var billsToSync = await _context.Bills.Where(b => b.UserId == userId && b.Status != "Paid").Select(b => b.BillId).ToListAsync();
+            var userRole = "Student";
+            if (await _context.Institutes.AnyAsync(i => i.UserId == userId)) userRole = "Institute";
+            else if (await _context.Tutors.AnyAsync(t => t.UserId == userId)) userRole = "Tutor";
+            
+            foreach (var bId in billsToSync)
+            {
+                await GetBillByIdAsync(bId, userId, userRole);
+            }
+
             var query = _context.Bills
                 .Where(b => b.UserId == userId);
 
@@ -226,11 +237,14 @@ namespace Tutorz.Infrastructure.Services
 
             if (bill.UserRole == "Tutor")
             {
+                var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == bill.UserId);
+                if (tutor != null)
+                {
+                    dto.IsUsagePaidByInstitute = await _context.InstituteTutors.AnyAsync(it => it.TutorId == tutor.TutorId);
+                }
+                
                 // Resolve TutorId from UserId
-                var tutorId = await _context.Tutors
-                    .Where(t => t.UserId == bill.UserId)
-                    .Select(t => t.TutorId)
-                    .FirstOrDefaultAsync();
+                var tutorId = tutor?.TutorId ?? Guid.Empty;
 
                 paymentQuery = tutorId == Guid.Empty
                     ? paymentQuery.Where(p => false)
@@ -238,11 +252,51 @@ namespace Tutorz.Infrastructure.Services
             }
             else if (bill.UserRole == "Institute")
             {
+                var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.UserId == bill.UserId);
+                if (institute != null)
+                {
+                    // Find all tutors linked to this institute
+                    var linkedTutorIds = await _context.InstituteTutors
+                        .Where(it => it.InstituteId == institute.InstituteId)
+                        .Select(it => it.TutorId)
+                        .ToListAsync();
+
+                    if (linkedTutorIds.Any())
+                    {
+                        var tutorUserIds = await _context.Tutors
+                            .Where(t => linkedTutorIds.Contains(t.TutorId))
+                            .Select(t => new { t.TutorId, t.UserId, Name = t.FirstName + " " + t.LastName })
+                            .ToListAsync();
+
+                        var userIds = tutorUserIds.Select(t => t.UserId).ToList();
+                        
+                        var tutorBills = await _context.Bills
+                            .Where(b => userIds.Contains(b.UserId) && b.Month == bill.Month && b.Year == bill.Year)
+                            .ToListAsync();
+
+                        foreach (var tu in tutorUserIds)
+                        {
+                            var tBill = tutorBills.FirstOrDefault(b => b.UserId == tu.UserId);
+                            if (tBill != null && (tBill.SmsSentCount > 0 || tBill.ApiCallCount > 0))
+                            {
+                                var instCount = await _context.InstituteTutors.CountAsync(it => it.TutorId == tu.TutorId);
+                                if (instCount == 0) instCount = 1;
+
+                                dto.TutorUsages.Add(new TutorUsageItemDto
+                                {
+                                    TutorName = tu.Name,
+                                    SmsCount = tBill.SmsSentCount, 
+                                    SmsAmount = Math.Round(tBill.SmsAmount / instCount, 2),
+                                    ApiCount = tBill.ApiCallCount,
+                                    ApiAmount = Math.Round(tBill.ApiUsageAmount / instCount, 2)
+                                });
+                            }
+                        }
+                    }
+                }
+                
                 // Resolve InstituteId from UserId
-                var instituteId = await _context.Institutes
-                    .Where(i => i.UserId == bill.UserId)
-                    .Select(i => i.InstituteId)
-                    .FirstOrDefaultAsync();
+                var instituteId = institute?.InstituteId ?? Guid.Empty;
 
                 paymentQuery = instituteId == Guid.Empty
                     ? paymentQuery.Where(p => false)
@@ -284,30 +338,104 @@ namespace Tutorz.Infrastructure.Services
                 };
             }).ToList();
 
-            dto.ClassCommissions = paymentsWithNames
-                .GroupBy(x => new { x.FormattedName, x.TutorName, x.InstituteName })
-                .Select(g => {
-                    decimal earnings = bill.UserRole == "Tutor"
-                        ? g.Sum(x => x.Payment.TuitionAmount ?? 0)
-                        : g.Sum(x => x.Payment.InstituteAmount ?? 0);
+            var classCommissions = new List<ClassCommissionItemDto>();
 
-                    decimal commission = bill.UserRole == "Tutor"
-                        ? g.Sum(x => x.Payment.TutorCommission ?? 0)
-                        : g.Sum(x => x.Payment.InstituteCommission ?? 0);
+            var grouped = paymentsWithNames.GroupBy(x => new { x.FormattedName, x.TutorName, x.InstituteName });
 
-                    return new ClassCommissionItemDto
+            foreach (var g in grouped)
+            {
+                if (bill.UserRole == "Tutor")
+                {
+                    decimal earnings = g.Sum(x => x.Payment.TuitionAmount ?? 0);
+                    decimal commission = g.Sum(x => x.Payment.TutorCommission ?? 0);
+                    
+                    bool isInstituteClass = g.Any(x => x.Payment.InstituteId != null);
+                    
+                    if (isInstituteClass)
                     {
-                        ClassName = g.Key.FormattedName,
-                        TutorName = g.Key.TutorName,
-                        InstituteName = g.Key.InstituteName,
-                        Earnings  = Math.Round(earnings, 2),
-                        Rate      = dto.PlatformCommissionRate,
-                        Amount    = Math.Round(commission, 2)
-                    };
-                })
-                .Where(i => i.Amount > 0)
+                        classCommissions.Add(new ClassCommissionItemDto
+                        {
+                            ClassName = g.Key.FormattedName,
+                            TutorName = g.Key.TutorName,
+                            InstituteName = g.Key.InstituteName,
+                            Earnings = Math.Round(earnings, 2),
+                            Rate = dto.PlatformCommissionRate,
+                            Amount = 0 // Excluded from payable total
+                        });
+                    }
+                    else if (commission > 0)
+                    {
+                        classCommissions.Add(new ClassCommissionItemDto
+                        {
+                            ClassName = g.Key.FormattedName,
+                            TutorName = g.Key.TutorName,
+                            InstituteName = g.Key.InstituteName,
+                            Earnings = Math.Round(earnings, 2),
+                            Rate = dto.PlatformCommissionRate,
+                            Amount = Math.Round(commission, 2)
+                        });
+                    }
+                }
+                else if (bill.UserRole == "Institute")
+                {
+                    decimal instituteEarnings = g.Sum(x => x.Payment.InstituteAmount ?? 0);
+                    decimal instituteCommission = g.Sum(x => x.Payment.InstituteCommission ?? 0);
+                    
+                    decimal tutorEarnings = g.Sum(x => x.Payment.TuitionAmount ?? 0);
+                    decimal tutorCommission = g.Sum(x => x.Payment.TutorCommission ?? 0);
+
+                    if (instituteCommission > 0)
+                    {
+                        classCommissions.Add(new ClassCommissionItemDto
+                        {
+                            ClassName = $"{g.Key.FormattedName} (Institute Share)",
+                            TutorName = g.Key.TutorName,
+                            InstituteName = g.Key.InstituteName,
+                            Earnings = Math.Round(instituteEarnings, 2),
+                            Rate = dto.PlatformCommissionRate,
+                            Amount = Math.Round(instituteCommission, 2)
+                        });
+                    }
+                    
+                    if (tutorCommission > 0)
+                    {
+                        classCommissions.Add(new ClassCommissionItemDto
+                        {
+                            ClassName = $"{g.Key.FormattedName} (Tutor Share)",
+                            TutorName = g.Key.TutorName,
+                            InstituteName = g.Key.InstituteName,
+                            Earnings = Math.Round(tutorEarnings, 2),
+                            Rate = dto.PlatformCommissionRate,
+                            Amount = Math.Round(tutorCommission, 2)
+                        });
+                    }
+                }
+            }
+
+            dto.ClassCommissions = classCommissions
                 .OrderBy(i => i.InstituteName).ThenBy(i => i.TutorName).ThenBy(i => i.ClassName)
                 .ToList();
+
+            // Auto-sync the database record if it differs from the strictly calculated PDF total (e.g. from legacy billing bugs)
+            decimal pdfCommissionTotal = dto.ClassCommissions.Sum(c => c.Amount);
+            if (pdfCommissionTotal == 0 && bill.PlatformCommissionAmount > 0)
+                pdfCommissionTotal = bill.PlatformCommissionAmount;
+
+            decimal pdfSubTotal = pdfCommissionTotal 
+                + (dto.IsUsagePaidByInstitute ? 0 : dto.ApiUsageAmount) 
+                + (dto.IsUsagePaidByInstitute ? 0 : dto.SmsAmount) 
+                + dto.PreviousOverdueAmount;
+            decimal pdfTaxAmount = Math.Round(pdfSubTotal * (dto.TaxPercentage / 100m), 2);
+            decimal pdfTotalPayable = pdfSubTotal + pdfTaxAmount;
+
+            if (bill.PayableAmount != pdfTotalPayable)
+            {
+                bill.PlatformCommissionAmount = pdfCommissionTotal;
+                bill.SubTotal = pdfSubTotal;
+                bill.TaxAmount = pdfTaxAmount;
+                bill.PayableAmount = pdfTotalPayable;
+                await _context.SaveChangesAsync();
+            }
 
             return ServiceResponse<BillDetailDto>.SuccessResponse(dto);
         }
@@ -320,6 +448,18 @@ namespace Tutorz.Infrastructure.Services
             bill.Status = BillStatus.Paid.ToString();
             bill.PaidAt = DateTime.UtcNow;
             bill.PaidAmount = bill.PayableAmount; // Offline payments have no PayHere gateway fee
+
+            // Mark all past Overdue/Unpaid bills as paid
+            var pastBills = await _context.Bills
+                .Where(b => b.UserId == bill.UserId && (b.Status == BillStatus.Unpaid.ToString() || b.Status == BillStatus.Overdue.ToString()) && b.BillId != billId)
+                .ToListAsync();
+
+            foreach(var pb in pastBills)
+            {
+                pb.Status = BillStatus.Paid.ToString();
+                pb.PaidAt = DateTime.UtcNow;
+                pb.PaidAmount = pb.PayableAmount;
+            }
 
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.SuccessResponse(true);
@@ -453,54 +593,39 @@ namespace Tutorz.Infrastructure.Services
 
         private async Task<Bill?> GetOrCreateBillAsync(Guid userId, int month, int year)
         {
-            // ROLLING BILL MODEL:
-            // There is only ever ONE open (Unpaid) bill per user at a time.
-            // When a class payment arrives, we always add it to the single open bill.
-            // A new bill is only created when the previous one was paid (cleared).
-            // The month/year parameters are kept for API compatibility but are no longer
-            // used to enforce month-based bucketing.
-
-            // 1. Find the single open (Unpaid) bill for this user, regardless of month
+            // 1. Find the bill for the specific month/year
             var bill = await _context.Bills
-                .FirstOrDefaultAsync(b => b.UserId == userId && b.Status == BillStatus.Unpaid.ToString());
+                .FirstOrDefaultAsync(b => b.UserId == userId && b.Month == month && b.Year == year);
 
             if (bill != null)
             {
-                // Update the month/year to the latest payment's period so the reference stays current
-                if (bill.Month != month || bill.Year != year)
-                {
-                    bill.Month = month;
-                    bill.Year = year;
-                    bill.MonthYear = $"{year}-{month:D2}";
-                    
-                    var existingCount = await _context.Bills.CountAsync(b => b.UserId == userId && b.Month == month && b.Year == year && b.BillId != bill.BillId);
-                    var suff = existingCount > 0 ? $"-{(existingCount + 1):D2}" : "";
-                    bill.BillReference = $"TZ{year % 100:D2}{month:D2}{userId.ToString().Substring(0, 4).ToUpper()}{suff}";
-                }
                 return bill;
             }
 
-            // 2. No open bill â€” create a fresh one.
-            // Start date = the PaidAt of the last paid bill (rolling window).
-            // If this is the user's very first bill, start from today.
+            // 2. Bill doesn't exist, create it.
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return null;
 
-            var lastPaidBill = await _context.Bills
-                .Where(b => b.UserId == userId && b.Status == BillStatus.Paid.ToString())
-                .OrderByDescending(b => b.PaidAt)
-                .FirstOrDefaultAsync();
+            // Calculate previous overdue amount by summing the net new payable amounts of all past unpaid/overdue bills
+            var previousUnpaidBills = await _context.Bills
+                .Where(b => b.UserId == userId && (b.Status == BillStatus.Unpaid.ToString() || b.Status == BillStatus.Overdue.ToString()) && (b.Year < year || (b.Year == year && b.Month < month)))
+                .ToListAsync();
 
-            // BillStartDate = when the last bill was paid (LKT), or now if first bill
-            var nowLkt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SriLankaTimeZone);
-            DateTime startDateLkt = lastPaidBill?.PaidAt != null
-                ? TimeZoneInfo.ConvertTimeFromUtc(lastPaidBill.PaidAt.Value, SriLankaTimeZone)
-                : nowLkt;
+            decimal previousOverdue = previousUnpaidBills.Sum(b => b.PayableAmount - b.PreviousOverdueAmount);
 
-            // BillEndDate is dynamic (always recalculated at view time), store a placeholder
-            DateTime endDateLkt = nowLkt;
+            // Mark them as Overdue if they are currently Unpaid
+            foreach(var pb in previousUnpaidBills)
+            {
+                if (pb.Status == BillStatus.Unpaid.ToString()) 
+                {
+                    pb.Status = BillStatus.Overdue.ToString();
+                }
+            }
 
-            // Bill reference uses the current payment's month/year for readability
+            // BillStartDate is the 1st of the month, EndDate is the last day
+            var startDateLkt = new DateTime(year, month, 1);
+            var endDateLkt = startDateLkt.AddMonths(1).AddSeconds(-1);
+
             var existingBillsCount = await _context.Bills.CountAsync(b => b.UserId == userId && b.Month == month && b.Year == year);
             var suffix = existingBillsCount > 0 ? $"-{(existingBillsCount + 1):D2}" : "";
 
@@ -515,7 +640,8 @@ namespace Tutorz.Infrastructure.Services
                 BillStartDate = startDateLkt,
                 BillEndDate = endDateLkt,
                 GeneratedAt = DateTime.UtcNow,
-                Status = BillStatus.Unpaid.ToString()
+                Status = BillStatus.Unpaid.ToString(),
+                PreviousOverdueAmount = previousOverdue
             };
 
             var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.UserId == userId);
@@ -533,7 +659,24 @@ namespace Tutorz.Infrastructure.Services
             var config = (await GetBillingConfigAsync()).Data;
             if (config == null) return;
             
-            bill.SubTotal = bill.ApiUsageAmount + bill.SmsAmount + bill.PlatformCommissionAmount + bill.PreviousOverdueAmount;
+            decimal payableSms = bill.SmsAmount;
+            decimal payableApi = bill.ApiUsageAmount;
+
+            if (bill.UserRole == "Tutor")
+            {
+                var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == bill.UserId);
+                if (tutor != null)
+                {
+                    bool hasInstitute = await _context.InstituteTutors.AnyAsync(it => it.TutorId == tutor.TutorId);
+                    if (hasInstitute)
+                    {
+                        payableSms = 0;
+                        payableApi = 0;
+                    }
+                }
+            }
+
+            bill.SubTotal = payableApi + payableSms + bill.PlatformCommissionAmount + bill.PreviousOverdueAmount;
             var taxPercentage = config.VatPercentage + config.SsclPercentage;
             bill.TaxPercentage = taxPercentage;
             bill.TaxAmount = Math.Round(bill.SubTotal * (taxPercentage / 100), 2);
@@ -543,25 +686,34 @@ namespace Tutorz.Infrastructure.Services
 
         public async Task IncrementPlatformCommissionAsync(Guid instituteId, Guid tutorId, decimal instituteCommission, decimal tutorCommission, int month, int year)
         {
+            // Override the passed month/year with the current Sri Lanka Time
+            // This ensures commissions are applied to the month the payment was actually made.
+            var nowLkt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SriLankaTimeZone);
+            month = nowLkt.Month;
+            year = nowLkt.Year;
+
             var institute = await _context.Institutes.FindAsync(instituteId);
-            if (institute != null && instituteCommission > 0)
+            if (institute != null && (instituteCommission > 0 || tutorCommission > 0))
             {
                 var instituteBill = await GetOrCreateBillAsync(institute.UserId, month, year);
                 if (instituteBill != null)
                 {
-                    instituteBill.PlatformCommissionAmount += instituteCommission;
+                    instituteBill.PlatformCommissionAmount += (instituteCommission + tutorCommission);
                     await RecalculateBillTotalsAsync(instituteBill);
                 }
             }
-
-            var tutor = await _context.Tutors.FindAsync(tutorId);
-            if (tutor != null && tutorCommission > 0)
+            else
             {
-                var tutorBill = await GetOrCreateBillAsync(tutor.UserId, month, year);
-                if (tutorBill != null)
+                // Independent class (no institute)
+                var tutor = await _context.Tutors.FindAsync(tutorId);
+                if (tutor != null && tutorCommission > 0)
                 {
-                    tutorBill.PlatformCommissionAmount += tutorCommission;
-                    await RecalculateBillTotalsAsync(tutorBill);
+                    var tutorBill = await GetOrCreateBillAsync(tutor.UserId, month, year);
+                    if (tutorBill != null)
+                    {
+                        tutorBill.PlatformCommissionAmount += tutorCommission;
+                        await RecalculateBillTotalsAsync(tutorBill);
+                    }
                 }
             }
 
@@ -571,37 +723,89 @@ namespace Tutorz.Infrastructure.Services
         public async Task IncrementSmsUsageAsync(Guid userId, int smsCount, decimal smsCost, DateTime date)
         {
             var lktDate = TimeZoneInfo.ConvertTimeFromUtc(date, SriLankaTimeZone);
+            var config = (await GetBillingConfigAsync()).Data;
+            if (config == null) return;
+
             var bill = await GetOrCreateBillAsync(userId, lktDate.Month, lktDate.Year);
             if (bill != null)
             {
-                var config = (await GetBillingConfigAsync()).Data;
-                if (config != null)
+                bill.SmsRate = config.SmsRate;
+                bill.SmsSentCount += smsCount;
+                bill.SmsAmount += smsCost;
+                await RecalculateBillTotalsAsync(bill);
+            }
+
+            var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == userId);
+            if (tutor != null)
+            {
+                var institutes = await _context.InstituteTutors
+                    .Include(it => it.Institute)
+                    .Where(it => it.TutorId == tutor.TutorId)
+                    .Select(it => it.Institute)
+                    .ToListAsync();
+                
+                if (institutes.Any())
                 {
-                    bill.SmsRate = config.SmsRate;
-                    bill.SmsSentCount += smsCount;
-                    bill.SmsAmount += smsCost;
-                    await RecalculateBillTotalsAsync(bill);
-                    await _context.SaveChangesAsync();
+                    decimal splitCost = Math.Round(smsCost / institutes.Count, 2);
+
+                    foreach(var inst in institutes)
+                    {
+                        var instBill = await GetOrCreateBillAsync(inst.UserId, lktDate.Month, lktDate.Year);
+                        if (instBill != null)
+                        {
+                            instBill.SmsRate = config.SmsRate;
+                            instBill.SmsAmount += splitCost;
+                            await RecalculateBillTotalsAsync(instBill);
+                        }
+                    }
                 }
             }
+            await _context.SaveChangesAsync();
         }
 
         public async Task IncrementApiUsageAsync(Guid userId, int apiCallCount, DateTime date)
         {
             var lktDate = TimeZoneInfo.ConvertTimeFromUtc(date, SriLankaTimeZone);
+            var config = (await GetBillingConfigAsync()).Data;
+            if (config == null) return;
+
             var bill = await GetOrCreateBillAsync(userId, lktDate.Month, lktDate.Year);
             if (bill != null)
             {
-                var config = (await GetBillingConfigAsync()).Data;
-                if (config != null)
+                bill.ApiCallRate = config.ApiCallRate;
+                bill.ApiCallCount += apiCallCount;
+                // Calculate the actual cost added this time to split it
+                decimal apiCost = apiCallCount * config.ApiCallRate;
+                bill.ApiUsageAmount += apiCost;
+                await RecalculateBillTotalsAsync(bill);
+
+                var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.UserId == userId);
+                if (tutor != null)
                 {
-                    bill.ApiCallRate = config.ApiCallRate;
-                    bill.ApiCallCount += apiCallCount;
-                    bill.ApiUsageAmount += (apiCallCount * config.ApiCallRate);
-                    await RecalculateBillTotalsAsync(bill);
-                    await _context.SaveChangesAsync();
+                    var institutes = await _context.InstituteTutors
+                        .Include(it => it.Institute)
+                        .Where(it => it.TutorId == tutor.TutorId)
+                        .Select(it => it.Institute)
+                        .ToListAsync();
+                    
+                    if (institutes.Any())
+                    {
+                        decimal splitCost = Math.Round(apiCost / institutes.Count, 2);
+
+                        foreach(var inst in institutes)
+                        {
+                            var instBill = await GetOrCreateBillAsync(inst.UserId, lktDate.Month, lktDate.Year);
+                            if (instBill != null)
+                            {
+                                instBill.ApiCallRate = config.ApiCallRate;
+                                instBill.ApiUsageAmount += splitCost;
+                                await RecalculateBillTotalsAsync(instBill);
+                            }
+                        }
+                    }
                 }
             }
+            await _context.SaveChangesAsync();
         }
 
         private async Task<decimal> GetSettingDecimalAsync(string key, decimal defaultValue)
@@ -643,7 +847,10 @@ namespace Tutorz.Infrastructure.Services
             if (pdfCommissionTotal == 0 && data.PlatformCommissionAmount > 0)
                 pdfCommissionTotal = data.PlatformCommissionAmount;
 
-            decimal pdfSubTotal    = pdfCommissionTotal + data.ApiUsageAmount + data.SmsAmount + data.PreviousOverdueAmount;
+            decimal pdfSubTotal = pdfCommissionTotal 
+                + (data.IsUsagePaidByInstitute ? 0 : data.ApiUsageAmount) 
+                + (data.IsUsagePaidByInstitute ? 0 : data.SmsAmount) 
+                + data.PreviousOverdueAmount;
             decimal pdfTaxAmount   = Math.Round(pdfSubTotal * (data.TaxPercentage / 100m), 2);
             decimal pdfTotalPayable = pdfSubTotal + pdfTaxAmount;
 
@@ -655,12 +862,25 @@ namespace Tutorz.Infrastructure.Services
                     page.Size(PageSizes.A4);
                     page.DefaultTextStyle(x => x.FontSize(10));
 
+                    page.Background()
+                        .AlignCenter()
+                        .AlignMiddle()
+                        .Rotate(-45)
+                        .Text(text => 
+                        {
+                            text.AlignCenter();
+                            text.Span(isPaid ? "PAID" : "UNPAID")
+                                .FontSize(120)
+                                .FontColor(isPaid ? "#334CAF50" : "#33F44336")
+                                .Bold();
+                        });
+
                     page.Header().Row(row =>
                     {
                         row.RelativeItem().Column(col =>
                         {
                             if (hasLogo)
-                                col.Item().MaxHeight(44).Image(logoPath);
+                                col.Item().MaxHeight(70).Image(logoPath);
                             else
                                 col.Item().Text("Tutorz.lk")
                                     .FontSize(20).Bold().FontColor(Colors.Blue.Medium);
@@ -699,7 +919,6 @@ namespace Tutorz.Infrastructure.Services
                             row.RelativeItem().AlignRight().Column(c =>
                             {
                                 c.Item().Text("Billing Period:").Bold();
-                                c.Item().Text($"{data.MonthYear}");
                                 c.Item().Text($"{data.BillStartDate:dd MMM} - {data.BillEndDate:dd MMM yyyy}");
                             });
                         });
@@ -789,19 +1008,71 @@ namespace Tutorz.Infrastructure.Services
                                 table.Cell().AlignRight().Text($"{data.PlatformCommissionAmount:N2}");
                             }
 
-                            // API Calls (always shown, matching original screenshot)
-                            table.Cell().Text($"{rowNum++}");
-                            table.Cell().Text("API Service Usage");
-                            table.Cell().AlignRight().Text($"{data.ApiCallCount}");
-                            table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
-                            table.Cell().AlignRight().Text($"{data.ApiUsageAmount:N2}");
+                            // API Calls 
+                            if (data.UserRole == "Institute" && data.TutorUsages.Any())
+                            {
+                                decimal instApiAmount = data.ApiUsageAmount - data.TutorUsages.Sum(u => u.ApiAmount);
+                                int instApiCount = data.ApiCallCount - data.TutorUsages.Sum(u => u.ApiCount);
+                                
+                                if (instApiAmount > 0 || instApiCount > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().Text("API Service Usage (Institute)");
+                                    table.Cell().AlignRight().Text($"{instApiCount}");
+                                    table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
+                                    table.Cell().AlignRight().Text($"{instApiAmount:N2}");
+                                }
 
-                            // SMS (always shown, matching original screenshot)
-                            table.Cell().Text($"{rowNum++}");
-                            table.Cell().Text("SMS Dispatch Service");
-                            table.Cell().AlignRight().Text($"{data.SmsSentCount}");
-                            table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
-                            table.Cell().AlignRight().Text($"{data.SmsAmount:N2}");
+                                foreach(var tu in data.TutorUsages.Where(u => u.ApiAmount > 0 || u.ApiCount > 0))
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().Text($"API Service Usage - {tu.TutorName}");
+                                    table.Cell().AlignRight().Text($"{tu.ApiCount}");
+                                    table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
+                                    table.Cell().AlignRight().Text($"{tu.ApiAmount:N2}");
+                                }
+                            }
+                            else if (data.ApiCallCount > 0 || data.ApiUsageAmount > 0)
+                            {
+                                table.Cell().Text($"{rowNum++}");
+                                table.Cell().Text(data.IsUsagePaidByInstitute ? "API Service Usage (Paid by Institute)" : "API Service Usage");
+                                table.Cell().AlignRight().Text($"{data.ApiCallCount}");
+                                table.Cell().AlignRight().Text($"{data.ApiCallRate:N4}");
+                                table.Cell().AlignRight().Text(data.IsUsagePaidByInstitute ? "0.00" : $"{data.ApiUsageAmount:N2}");
+                            }
+
+                            // SMS 
+                            if (data.UserRole == "Institute" && data.TutorUsages.Any())
+                            {
+                                decimal instSmsAmount = data.SmsAmount - data.TutorUsages.Sum(u => u.SmsAmount);
+                                int instSmsCount = data.SmsSentCount - data.TutorUsages.Sum(u => u.SmsCount);
+                                
+                                if (instSmsAmount > 0 || instSmsCount > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().Text("SMS Dispatch Service (Institute)");
+                                    table.Cell().AlignRight().Text($"{instSmsCount}");
+                                    table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
+                                    table.Cell().AlignRight().Text($"{instSmsAmount:N2}");
+                                }
+
+                                foreach(var tu in data.TutorUsages.Where(u => u.SmsAmount > 0 || u.SmsCount > 0))
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().Text($"SMS Dispatch Service - {tu.TutorName}");
+                                    table.Cell().AlignRight().Text($"{tu.SmsCount}");
+                                    table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
+                                    table.Cell().AlignRight().Text($"{tu.SmsAmount:N2}");
+                                }
+                            }
+                            else if (data.SmsSentCount > 0 || data.SmsAmount > 0)
+                            {
+                                table.Cell().Text($"{rowNum++}");
+                                table.Cell().Text(data.IsUsagePaidByInstitute ? "SMS Dispatch Service (Paid by Institute)" : "SMS Dispatch Service");
+                                table.Cell().AlignRight().Text($"{data.SmsSentCount}");
+                                table.Cell().AlignRight().Text($"{data.SmsRate:N2}");
+                                table.Cell().AlignRight().Text(data.IsUsagePaidByInstitute ? "0.00" : $"{data.SmsAmount:N2}");
+                            }
 
                             // Overdue
                             if (data.PreviousOverdueAmount > 0)
@@ -841,6 +1112,13 @@ namespace Tutorz.Infrastructure.Services
                                     .FontColor(isPaid ? Colors.Green.Medium : Colors.Red.Medium);
                             });
                             c.Item().Text("Payment Terms: Please settle this invoice within 30 days.");
+                            
+                            if (data.IsUsagePaidByInstitute)
+                            {
+                                c.Item().PaddingTop(5)
+                                    .Text("Important: Your institute automatically pays your platform commission, API, and SMS usage charges on your behalf for institute-affiliated classes. These items are listed on this invoice for transparency and reference only. However, if you conduct independent classes without an institute, you are responsible for paying the commission for those independent classes directly.")
+                                    .FontSize(9).FontColor(Colors.Grey.Darken2);
+                            }
                             c.Item().PaddingTop(10)
                                 .Text("Note: This is a system-generated invoice for platform usage fees.")
                                 .Italic().FontSize(8);
