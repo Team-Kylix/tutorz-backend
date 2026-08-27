@@ -12,8 +12,11 @@ namespace Tutorz.Domain.Entities
         public string Status { get; set; } // "Sent", "Failed"
         public decimal Cost { get; set; }
         public string ErrorMessage { get; set; }
+        public Guid? BillTo { get; set; }
 
         // Navigation Property (Optional)
         public User SenderUser { get; set; }
+        [System.ComponentModel.DataAnnotations.Schema.ForeignKey("BillTo")]
+        public User BilledUser { get; set; }
     }
 }

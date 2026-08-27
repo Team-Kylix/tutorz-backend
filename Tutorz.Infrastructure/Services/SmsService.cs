@@ -25,12 +25,13 @@ namespace Tutorz.Infrastructure.Services
             _scopeFactory = scopeFactory;
         }
 
-        public async Task<bool> SendSmsAsync(string to, string message, Guid? senderUserId = null)
+        public async Task<bool> SendSmsAsync(string to, string message, Guid? senderUserId = null, Guid? billToUserId = null)
         {
             var smsLog = new SmsLog
             {
                 SmsLogId = Guid.NewGuid(),
                 SenderUserId = senderUserId,
+                BillTo = billToUserId ?? senderUserId,
                 ReceiverPhoneNumber = to,
                 MessageContent = message,
                 SentAt = DateTime.UtcNow,
@@ -103,13 +104,13 @@ namespace Tutorz.Infrastructure.Services
             await SaveLogAsync(smsLog);
 
             // Incrementally update bill if sent successfully and sender is known
-            if (isSuccess && senderUserId.HasValue)
+            if (isSuccess && smsLog.BillTo.HasValue)
             {
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var billService = scope.ServiceProvider.GetRequiredService<IBillService>();
-                    await billService.IncrementSmsUsageAsync(senderUserId.Value, 1, smsLog.Cost, smsLog.SentAt);
+                    await billService.IncrementSmsUsageAsync(smsLog.BillTo.Value, 1, smsLog.Cost, smsLog.SentAt);
                 }
                 catch (Exception ex)
                 {

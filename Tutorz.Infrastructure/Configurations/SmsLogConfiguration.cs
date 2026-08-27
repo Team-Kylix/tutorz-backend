@@ -31,6 +31,11 @@ namespace Tutorz.Infrastructure.Configurations
                 .WithMany()
                 .HasForeignKey(s => s.SenderUserId)
                 .OnDelete(DeleteBehavior.SetNull); // If user is deleted, keep log but set ID null
+
+            builder.HasOne(s => s.BilledUser)
+                .WithMany()
+                .HasForeignKey(s => s.BillTo)
+                .OnDelete(DeleteBehavior.NoAction);
         }
     }
 }

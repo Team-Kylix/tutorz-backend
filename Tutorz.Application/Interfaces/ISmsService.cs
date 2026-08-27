@@ -4,6 +4,6 @@ namespace Tutorz.Application.Interfaces
 {
     public interface ISmsService
     {
-        Task<bool> SendSmsAsync(string to, string message, Guid? senderUserId = null);
+        Task<bool> SendSmsAsync(string to, string message, Guid? senderUserId = null, Guid? billToUserId = null);
     }
 }

@@ -30,6 +30,9 @@ namespace Tutorz.Infrastructure.Services
                 .Include(p => p.Student)
                     .ThenInclude(s => s.User)
                 .Include(p => p.Class)
+                    .ThenInclude(c => c.Tutor)
+                .Include(p => p.Class)
+                    .ThenInclude(c => c.Institute)
                 .FirstOrDefaultAsync(p => p.PaymentId == classPaymentId);
 
             if (payment == null || payment.Student?.User == null || payment.Class == null)
@@ -60,7 +63,10 @@ namespace Tutorz.Infrastructure.Services
                 string smsMessage = $"Hi {payment.Student.FirstName}, your payment of LKR {amount} for {className} ({monthName} {payment.Year}) has been received successfully. Thank you!";
                 try
                 {
-                    await smsService.SendSmsAsync(user.PhoneNumber, smsMessage);
+                    Guid? billToUserId = payment.Class.Tutor?.UserId;
+                    Guid? senderUserId = payment.Class.Institute?.UserId ?? billToUserId;
+
+                    await smsService.SendSmsAsync(user.PhoneNumber, smsMessage, senderUserId, billToUserId);
                 }
                 catch (Exception ex)
                 {
