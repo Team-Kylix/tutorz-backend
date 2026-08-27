@@ -37,6 +37,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<ApiUsageLog> ApiUsageLogs { get; set; }
         public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
         public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
+        public DbSet<MonthlyUsageSummary> MonthlyUsageSummaries { get; set; }
         public DbSet<ClassPayment> ClassPayments { get; set; }
         public DbSet<Bank> Banks { get; set; }
         public DbSet<Branch> Branches { get; set; }
@@ -176,6 +177,7 @@ namespace Tutorz.Infrastructure.Data
 
             // Apply SmsLog Configuration
             modelBuilder.ApplyConfiguration(new SmsLogConfiguration());
+            modelBuilder.ApplyConfiguration(new MonthlyUsageSummaryConfiguration());
 
             // ClassPayment Configuration
             modelBuilder.Entity<ClassPayment>()
