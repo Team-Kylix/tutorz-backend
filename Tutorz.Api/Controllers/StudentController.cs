@@ -4,7 +4,7 @@ using System.Security.Claims;
 using Tutorz.Application.DTOs.Student;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Institute;
-using Tutorz.Api.Attributes;
+
 using System;
 
 namespace Tutorz.Api.Controllers
@@ -24,7 +24,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("search-classes")]
-        [ApiPurpose("Search Classes")]
+
         public async Task<IActionResult> SearchClasses(
             [FromQuery] string? grade, 
             [FromQuery] string? query, 
@@ -54,7 +54,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("join-class")]
-        [ApiPurpose("Student Join Class")]
+
         public async Task<IActionResult> JoinClass([FromBody] JoinClassRequest request)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -73,7 +73,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("leave-class/{classId}")]
-        [ApiPurpose("Student Leave Class")]
+
         public async Task<IActionResult> LeaveClass(Guid classId)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -114,7 +114,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("profile")]
-        [ApiPurpose("Get Student Profile")]
+
         public async Task<IActionResult> GetProfile()
         {
             // Read the specific "StudentId" claim from your token
@@ -139,7 +139,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("profile")]
-        [ApiPurpose("Update Student Profile")]
+
         public async Task<IActionResult> UpdateProfile([FromForm] UpdateStudentProfileDto dto)
         {
             // Read the specific "StudentId" claim here too
@@ -162,7 +162,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("classes")]
-        [ApiPurpose("Get Joined Classes")]
+
         public async Task<IActionResult> GetClasses()
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -184,7 +184,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("timetable")]
-        [ApiPurpose("Get Student Timetable by Date")]
+
         public async Task<IActionResult> GetTimetableByDate([FromQuery] DateTime date)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -206,7 +206,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("attendance-history")]
-        [ApiPurpose("Get Student Attendance History")]
+
         public async Task<IActionResult> GetAttendanceHistory([FromQuery] Guid? tutorId, [FromQuery] Guid? classId, [FromQuery] DateTime? date)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -227,7 +227,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("tutors/search")]
-        [ApiPurpose("Search Tutors for Student")]
+
         public async Task<IActionResult> SearchTutors([FromQuery] string query)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -247,7 +247,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("class-payments/{paymentId}/pdf")]
-        [ApiPurpose("Download Class Payment PDF")]
+
         public async Task<IActionResult> DownloadClassPaymentPdf(Guid paymentId)
         {
             var studentIdString = User.FindFirst("StudentId")?.Value;
@@ -268,7 +268,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("marks")]
-        [ApiPurpose("Get Student Marks")]
+
         public async Task<IActionResult> GetStudentMarks()
         {
             var userId = GetUserId();
@@ -279,7 +279,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("medals/count")]
-        [ApiPurpose("Get Student Medals Count")]
+
         public async Task<IActionResult> GetStudentMedalsCount()
         {
             var userId = GetUserId();

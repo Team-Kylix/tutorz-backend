@@ -37,7 +37,6 @@ namespace Tutorz.Infrastructure.Services
         private readonly IEncryptionService _enc;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IBillService _billService;
         private readonly IPaymentNotificationService _paymentNotificationService;
 
         // PayHere config — loaded from appsettings PayHere section
@@ -55,14 +54,12 @@ namespace Tutorz.Infrastructure.Services
             IEncryptionService enc,
             IConfiguration config,
             IHttpClientFactory httpClientFactory,
-            IBillService billService,
             IPaymentNotificationService paymentNotificationService)
         {
             _context = context;
             _enc = enc;
             _config = config;
             _httpClientFactory = httpClientFactory;
-            _billService = billService;
             _paymentNotificationService = paymentNotificationService;
         }
 
@@ -602,17 +599,7 @@ namespace Tutorz.Infrastructure.Services
                 _context.ClassPayments.Add(autoChargePayment);
                 await _context.SaveChangesAsync();
 
-                // 5. Fire real-time bill update
-                if (classEntity.InstituteId.HasValue)
-                    await _billService.IncrementPlatformCommissionAsync(
-                        classEntity.InstituteId.Value, classEntity.TutorId,
-                        instComm, tutComm, request.Month, request.Year);
-                else
-                    await _billService.IncrementPlatformCommissionAsync(
-                        Guid.Empty, classEntity.TutorId,
-                        instComm, tutComm, request.Month, request.Year);
-
-                // 6. Send payment notifications asynchronously
+                // 5. Send payment notifications asynchronously
                 _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(autoChargePayment.PaymentId));
 
                 return Ok<object>(new
@@ -674,116 +661,6 @@ namespace Tutorz.Infrastructure.Services
                 hash         = hash
             });
         }
-
-
-        public async Task<ServiceResponse<object>> InitiateBillPaymentAsync(Guid ownerId, string role, Tutorz.Application.DTOs.Financials.InitiateBillPaymentRequestDto request)
-        {
-            Guid targetUserId = ownerId;
-            if (role.ToLower() == "tutor")
-            {
-                var t = await _context.Tutors.FirstOrDefaultAsync(x => x.TutorId == ownerId || x.UserId == ownerId);
-                if (t != null) targetUserId = t.UserId;
-            }
-            else if (role.ToLower() == "institute")
-            {
-                var i = await _context.Institutes.FirstOrDefaultAsync(x => x.InstituteId == ownerId || x.UserId == ownerId);
-                if (i != null) targetUserId = i.UserId;
-            }
-
-            var bill = await _context.Bills.FirstOrDefaultAsync(b => b.BillId == request.BillId && b.UserId == targetUserId);
-            if (bill == null) return Fail<object>("Bill not found.");
-
-            if (bill.Status == "Paid") return Fail<object>("This bill is already paid.");
-
-            decimal expectedTotal = CalculatePayHereTotal(bill.PayableAmount);
-
-            string orderId = $"TZBILL_{bill.BillId:N}_{DateTime.UtcNow:HHmmss}_{Guid.NewGuid().ToString("N").Substring(0, 4)}";
-            string currency = "LKR";
-            string formattedAmount = expectedTotal.ToString("0.00");
-
-            if (request.UseSavedCard)
-            {
-                string payHereToken = null;
-                string brand = null;
-
-                if (role.ToLower() == "tutor")
-                {
-                    var tutor = await _context.Tutors.FirstOrDefaultAsync(t => t.TutorId == ownerId || t.UserId == ownerId);
-                    payHereToken = tutor?.PayHereToken;
-                    brand = tutor?.CardBrand;
-                }
-                else if (role.ToLower() == "institute")
-                {
-                    var institute = await _context.Institutes.FirstOrDefaultAsync(i => i.InstituteId == ownerId || i.UserId == ownerId);
-                    payHereToken = institute?.PayHereToken;
-                    brand = institute?.CardBrand;
-                }
-
-                if (string.IsNullOrEmpty(payHereToken))
-                    return Fail<object>("No saved card found.");
-
-                var tokenResult = await GetPayHereAccessTokenAsync();
-                string? accessToken = tokenResult.Token;
-                if (string.IsNullOrEmpty(accessToken))
-                    return Fail<object>($"Could not obtain PayHere access token: {tokenResult.Error}");
-
-                var chargeResult = await ChargeCustomerAsync(
-                    accessToken,
-                    orderId,
-                    $"Platform Bill - {bill.MonthYear}",
-                    currency,
-                    expectedTotal,
-                    SafeDecrypt(payHereToken) ?? "");
-
-                if (chargeResult == null || chargeResult.StatusCode != 2)
-                {
-                    string errMsg = chargeResult?.Msg ?? "Payment failed. Please try standard checkout.";
-                    return Fail<object>(errMsg);
-                }
-
-                bill.Status = "Paid";
-                bill.PaidAt = DateTime.UtcNow;
-                bill.PaidAmount = expectedTotal;
-                await _context.SaveChangesAsync();
-
-                return Ok<object>(new
-                {
-                    status     = "success",
-                    message    = "Bill paid successfully using saved card.",
-                    isAutoCharge = true
-                });
-            }
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == ownerId);
-            string firstName = role;
-            string lastName = "User";
-            string email = user?.Email ?? "user@tutorz.com";
-            string phone = (user?.PhoneNumber ?? "0771234567").Replace("+", "");
-
-            string hash = GenerateInitiationHash(PayHereMerchantId, orderId, formattedAmount, currency, PayHereMerchantSecret);
-
-            return Ok<object>(new
-            {
-                sandbox      = true,
-                merchant_id  = PayHereMerchantId,
-                return_url   = PayHereReturnUrl,
-                cancel_url   = PayHereCancelUrl,
-                notify_url   = $"{PayHereNotifyUrl}/api/financials/payhere-notify",
-                order_id     = orderId,
-                items        = $"Platform Bill - {bill.MonthYear}",
-                currency     = currency,
-                amount       = formattedAmount,
-                first_name   = firstName,
-                last_name    = lastName,
-                email        = email,
-                phone        = phone,
-                address      = "Sri Lanka",
-                city         = "Colombo",
-                country      = "Sri Lanka",
-                hash         = hash
-            });
-        }
-
         public async Task<ServiceResponse<bool>> ProcessPayHereWebhookAsync(PayHereNotifyDto dto)
         {
             string localHash = GenerateNotificationHash(
@@ -795,30 +672,8 @@ namespace Tutorz.Infrastructure.Services
             if (!string.Equals(localHash, dto.md5sig, StringComparison.OrdinalIgnoreCase))
                 return Fail<bool>("Invalid hash signature.");
 
-            if (dto.order_id != null && dto.order_id.StartsWith("TZBILL_"))
-            {
-                var parts = dto.order_id.Split('_');
-                if (parts.Length >= 2 && Guid.TryParse(parts[1], out var billId))
-                {
-                    var bill = await _context.Bills.FirstOrDefaultAsync(b => b.BillId == billId);
-                    if (bill != null)
-                    {
-                        if (dto.status_code == "2")
-                        {
-                            bill.Status = "Paid";
-                            bill.PaidAt = DateTime.UtcNow;
-                            bill.PaidAmount = CalculatePayHereTotal(bill.PayableAmount);
-                            await _context.SaveChangesAsync();
-                            return Ok(true, "Bill payment successful.");
-                        }
-                        return Ok(true, "Ignored non-success status for bill.");
-                    }
-                }
-                return Fail<bool>("Bill not found from order_id.");
-            }
 
             var payment = await _context.ClassPayments
-
                 .FirstOrDefaultAsync(p => p.ReferenceId == dto.order_id);
             if (payment == null) return Fail<bool>("Order not found.");
 
@@ -829,22 +684,6 @@ namespace Tutorz.Infrastructure.Services
                 payment.PaymentMethod    = dto.method;
                 payment.PaidAt           = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-
-                // Fire bill update now that payment is confirmed
-                // Load the class to get TutorId + InstituteId
-                var cls = await _context.Classes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.ClassId == payment.ClassId);
-                if (cls != null)
-                {
-                    await _billService.IncrementPlatformCommissionAsync(
-                        cls.InstituteId ?? Guid.Empty,
-                        cls.TutorId,
-                        payment.InstituteCommission ?? 0m,
-                        payment.TutorCommission ?? 0m,
-                        payment.Month,
-                        payment.Year);
-                }
 
                 // Send payment notifications asynchronously
                 _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(payment.PaymentId));
@@ -1005,9 +844,10 @@ namespace Tutorz.Infrastructure.Services
             decimal instAmt = Math.Round(baseFee * (commPct / 100m), 2);
             decimal tutAmt  = baseFee - instAmt;
 
-            // 3. Apply platform levy (default 1%) on each party's base share
-            var configResponse = await _billService.GetBillingConfigAsync();
-            decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
+            var setting = await _context.AppSettings.FirstOrDefaultAsync(a => a.Key == "PlatformCommissionRate");
+            decimal rate = 1.00m;
+            if (setting != null && decimal.TryParse(setting.Value, out var parsed)) rate = parsed;
+            decimal platformRate = rate / 100m;
 
             decimal instComm  = Math.Round(instAmt * platformRate, 2);
             decimal tutComm   = Math.Round(tutAmt  * platformRate, 2);

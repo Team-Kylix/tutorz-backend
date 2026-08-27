@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Tutorz.Api.Attributes;
+
 using Tutorz.Application.DTOs.Withdrawal;
 using Tutorz.Application.Interfaces;
 using Tutorz.Infrastructure.Data;
@@ -55,7 +55,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/tutor?instituteId=
         [HttpGet("tutor")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Get Tutor Withdrawals")]
+
         public async Task<IActionResult> GetTutorWithdrawals([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
@@ -73,7 +73,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/institute?tutorId=
         [HttpGet("institute")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Get Institute Withdrawals")]
+
         public async Task<IActionResult> GetInstituteWithdrawals([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
@@ -92,7 +92,7 @@ namespace Tutorz.Api.Controllers
         // Tutor: pass ?instituteId=  (tutorId resolved from JWT)
         // Institute: pass ?tutorId=  (instituteId resolved from JWT)
         [HttpGet("balance")]
-        [ApiPurpose("Get Available Balance for Withdrawal")]
+
         public async Task<IActionResult> GetAvailableBalance([FromQuery] Guid? instituteId, [FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
@@ -136,7 +136,7 @@ namespace Tutorz.Api.Controllers
         // POST /api/withdrawal/request-notification
         [HttpPost("request-notification")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Request Withdrawal Notification")]
+
         public async Task<IActionResult> RequestWithdrawalNotification([FromBody] WithdrawalRequestDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -156,7 +156,7 @@ namespace Tutorz.Api.Controllers
         // POST /api/withdrawal/process
         [HttpPost("process")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Process Tutor Withdrawal")]
+
         public async Task<IActionResult> ProcessWithdrawal([FromBody] WithdrawalProcessDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -175,7 +175,7 @@ namespace Tutorz.Api.Controllers
 
         // GET /api/withdrawal/{id}/pdf
         [HttpGet("{id}/pdf")]
-        [ApiPurpose("Download Withdrawal PDF")]
+
         public async Task<IActionResult> DownloadWithdrawalPdf(Guid id)
         {
             var userId = GetUserId();
@@ -192,7 +192,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/overview?instituteId=
         [HttpGet("overview")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Get Tutor Withdrawal Overview")]
+
         public async Task<IActionResult> GetTutorOverview([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
@@ -210,7 +210,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/overview-institute?tutorId=
         [HttpGet("overview-institute")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Get Institute Withdrawal Overview")]
+
         public async Task<IActionResult> GetInstituteOverview([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
@@ -227,7 +227,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/overview-pdf?instituteId=
         [HttpGet("overview-pdf")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Download Pending Earnings PDF")]
+
         public async Task<IActionResult> DownloadTutorOverviewPdf([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
@@ -247,7 +247,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/overview-institute-pdf?tutorId=
         [HttpGet("overview-institute-pdf")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Download Pending Payouts PDF")]
+
         public async Task<IActionResult> DownloadInstituteOverviewPdf([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
@@ -266,7 +266,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/tutor/fees
         [HttpGet("tutor/fees")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Get Tutor Monthly Fees")]
+
         public async Task<IActionResult> GetTutorMonthlyFees([FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
@@ -284,7 +284,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/institute/fees
         [HttpGet("institute/fees")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Get Institute Monthly Fees")]
+
         public async Task<IActionResult> GetInstituteMonthlyFees([FromQuery] Guid? tutorId)
         {
             var userId = GetUserId();
@@ -302,7 +302,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/tutor/fees/pdf
         [HttpGet("tutor/fees/pdf")]
         [Authorize(Roles = "Tutor")]
-        [ApiPurpose("Download Tutor Monthly Fees PDF")]
+
         public async Task<IActionResult> DownloadTutorMonthlyFeesPdf([FromQuery] Guid? instituteId, [FromQuery] int year, [FromQuery] int month)
         {
             var userId = GetUserId();
@@ -322,7 +322,7 @@ namespace Tutorz.Api.Controllers
         // GET /api/withdrawal/institute/fees/pdf
         [HttpGet("institute/fees/pdf")]
         [Authorize(Roles = "Institute")]
-        [ApiPurpose("Download Institute Monthly Fees PDF")]
+
         public async Task<IActionResult> DownloadInstituteMonthlyFeesPdf([FromQuery] Guid? tutorId, [FromQuery] int year, [FromQuery] int month)
         {
             var userId = GetUserId();

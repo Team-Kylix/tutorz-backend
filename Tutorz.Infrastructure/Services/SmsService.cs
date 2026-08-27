@@ -103,20 +103,7 @@ namespace Tutorz.Infrastructure.Services
 
             await SaveLogAsync(smsLog);
 
-            // Incrementally update bill if sent successfully and sender is known
-            if (isSuccess && smsLog.BillTo.HasValue)
-            {
-                try
-                {
-                    using var scope = _scopeFactory.CreateScope();
-                    var billService = scope.ServiceProvider.GetRequiredService<IBillService>();
-                    await billService.IncrementSmsUsageAsync(smsLog.BillTo.Value, 1, smsLog.Cost, smsLog.SentAt);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to update real-time bill for SMS: {ex.Message}");
-                }
-            }
+            // Incremental bill update removed since billing is now on-demand
 
             return isSuccess;
         }

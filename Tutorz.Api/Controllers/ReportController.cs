@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Tutorz.Api.Attributes;
+
 using Tutorz.Application.DTOs.Report;
 using Tutorz.Application.Interfaces;
 
@@ -36,7 +36,7 @@ namespace Tutorz.Api.Controllers
         /// Each row = one (Month, Year) showing student/payment aggregate stats.
         /// </summary>
         [HttpGet("monthly")]
-        [ApiPurpose("Get Tutor Monthly Report Grid")]
+
         public async Task<IActionResult> GetMonthlyReport(
             [FromQuery] Guid? instituteId,
             [FromQuery] bool noInstitute = false,
@@ -68,7 +68,7 @@ namespace Tutorz.Api.Controllers
         /// month + year are required — PDF is always for one month only.
         /// </summary>
         [HttpGet("monthly/pdf")]
-        [ApiPurpose("Download Tutor Monthly Report PDF")]
+
         public async Task<IActionResult> DownloadMonthlyReportPdf(
             [FromQuery] Guid? instituteId,
             [FromQuery] bool noInstitute = false,

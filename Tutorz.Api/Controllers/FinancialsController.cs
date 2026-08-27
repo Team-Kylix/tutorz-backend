@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Financials;
 using Tutorz.Application.DTOs.Payment;
 using Tutorz.Application.Interfaces;
-using Tutorz.Api.Attributes;
+
 
 namespace Tutorz.Api.Controllers
 {
@@ -36,7 +36,7 @@ namespace Tutorz.Api.Controllers
         // ─────────────────────────────────────────────
 
         [HttpGet("banks")]
-        [ApiPurpose("Get All Banks")]
+
         public async Task<IActionResult> GetBanks()
         {
             var result = await _financialsService.GetBanksAsync();
@@ -45,7 +45,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("banks/{bankCode:int}/branches")]
-        [ApiPurpose("Get Branches By Bank")]
+
         public async Task<IActionResult> GetBranches(int bankCode)
         {
             var result = await _financialsService.GetBranchesByBankAsync(bankCode);
@@ -58,7 +58,7 @@ namespace Tutorz.Api.Controllers
         // ─────────────────────────────────────────────
 
         [HttpGet("summary")]
-        [ApiPurpose("Get Financial Summary")]
+
         public async Task<IActionResult> GetSummary()
         {
             var (ownerId, role) = GetOwnerContext();
@@ -79,7 +79,7 @@ namespace Tutorz.Api.Controllers
         /// only the ciphertext and masked version are persisted.
         /// </summary>
         [HttpPost("bank-details")]
-        [ApiPurpose("Save Bank Details")]
+
         public async Task<IActionResult> SaveBankDetails([FromBody] SaveBankDetailsDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -96,7 +96,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpDelete("bank-details")]
-        [ApiPurpose("Remove Bank Details")]
+
         public async Task<IActionResult> RemoveBankDetails()
         {
             var (ownerId, role) = GetOwnerContext();
@@ -117,7 +117,7 @@ namespace Tutorz.Api.Controllers
         /// calls PayHere directly and receives a token. We store only that token + last4 + brand.
         /// </summary>
         [HttpPost("card-token")]
-        [ApiPurpose("Save Card Token")]
+
         public async Task<IActionResult> SaveCardToken([FromBody] SaveCardTokenDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -131,7 +131,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpDelete("card-token")]
-        [ApiPurpose("Remove Card Token")]
+
         public async Task<IActionResult> RemoveCardToken()
         {
             var (ownerId, role) = GetOwnerContext();
@@ -155,7 +155,7 @@ namespace Tutorz.Api.Controllers
         /// The frontend uses these to open window.payhere.startPayment({ preapprove: true }).
         /// </summary>
         [HttpPost("initiate-preapproval")]
-        [ApiPurpose("Initiate PayHere Card Preapproval")]
+
         public async Task<IActionResult> InitiatePreapproval()
         {
             var (ownerId, role) = GetOwnerContext();
@@ -195,7 +195,7 @@ namespace Tutorz.Api.Controllers
         // ─────────────────────────────────────────────
 
         [HttpGet("student-payment-status")]
-        [ApiPurpose("Get Student Payment Status Month Strip")]
+
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> GetStudentPaymentStatus([FromQuery] Guid classId)
         {
@@ -209,7 +209,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("initiate-payment")]
-        [ApiPurpose("Initiate Online Payment")]
+
         [Authorize(Roles = "Student")]
         public async Task<IActionResult> InitiatePayment([FromBody] InitiatePaymentRequestDto request)
         {
@@ -220,21 +220,6 @@ namespace Tutorz.Api.Controllers
                 return Unauthorized("Only students can initiate fee payments.");
 
             var result = await _financialsService.InitiateOnlinePaymentAsync(ownerId, request);
-            if (!result.Success) return BadRequest(result);
-            return Ok(result);
-        }
-
-        [HttpPost("initiate-bill-payment")]
-        [ApiPurpose("Initiate Platform Bill Payment")]
-        public async Task<IActionResult> InitiateBillPayment([FromBody] InitiateBillPaymentRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var (ownerId, role) = GetOwnerContext();
-            if (ownerId == Guid.Empty) 
-                return Unauthorized("User identity not found in token.");
-
-            var result = await _financialsService.InitiateBillPaymentAsync(ownerId, role, request);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }

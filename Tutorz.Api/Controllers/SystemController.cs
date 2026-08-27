@@ -9,7 +9,7 @@ using Tutorz.Domain.Entities;
 using Tutorz.Api.Hubs;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Billing;
-using Tutorz.Api.Attributes;
+
 
 namespace Tutorz.Api.Controllers
 {
@@ -29,7 +29,6 @@ namespace Tutorz.Api.Controllers
         private readonly IInstituteService _instituteService;
         private readonly IAuthService _authService;
         private readonly IAdminService _adminService;
-        private readonly IBillService _billService;
         private readonly IPaymentService _paymentService;
 
         public SystemController(
@@ -41,7 +40,6 @@ namespace Tutorz.Api.Controllers
             IInstituteService instituteService,
             IAuthService authService,
             IAdminService adminService,
-            IBillService billService,
             IPaymentService paymentService)
         {
             _configuration = configuration;
@@ -52,7 +50,6 @@ namespace Tutorz.Api.Controllers
             _instituteService = instituteService;
             _authService = authService;
             _adminService = adminService;
-            _billService = billService;
             _paymentService = paymentService;
         }
 
@@ -232,24 +229,6 @@ namespace Tutorz.Api.Controllers
             return Ok(result.Data);
         }
 
-        // --- Billing Config Endpoints ---
-
-        [HttpGet("billing-config")]
-        [Authorize(Roles = "Admin,SuperAdmin")]
-        public async Task<IActionResult> GetBillingConfig()
-        {
-            var response = await _billService.GetBillingConfigAsync();
-            return response.Success ? Ok(response) : BadRequest(response);
-        }
-
-        [HttpPut("billing-config")]
-        [Authorize(Roles = "Admin,SuperAdmin")]
-        public async Task<IActionResult> UpdateBillingConfig([FromBody] BillingConfigDto config)
-        {
-            var response = await _billService.UpdateBillingConfigAsync(config);
-            return response.Success ? Ok(response) : BadRequest(response);
-        }
-
         // --- System Data Endpoints ---
 
         [HttpGet("payments-history")]
@@ -314,7 +293,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("users/{userId}/qr-pdf")]
-        [ApiPurpose("Generate QR code PDF for any user")]
+
         public async Task<IActionResult> GetSystemUserQrPdf(Guid userId, [FromServices] IQrPdfService qrPdfService)
         {
             try

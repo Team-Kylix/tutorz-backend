@@ -34,9 +34,6 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<InstituteJoinRequest> InstituteJoinRequests { get; set; }
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<SmsLog> SmsLogs { get; set; }
-        public DbSet<ApiUsageLog> ApiUsageLogs { get; set; }
-        public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
-        public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
         public DbSet<MonthlyUsageSummary> MonthlyUsageSummaries { get; set; }
         public DbSet<MonthlyPlatformCommissionSummary> MonthlyPlatformCommissionSummaries { get; set; }
         public DbSet<MonthlyBill> MonthlyBills { get; set; }
@@ -52,7 +49,6 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<AppSetting> AppSettings { get; set; }
         public DbSet<Dispute> Disputes { get; set; }
         public DbSet<Admin> Admins { get; set; }
-        public DbSet<Bill> Bills { get; set; }
         public DbSet<Withdrawal> Withdrawals { get; set; }
         public DbSet<MarkSheet> MarkSheets { get; set; }
         public DbSet<MarkRecord> MarkRecords { get; set; }
@@ -215,26 +211,7 @@ namespace Tutorz.Infrastructure.Data
                 .HasIndex(p => new { p.StudentId, p.ClassId, p.Month, p.Year })
                 .IsUnique();
 
-            // ApiUsageLog Configuration (Cascading delete if User is deleted)
-            modelBuilder.Entity<ApiUsageLog>()
-                .HasOne(a => a.User)
-                .WithMany()
-                .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.SetNull); // Or Cascade depending on requirements. Choosing SetNull to keep usage data even if user is deleted, but user_id is nullable.
 
-            // ApiDailyUsageSummary Configuration
-            modelBuilder.Entity<ApiDailyUsageSummary>()
-                .HasOne(a => a.User)
-                .WithMany()
-                .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // APIMonthlyUsageSummary Configuration
-            modelBuilder.Entity<APIMonthlyUsageSummary>()
-                .HasOne(a => a.User)
-                .WithMany()
-                .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
 
             // Bank + Branch Configuration
             modelBuilder.Entity<Branch>()
@@ -287,32 +264,7 @@ namespace Tutorz.Infrastructure.Data
             modelBuilder.Entity<Dispute>()
                 .HasQueryFilter(d => !d.IsDeleted);
 
-            // Bill Configuration
-            modelBuilder.Entity<Bill>()
-                .HasOne(b => b.User)
-                .WithMany()
-                .HasForeignKey(b => b.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
 
-            // Index for fast lookup (removed IsUnique to allow multiple bills per month if previous is paid)
-            modelBuilder.Entity<Bill>()
-                .HasIndex(b => new { b.UserId, b.Month, b.Year });
-
-            // Decimal precision for Bill money fields
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.ApiUsageAmount).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.SmsAmount).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.PlatformCommissionAmount).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.PreviousOverdueAmount).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.SubTotal).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.TaxAmount).HasColumnType("decimal(18,2)");
-            modelBuilder.Entity<Bill>()
-                .Property(b => b.PayableAmount).HasColumnType("decimal(18,2)");
 
             // Decimal precision for ClassPayment new columns
             modelBuilder.Entity<ClassPayment>()

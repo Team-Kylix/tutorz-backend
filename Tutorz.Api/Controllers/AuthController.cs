@@ -7,7 +7,7 @@ using System.Security.Claims;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
-using Tutorz.Api.Attributes;
+
 
 namespace Tutorz.Api.Controllers
 {
@@ -24,7 +24,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("register")]
-        [ApiPurpose("Register Account")]
+
         public async Task<IActionResult> Register(RegisterRequest request)
         {
             try
@@ -68,7 +68,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("login")]
-        [ApiPurpose("User Login")]
+
         public async Task<IActionResult> Login(LoginRequest request)
         {
             try
@@ -94,7 +94,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPost("bind-pre-allocated-student")]
         [Authorize]
-        [ApiPurpose("Bind Pre-Allocated Student")]
+
         public async Task<IActionResult> BindPreAllocatedStudent([FromQuery] string mobileNumber)
         {
             try
@@ -164,7 +164,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("verify-reset-otp")]
-        [ApiPurpose("Verify Reset Password OTP")]
+
         public async Task<IActionResult> VerifyResetOtp([FromBody] VerifyUserRequest request)
         {
             try
@@ -288,7 +288,7 @@ namespace Tutorz.Api.Controllers
         // --- CREDENTIAL UPDATES (Authenticated) ---
         [HttpPost("request-email-update")]
         [Authorize]
-        [ApiPurpose("Request Email Update")]
+
         public async Task<IActionResult> RequestEmailUpdate([FromBody] RequestCredentialUpdateDto request)
         {
             try
@@ -308,7 +308,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPost("verify-email-update")]
         [Authorize]
-        [ApiPurpose("Verify Email Update")]
+
         public async Task<IActionResult> VerifyEmailUpdate([FromBody] VerifyCredentialUpdateDto request)
         {
             try
@@ -329,7 +329,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPost("request-mobile-update")]
         [Authorize]
-        [ApiPurpose("Request Mobile Update")]
+
         public async Task<IActionResult> RequestMobileUpdate([FromBody] RequestCredentialUpdateDto request)
         {
             try
@@ -349,7 +349,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPost("verify-mobile-update")]
         [Authorize]
-        [ApiPurpose("Verify Mobile Update")]
+
         public async Task<IActionResult> VerifyMobileUpdate([FromBody] VerifyCredentialUpdateDto request)
         {
             try
@@ -370,7 +370,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpPost("change-password")]
         [Authorize]
-        [ApiPurpose("Change Password")]
+
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto request)
         {
             try
@@ -399,7 +399,7 @@ namespace Tutorz.Api.Controllers
 
         // --- PROFILE PICTURE UPLOAD ---
         [HttpPost("profile-picture")]
-        [ApiPurpose("Upload Profile Picture")]
+
         public async Task<IActionResult> UploadProfilePicture(
             [FromForm] ProfilePictureUploadRequest request,
             [FromServices] IProfilePictureService profilePictureService)
@@ -420,7 +420,7 @@ namespace Tutorz.Api.Controllers
 
         [HttpGet("profile/qr-pdf")]
         [Authorize]
-        [ApiPurpose("Download authenticated user's own QR code PDF")]
+
         public async Task<IActionResult> GetMyQrPdf([FromServices] IQrPdfService qrPdfService)
         {
             try

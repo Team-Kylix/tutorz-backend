@@ -5,7 +5,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Tutorz.Application.DTOs.Disputes;
 using Tutorz.Application.Interfaces;
-using Tutorz.Api.Attributes;
+
 
 namespace Tutorz.Api.Controllers
 {
@@ -35,7 +35,7 @@ namespace Tutorz.Api.Controllers
         // POST api/dispute  —  Any authenticated user raises a complaint
         // ─────────────────────────────────────────────────────────────────────
         [HttpPost]
-        [ApiPurpose("Submit Complaint")]
+
         public async Task<IActionResult> CreateDispute([FromForm] CreateDisputeDto dto)
         {
             var userId = GetUserId();
@@ -51,7 +51,7 @@ namespace Tutorz.Api.Controllers
         // GET api/dispute/my  —  Current user's own complaints
         // ─────────────────────────────────────────────────────────────────────
         [HttpGet("my")]
-        [ApiPurpose("Get My Complaints")]
+
         public async Task<IActionResult> GetMyDisputes(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
@@ -69,7 +69,7 @@ namespace Tutorz.Api.Controllers
         // GET api/dispute/{id}  —  Single dispute (owner or Admin)
         // ─────────────────────────────────────────────────────────────────────
         [HttpGet("{id:int}")]
-        [ApiPurpose("Get Dispute By Id")]
+
         public async Task<IActionResult> GetDispute(int id)
         {
             var userId = GetUserId();
@@ -88,7 +88,7 @@ namespace Tutorz.Api.Controllers
         // ─────────────────────────────────────────────────────────────────────
         [HttpGet]
         [Authorize(Roles = "Admin,SuperAdmin")]
-        [ApiPurpose("Get All Disputes (Admin)")]
+
         public async Task<IActionResult> GetAllDisputes(
             [FromQuery] string? searchQuery = null,
             [FromQuery] int page = 1,
@@ -112,7 +112,7 @@ namespace Tutorz.Api.Controllers
         // ─────────────────────────────────────────────────────────────────────
         [HttpPatch("{id:int}/status")]
         [Authorize(Roles = "Admin,SuperAdmin")]
-        [ApiPurpose("Update Dispute Status (Admin)")]
+
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateDisputeStatusDto dto)
         {
             var userId = GetUserId();
@@ -130,7 +130,7 @@ namespace Tutorz.Api.Controllers
         // DELETE api/dispute/{id}  —  Delete a pending dispute
         // ─────────────────────────────────────────────────────────────────────
         [HttpDelete("{id:int}")]
-        [ApiPurpose("Delete Pending Complaint")]
+
         public async Task<IActionResult> DeleteDispute(int id)
         {
             var userId = GetUserId();

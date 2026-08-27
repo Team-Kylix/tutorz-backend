@@ -11,7 +11,7 @@ using Tutorz.Application.Services;
 using Tutorz.Infrastructure.Repositories;
 using Tutorz.Infrastructure.Data;
 using Tutorz.Infrastructure.Seeders; // Ensure this namespace is imported for LocationSeeder
-using Tutorz.Api.Middlewares;
+
 using Tutorz.Infrastructure.Services; // EncryptionService, FinancialsService
 using Tutorz.Api.Hubs;
 
@@ -94,7 +94,7 @@ builder.Services.AddScoped<IWithdrawalService, WithdrawalService>();
 // Dispute / Ticketing System
 builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
 builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
-builder.Services.AddScoped<IBillService, BillService>();
+
 builder.Services.AddScoped<IStudentBillService, StudentBillService>();
 builder.Services.AddScoped<IReportService, Tutorz.Infrastructure.Services.ReportService>();
 builder.Services.AddScoped<IQrPdfService, Tutorz.Infrastructure.Services.QrPdfService>();
@@ -119,12 +119,12 @@ builder.Services.AddSingleton<IReplenishmentQueue, ReplenishmentQueue>();
 builder.Services.AddHostedService<Tutorz.Api.HostedServices.ReplenishmentBackgroundService>();
 
 // API Usage Tracking Services
-builder.Services.AddSingleton<Tutorz.Infrastructure.Services.ApiUsageTracker>();
-builder.Services.AddSingleton<IApiUsageTracker>(sp => sp.GetRequiredService<Tutorz.Infrastructure.Services.ApiUsageTracker>());
-builder.Services.AddHostedService<Tutorz.Infrastructure.Services.ApiUsageBatchWorker>();
-builder.Services.AddHostedService<Tutorz.Infrastructure.Services.DailyAggregationWorker>();
-builder.Services.AddHostedService<Tutorz.Infrastructure.Services.MonthlyAggregationWorker>();
-builder.Services.AddHostedService<MonthlyBillingWorker>();
+
+
+
+
+
+
 
 // Add JWT Configuration ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -306,7 +306,7 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
-app.UseApiUsageTracking();
+
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");

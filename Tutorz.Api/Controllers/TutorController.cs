@@ -5,7 +5,7 @@ using Tutorz.Application.DTOs.Tutor;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Application.DTOs.Institute;
-using Tutorz.Api.Attributes;
+
 using Tutorz.Domain.Entities;
 
 namespace Tutorz.Api.Controllers
@@ -37,7 +37,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes")]
-        [ApiPurpose("Create Tutor Class")]
+
         public async Task<IActionResult> CreateClass(CreateClassRequest request)
         {
             var userId = GetUserId();
@@ -50,7 +50,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("classes/{id}")]
-        [ApiPurpose("Update Tutor Class")]
+
         public async Task<IActionResult> UpdateClass(Guid id, CreateClassRequest request)
         {
             var userId = GetUserId();
@@ -63,7 +63,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("classes")]
-        [ApiPurpose("Get Tutor Classes")]
+
         public async Task<IActionResult> GetClasses()
         {
             var userId = GetUserId();
@@ -74,7 +74,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("classes/{classId}/qr-codes")]
-        [ApiPurpose("Generate QR codes PDF for a class")]
+
         public async Task<IActionResult> GetClassQrCodes(Guid classId, [FromServices] IQrPdfService qrPdfService)
         {
             try
@@ -89,7 +89,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("dashboard-stats")]
-        [ApiPurpose("Get Tutor Dashboard Statistics")]
+
         public async Task<IActionResult> GetDashboardStats()
         {
             var userId = GetUserId();
@@ -102,7 +102,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes/add-student")]
-        [ApiPurpose("Add Student to Class")]
+
         public async Task<IActionResult> AddStudent(AddStudentRequest request)
         {
             var userId = GetUserId();
@@ -120,7 +120,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpDelete("classes/{id}")]
-        [ApiPurpose("Delete Tutor Class")]
+
         public async Task<IActionResult> DeleteClass(Guid id)
         {
             var userId = GetUserId();
@@ -131,7 +131,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes/{id}/remove-students")]
-        [ApiPurpose("Remove all students from Tutor Class")]
+
         public async Task<IActionResult> RemoveAllStudents(Guid id, [FromQuery] int batchSize = 10)
         {
             var userId = GetUserId();
@@ -143,7 +143,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("classes/{id}/reassign")]
-        [ApiPurpose("Reassign all students to another Class")]
+
         public async Task<IActionResult> ReassignAllStudents(Guid id, [FromBody] ReassignClassDto dto)
         {
             var userId = GetUserId();
@@ -156,7 +156,7 @@ namespace Tutorz.Api.Controllers
 
 
         [HttpPost("students/{studentId}/drop-class/{classId}")]
-        [ApiPurpose("Drop student from a specific class")]
+
         public async Task<IActionResult> DropStudentFromClass(Guid studentId, Guid classId)
         {
             var userId = GetUserId();
@@ -172,7 +172,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("students/{studentId}/reassign-class")]
-        [ApiPurpose("Reassign a student from one class to another")]
+
         public async Task<IActionResult> ReassignStudentToClass(Guid studentId, [FromBody] TutorReassignStudentRequest request)
         {
             var userId = GetUserId();
@@ -181,7 +181,7 @@ namespace Tutorz.Api.Controllers
             return Ok(result);
         }
         [HttpGet("profile")]
-        [ApiPurpose("Get Tutor Profile")]
+
         public async Task<IActionResult> GetProfile()
         {
             var userId = GetUserId();
@@ -193,7 +193,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("profile")]
-        [ApiPurpose("Update Tutor Profile")]
+
         public async Task<IActionResult> UpdateProfile([FromForm] UpdateTutorProfileDto request)
         {
             var userId = GetUserId();
@@ -207,7 +207,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students")]
-        [ApiPurpose("Get Tutor Students")]
+
         public async Task<IActionResult> GetTutorStudents([FromQuery] Guid? instituteId, [FromQuery] Guid? classId, [FromQuery] string searchQuery = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var userId = GetUserId();
@@ -220,7 +220,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("requests")]
-        [ApiPurpose("Get Student Requests")]
+
         public async Task<IActionResult> GetRequests()
         {
             try
@@ -238,7 +238,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("requests/process")]
-        [ApiPurpose("Process Student Requests")]
+
         public async Task<IActionResult> ProcessRequests([FromBody] ProcessRequestDto request)
         {
             try
@@ -257,7 +257,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("student-profile/{studentId}")]
-        [ApiPurpose("Get Student Profile for Tutor")]
+
         public async Task<IActionResult> GetStudentProfile(Guid studentId)
         {
             try
@@ -276,7 +276,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students/{studentId}/classes")]
-        [ApiPurpose("Get Student Classes for Tutor")]
+
         public async Task<IActionResult> GetStudentClassesForTutor(Guid studentId)
         {
             var userId = GetUserId();
@@ -289,7 +289,7 @@ namespace Tutorz.Api.Controllers
 
 
         [HttpPost("institutes/{instituteId}/request")]
-        [ApiPurpose("Request Join Institute")]
+
         public async Task<IActionResult> RequestJoinInstitute(Guid instituteId)
         {
             var userId = GetUserId();
@@ -301,7 +301,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("requests/institutes")]
-        [ApiPurpose("Get Institute Requests")]
+
         public async Task<IActionResult> GetInstituteRequests()
         {
             var userId = GetUserId();
@@ -312,7 +312,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("requests/institutes/{requestId}/process")]
-        [ApiPurpose("Process Institute Request")]
+
         public async Task<IActionResult> ProcessInstituteRequest(Guid requestId, [FromBody] ProcessJoinRequestDto dto)
         {
             var userId = GetUserId();
@@ -324,7 +324,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("institutes")]
-        [ApiPurpose("Get Joined Institutes")]
+
         public async Task<IActionResult> GetJoinedInstitutes()
         {
             var userId = GetUserId();
@@ -337,7 +337,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students/search")]
-        [ApiPurpose("Search Enrolled Students for Tutor")]
+
         public async Task<IActionResult> SearchStudents([FromQuery] string query)
         {
             var userId = GetUserId();
@@ -350,7 +350,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("students/search-global")]
-        [ApiPurpose("Search All Students in System globally for Tutor")]
+
         public async Task<IActionResult> SearchStudentsGlobal([FromQuery] string query)
         {
             var userId = GetUserId();
@@ -363,7 +363,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("institutes/search-exact")]
-        [ApiPurpose("Search Institute Exact")]
+
         public async Task<IActionResult> SearchInstitutesExact([FromQuery] string query)
         {
             var userId = GetUserId();
@@ -376,7 +376,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("attendance/history")]
-        [ApiPurpose("Get Tutor Attendance History")]
+
         public async Task<IActionResult> GetAttendanceHistory(
             [FromQuery] Guid? classId,
             [FromQuery] Guid? instituteId,
@@ -394,7 +394,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("payments/history")]
-        [ApiPurpose("Get Tutor Payment History")]
+
         public async Task<IActionResult> GetPaymentHistory(
             [FromQuery] Guid? instituteId,
             [FromQuery] bool noInstitute = false,
@@ -418,7 +418,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("payments/{paymentId}/pdf")]
-        [ApiPurpose("Download Tutor Class Payment PDF")]
+
         public async Task<IActionResult> DownloadPaymentPdf(Guid paymentId)
         {
             var userId = GetUserId();
@@ -437,7 +437,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("marks")]
-        [ApiPurpose("Get Tutor Mark Sheets")]
+
         public async Task<IActionResult> GetMarkSheets([FromQuery] Guid? classId, [FromQuery] Guid? instituteId)
         {
             var userId = GetUserId();
@@ -448,7 +448,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("marks/{markSheetId}")]
-        [ApiPurpose("Get Mark Sheet Details")]
+
         public async Task<IActionResult> GetMarkSheetById(Guid markSheetId)
         {
             var userId = GetUserId();
@@ -460,7 +460,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("marks")]
-        [ApiPurpose("Create Mark Sheet")]
+
         public async Task<IActionResult> CreateMarkSheet(Tutorz.Application.DTOs.MarkSheet.CreateMarkSheetDto request)
         {
             var userId = GetUserId();
@@ -472,7 +472,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPut("marks/{markSheetId}")]
-        [ApiPurpose("Update Mark Sheet")]
+
         public async Task<IActionResult> UpdateMarkSheet(Guid markSheetId, Tutorz.Application.DTOs.MarkSheet.UpdateMarkSheetDto request)
         {
             var userId = GetUserId();
@@ -484,7 +484,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpDelete("marks/{markSheetId}")]
-        [ApiPurpose("Soft Delete Mark Sheet")]
+
         public async Task<IActionResult> DeleteMarkSheet(Guid markSheetId)
         {
             var userId = GetUserId();
@@ -496,7 +496,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("attendance/mark")]
-        [ApiPurpose("Mark Attendance for Tutor's Student")]
+
         public async Task<IActionResult> MarkAttendance([FromBody] Tutorz.Application.DTOs.Institute.MarkAttendanceDto dto)
         {
             var userId = GetUserId();
@@ -508,7 +508,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpPost("payments/record")]
-        [ApiPurpose("Record Class Payment for Tutor's Student")]
+
         public async Task<IActionResult> RecordPayment(
             [FromBody] Tutorz.Application.DTOs.Payment.RecordPaymentRequest request,
             [FromServices] IGenericRepository<Class> classRepo)
@@ -527,7 +527,7 @@ namespace Tutorz.Api.Controllers
         }
 
         [HttpGet("payments/status")]
-        [ApiPurpose("Get Tutor Student Payment Status Strip")]
+
         public async Task<IActionResult> GetPaymentStatus(
             [FromQuery] Guid classId,
             [FromQuery] Guid studentId,

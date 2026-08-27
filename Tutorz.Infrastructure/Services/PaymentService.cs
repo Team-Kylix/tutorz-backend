@@ -14,13 +14,11 @@ namespace Tutorz.Infrastructure.Services
     public class PaymentService : IPaymentService
     {
         private readonly TutorzDbContext _context;
-        private readonly IBillService _billService;
         private readonly IPaymentNotificationService _paymentNotificationService;
 
-        public PaymentService(TutorzDbContext context, IBillService billService, IPaymentNotificationService paymentNotificationService)
+        public PaymentService(TutorzDbContext context, IPaymentNotificationService paymentNotificationService)
         {
             _context = context;
-            _billService = billService;
             _paymentNotificationService = paymentNotificationService;
         }
 
@@ -155,8 +153,10 @@ namespace Tutorz.Infrastructure.Services
             decimal tuitionAmount = baseFee - instituteAmount;
 
             // 2. Fetch platform commission rate from system config (defaults to 1% total)
-            var configResponse = await _billService.GetBillingConfigAsync();
-            decimal platformRate = (configResponse?.Data?.PlatformCommissionRate ?? 1.00m) / 100m;
+            var setting = await _context.AppSettings.FirstOrDefaultAsync(a => a.Key == "PlatformCommissionRate");
+            decimal rate = 1.00m;
+            if (setting != null && decimal.TryParse(setting.Value, out var parsed)) rate = parsed;
+            decimal platformRate = rate / 100m;
 
             // 3. Calculate Platform Fees based on the actual earnings of each party
             // e.g. If Institute gets 15 LKR and Tutor gets 85 LKR, and platform rate is 1%:
@@ -191,13 +191,6 @@ namespace Tutorz.Infrastructure.Services
 
             await _context.ClassPayments.AddAsync(payment);
             await _context.SaveChangesAsync();
-
-            // Fire real-time bill update incrementally
-            // Only pass a real instituteId — Guid.Empty means own-place class (no institute bill)
-            await _billService.IncrementPlatformCommissionAsync(
-                instituteId == Guid.Empty ? Guid.Empty : instituteId,
-                cls.TutorId, instituteCommission, tutorCommission,
-                request.Month, request.Year);
 
             // 4. Send Notifications (Fire and forget)
             _ = Task.Run(() => _paymentNotificationService.SendPaymentSuccessNotificationAsync(payment.PaymentId));
