@@ -38,6 +38,10 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<ApiDailyUsageSummary> ApiDailyUsageSummaries { get; set; }
         public DbSet<APIMonthlyUsageSummary> APIMonthlyUsageSummaries { get; set; }
         public DbSet<MonthlyUsageSummary> MonthlyUsageSummaries { get; set; }
+        public DbSet<MonthlyPlatformCommissionSummary> MonthlyPlatformCommissionSummaries { get; set; }
+        public DbSet<MonthlyBill> MonthlyBills { get; set; }
+        public DbSet<Wallet> Wallets { get; set; }
+        public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<ClassPayment> ClassPayments { get; set; }
         public DbSet<Bank> Banks { get; set; }
         public DbSet<Branch> Branches { get; set; }
@@ -178,6 +182,10 @@ namespace Tutorz.Infrastructure.Data
             // Apply SmsLog Configuration
             modelBuilder.ApplyConfiguration(new SmsLogConfiguration());
             modelBuilder.ApplyConfiguration(new MonthlyUsageSummaryConfiguration());
+            modelBuilder.ApplyConfiguration(new MonthlyPlatformCommissionSummaryConfiguration());
+            modelBuilder.ApplyConfiguration(new MonthlyBillConfiguration());
+            modelBuilder.ApplyConfiguration(new WalletConfiguration());
+            modelBuilder.ApplyConfiguration(new WalletTransactionConfiguration());
 
             // ClassPayment Configuration
             modelBuilder.Entity<ClassPayment>()

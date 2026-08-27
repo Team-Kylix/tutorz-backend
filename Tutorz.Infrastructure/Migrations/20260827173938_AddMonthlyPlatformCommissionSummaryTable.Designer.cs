@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tutorz.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using Tutorz.Infrastructure.Data;
 namespace Tutorz.Infrastructure.Migrations
 {
     [DbContext(typeof(TutorzDbContext))]
-    partial class TutorzDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260827173938_AddMonthlyPlatformCommissionSummaryTable")]
+    partial class AddMonthlyPlatformCommissionSummaryTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -915,55 +918,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("MarkSheets");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.MonthlyBill", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("BillAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("BillNumber")
-                        .IsRequired()
-                        .HasMaxLength(6)
-                        .HasColumnType("nvarchar(6)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("DueAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsIndividual")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsPaid")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PaidAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BillNumber")
-                        .IsUnique();
-
-                    b.HasIndex("UserId", "Month", "Year", "IsIndividual")
-                        .IsUnique();
-
-                    b.ToTable("MonthlyBills");
-                });
-
             modelBuilder.Entity("Tutorz.Domain.Entities.MonthlyPlatformCommissionSummary", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1500,65 +1454,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.ToTable("UserSequences");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.Wallet", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Balance")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("LastUpdated")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("Wallets");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.WalletTransaction", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ReferenceId")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<Guid>("WalletId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WalletId");
-
-                    b.ToTable("WalletTransactions");
-                });
-
             modelBuilder.Entity("Tutorz.Domain.Entities.Withdrawal", b =>
                 {
                     b.Property<Guid>("WithdrawalId")
@@ -1946,17 +1841,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Tutor");
                 });
 
-            modelBuilder.Entity("Tutorz.Domain.Entities.MonthlyBill", b =>
-                {
-                    b.HasOne("Tutorz.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Tutorz.Domain.Entities.MonthlyPlatformCommissionSummary", b =>
                 {
                     b.HasOne("Tutorz.Domain.Entities.Class", "Class")
@@ -2070,28 +1954,6 @@ namespace Tutorz.Infrastructure.Migrations
                     b.Navigation("Announcement");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.Wallet", b =>
-                {
-                    b.HasOne("Tutorz.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Tutorz.Domain.Entities.WalletTransaction", b =>
-                {
-                    b.HasOne("Tutorz.Domain.Entities.Wallet", "Wallet")
-                        .WithMany()
-                        .HasForeignKey("WalletId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Wallet");
                 });
 
             modelBuilder.Entity("Tutorz.Domain.Entities.Withdrawal", b =>
