@@ -96,6 +96,7 @@ builder.Services.AddScoped<IDisputeRepository, DisputeRepository>();
 builder.Services.AddScoped<IDisputeService, Tutorz.Infrastructure.Services.DisputeService>();
 
 builder.Services.AddScoped<IStudentBillService, StudentBillService>();
+builder.Services.AddScoped<IBillService, Tutorz.Infrastructure.Services.BillService>();
 builder.Services.AddScoped<IReportService, Tutorz.Infrastructure.Services.ReportService>();
 builder.Services.AddScoped<IQrPdfService, Tutorz.Infrastructure.Services.QrPdfService>();
 
