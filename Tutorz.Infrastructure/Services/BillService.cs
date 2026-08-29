@@ -163,6 +163,9 @@ namespace Tutorz.Infrastructure.Services
             decimal storageServerCost = 0m;
             decimal billedServerCost = 0m;
             decimal billedCommissions = 0m;
+            decimal billedTutorSmsCost = 0m; // Institute billed for Tutor SMS
+            decimal currentSmsCost = 0m; // Statistical SMS cost for MonthlyUsageSummary
+            decimal billedOwnSmsCost = 0m; // Sms cost billed directly to this user
 
             if (bill.IsIndividual)
             {
@@ -174,16 +177,20 @@ namespace Tutorz.Infrastructure.Services
                     var instAtts = await _context.Attendances.Include(a => a.Class)
                         .CountAsync(a => a.Class.TutorId == tutor.TutorId && a.Class.InstituteId != null && a.Date.Month == bill.Month && a.Date.Year == bill.Year);
                     
-                    // Tutor statistical usage stores ALL attendances * 1.5
                     storageServerCost = (indivAtts + instAtts) * 1.5m;
-                    
-                    // Tutor bill only charges for INDIVIDUAL attendances * 1.5
                     billedServerCost = indivAtts * 1.5m;
-                    
                     
                     billedCommissions = await _context.MonthlyPlatformCommissionSummaries
                         .Where(c => c.Month == bill.Month && c.Year == bill.Year && c.InstituteId == null && c.TutorId == tutor.TutorId)
-                        .SumAsync(c => c.PlatformTutorCommission); // For individual, it's just PlatformTutorCommission
+                        .SumAsync(c => c.PlatformTutorCommission);
+                        
+                    currentSmsCost = await _context.SmsLogs
+                        .Where(l => l.BillTo == bill.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year)
+                        .SumAsync(l => l.Cost); // Total SMS for this tutor (Individual + Institute)
+                        
+                    billedOwnSmsCost = await _context.SmsLogs
+                        .Where(l => l.SenderUserId == bill.UserId && l.BillTo == bill.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year)
+                        .SumAsync(l => l.Cost); // Billed directly to Tutor
                 }
             }
             else
@@ -194,15 +201,22 @@ namespace Tutorz.Infrastructure.Services
                     var instAtts = await _context.Attendances.Include(a => a.Class)
                         .CountAsync(a => a.Class.InstituteId == inst.InstituteId && a.Date.Month == bill.Month && a.Date.Year == bill.Year);
                     
-                    // Institute statistical usage stores ONLY 0.5 per attendance
                     storageServerCost = instAtts * 0.5m;
-                    
-                    // Institute bill charges BOTH the 0.5 (Institute Share) + 1.5 (Tutor Share)
                     billedServerCost = instAtts * 2.0m;
                     
                     billedCommissions = await _context.MonthlyPlatformCommissionSummaries
                         .Where(c => c.Month == bill.Month && c.Year == bill.Year && c.InstituteId == inst.InstituteId)
-                        .SumAsync(c => c.PlatformAllCommission); // Includes both shares of class commissions
+                        .SumAsync(c => c.PlatformAllCommission);
+
+                    currentSmsCost = await _context.SmsLogs
+                        .Where(l => l.SenderUserId == inst.UserId && l.BillTo == inst.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year)
+                        .SumAsync(l => l.Cost);
+                        
+                    billedOwnSmsCost = currentSmsCost;
+
+                    billedTutorSmsCost = await _context.SmsLogs
+                        .Where(l => l.SenderUserId == inst.UserId && l.BillTo != inst.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year)
+                        .SumAsync(l => l.Cost);
 
                     // --- UPDATE RELATED TUTORS ---
                     var tutorIds = await _context.Classes
@@ -223,6 +237,9 @@ namespace Tutorz.Infrastructure.Services
                                 var iAtts = await _context.Attendances.Include(a => a.Class).CountAsync(a => a.Class.TutorId == t.TutorId && a.Class.InstituteId == null && a.Date.Month == bill.Month && a.Date.Year == bill.Year);
                                 var inAtts = await _context.Attendances.Include(a => a.Class).CountAsync(a => a.Class.TutorId == t.TutorId && a.Class.InstituteId != null && a.Date.Month == bill.Month && a.Date.Year == bill.Year);
                                 
+                                // Total SMS for Tutor (Statistical)
+                                var tSmsCost = await _context.SmsLogs.Where(l => l.BillTo == t.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year).SumAsync(l => l.Cost);
+                                tUsage.SmsCost = tSmsCost;
                                 tUsage.ServerCost = (iAtts + inAtts) * 1.5m;
                                 tUsage.TotalCost = tUsage.SmsCost + tUsage.ServerCost;
                                 tUsage.LastUpdated = DateTime.UtcNow;
@@ -230,8 +247,11 @@ namespace Tutorz.Infrastructure.Services
                                 var tComms = await _context.MonthlyPlatformCommissionSummaries
                                     .Where(c => c.Month == bill.Month && c.Year == bill.Year && c.InstituteId == null && c.TutorId == t.TutorId)
                                     .SumAsync(c => c.PlatformTutorCommission);
+                                    
+                                // Billed SMS for Tutor
+                                var tBilledSmsCost = await _context.SmsLogs.Where(l => l.SenderUserId == t.UserId && l.BillTo == t.UserId && l.SentAt.Month == bill.Month && l.SentAt.Year == bill.Year).SumAsync(l => l.Cost);
                                 
-                                tBill.BillAmount = tComms + tUsage.SmsCost + (iAtts * 1.5m);
+                                tBill.BillAmount = tComms + tBilledSmsCost + (iAtts * 1.5m);
                             }
                         }
                     }
@@ -239,11 +259,12 @@ namespace Tutorz.Infrastructure.Services
                 }
             }
 
+            existingUsage.SmsCost = currentSmsCost;
             existingUsage.ServerCost = storageServerCost;
             existingUsage.TotalCost = existingUsage.SmsCost + existingUsage.ServerCost;
             existingUsage.LastUpdated = DateTime.UtcNow;
             
-            bill.BillAmount = billedCommissions + existingUsage.SmsCost + billedServerCost;
+            bill.BillAmount = billedCommissions + billedOwnSmsCost + billedServerCost + billedTutorSmsCost;
             await _context.SaveChangesAsync();
             // -----------------------------
 
@@ -277,7 +298,7 @@ namespace Tutorz.Infrastructure.Services
                     Year = tYear,
                     GeneratedAt = bill.CreatedAt,
                     IsPaid = bill.IsPaid,
-                    SmsTotalCost = tUsageSummary?.SmsCost ?? 0m,
+                    SmsTotalCost = billedOwnSmsCost, // Only show individual SMS on Tutor's PDF
                     ServerTotalCost = billedServerCost,
                     PreviousOverdueAmount = bill.DueAmount,
                     TotalPayable = bill.BillAmount
@@ -371,6 +392,15 @@ namespace Tutorz.Infrastructure.Services
                 if (tutorAtts > 0)
                 {
                     classesList.Add(new ClassCommissionDto { ClassName = "Server Usage (Tutor Share)", Charge = tutorAtts * 1.5m });
+                }
+
+                var tutorSmsCost = await _context.SmsLogs
+                    .Where(l => l.SenderUserId == institute.UserId && l.BillTo == g.Key.UserId && l.SentAt.Month == iMonth && l.SentAt.Year == iYear)
+                    .SumAsync(l => l.Cost);
+                
+                if (tutorSmsCost > 0)
+                {
+                    classesList.Add(new ClassCommissionDto { ClassName = "SMS Usage (Tutor Share)", Charge = tutorSmsCost });
                 }
 
                 if (classesList.Any())
@@ -489,11 +519,28 @@ namespace Tutorz.Infrastructure.Services
                             {
                                 table.Cell().ColumnSpan(3).PaddingTop(5).PaddingBottom(2).Text(tutorGroup.TutorName).Bold();
 
+                                decimal tutorShareTotal = 0;
+                                decimal instShareTotal = 0;
+
                                 foreach (var item in tutorGroup.Classes)
                                 {
                                     table.Cell().Text($"{rowNum++}");
                                     table.Cell().PaddingLeft(10).Text($"{item.ClassName}");
                                     table.Cell().AlignRight().Text($"{item.Charge:N2}");
+
+                                    if (item.ClassName.Contains("(Tutor Share)"))
+                                        tutorShareTotal += item.Charge;
+                                    else if (item.ClassName.Contains("(Institute Share)"))
+                                        instShareTotal += item.Charge;
+                                }
+
+                                if (tutorShareTotal > 0 || instShareTotal > 0)
+                                {
+                                    table.Cell().ColumnSpan(2).AlignRight().PaddingTop(2).Text("Tutor Share Total:").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+                                    table.Cell().AlignRight().PaddingTop(2).Text($"{tutorShareTotal:N2}").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+
+                                    table.Cell().ColumnSpan(2).AlignRight().PaddingBottom(5).Text("Institute Share Total:").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+                                    table.Cell().AlignRight().PaddingBottom(5).Text($"{instShareTotal:N2}").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
                                 }
                             }
 
