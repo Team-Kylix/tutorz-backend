@@ -22,10 +22,16 @@ namespace Tutorz.Domain.Entities
         
         [MaxLength(500)]
         public string Description { get; set; }
+
+        /// <summary>Which Institute this transaction relates to. Null = individual class withdrawal.</summary>
+        public Guid? InstituteId { get; set; }
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [ForeignKey("WalletId")]
         public virtual Wallet Wallet { get; set; }
+
+        [ForeignKey("InstituteId")]
+        public virtual Institute? Institute { get; set; }
     }
 }

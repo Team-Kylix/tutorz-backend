@@ -35,5 +35,12 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<IEnumerable<MonthlyFeeRowDto>>> GetInstituteMonthlyFeesAsync(Guid instituteId, Guid? tutorId);
         Task<byte[]> GenerateMonthlyFeesPdfAsync(Guid tutorId, Guid? instituteId, int year, int month);
         Task<byte[]> GenerateInstituteMonthlyFeesPdfAsync(Guid instituteId, Guid? tutorId, int year, int month);
+
+        // --- EarningsSummaries & Wallets ---
+        Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateEarningsAsync(int month, int year, Guid tutorId);
+        Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateInstituteEarningsAsync(int month, int year, Guid instituteId);
+        Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> GetEarningsSummariesAsync(Guid? tutorId, Guid? instituteId);
+        Task<ServiceResponse<IEnumerable<WalletBalanceDto>>> GetWalletBalancesAsync(Guid userId);
+        Task<ServiceResponse<bool>> WithdrawFromWalletAsync(Guid walletId, decimal amount, string type, string description);
     }
 }

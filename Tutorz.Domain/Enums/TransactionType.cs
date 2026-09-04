@@ -4,6 +4,7 @@ namespace Tutorz.Domain.Enums
     {
         Deposit,
         BillPayment,
-        Refund
+        Refund,
+        Withdrawal
     }
 }

@@ -10,11 +10,11 @@ namespace Tutorz.Infrastructure.Configurations
         {
             builder.HasKey(w => w.Id);
 
-            // One wallet per user
-            builder.HasIndex(w => w.UserId).IsUnique();
+            // One wallet per user + institute + individual flag combination
+            builder.HasIndex(w => new { w.UserId, w.InstituteId, w.IsIndividual }).IsUnique();
 
             builder.HasOne(w => w.User)
-                .WithMany() // or WithOne if User entity is updated, but WithMany works for uni-directional navigation
+                .WithMany()
                 .HasForeignKey(w => w.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }

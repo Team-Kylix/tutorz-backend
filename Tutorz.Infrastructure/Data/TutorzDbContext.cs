@@ -50,6 +50,7 @@ namespace Tutorz.Infrastructure.Data
         public DbSet<Dispute> Disputes { get; set; }
         public DbSet<Admin> Admins { get; set; }
         public DbSet<Withdrawal> Withdrawals { get; set; }
+        public DbSet<EarningsSummary> EarningsSummaries { get; set; }
         public DbSet<MarkSheet> MarkSheets { get; set; }
         public DbSet<MarkRecord> MarkRecords { get; set; }
         public DbSet<PreRegistration> PreRegistrations { get; set; }

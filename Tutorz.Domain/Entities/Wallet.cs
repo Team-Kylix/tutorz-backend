@@ -10,6 +10,12 @@ namespace Tutorz.Domain.Entities
         public Guid Id { get; set; }
         
         public Guid UserId { get; set; }
+
+        /// <summary>null = Individual class wallet. A Guid = earnings from that Institute.</summary>
+        public Guid? InstituteId { get; set; }
+
+        /// <summary>True when this wallet tracks individual (non-institute) class earnings.</summary>
+        public bool IsIndividual { get; set; } = false;
         
         [Column(TypeName = "decimal(18,2)")]
         public decimal Balance { get; set; }
@@ -18,5 +24,8 @@ namespace Tutorz.Domain.Entities
 
         [ForeignKey("UserId")]
         public virtual User User { get; set; }
+
+        [ForeignKey("InstituteId")]
+        public virtual Institute? Institute { get; set; }
     }
 }

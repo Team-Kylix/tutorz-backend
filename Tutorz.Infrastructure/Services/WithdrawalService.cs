@@ -11,6 +11,7 @@ using Tutorz.Application.DTOs.Withdrawal;
 using Tutorz.Application.Interfaces;
 using Tutorz.Application.DTOs.Common;
 using Tutorz.Domain.Entities;
+using Tutorz.Domain.Enums;
 using Tutorz.Infrastructure.Data;
 
 namespace Tutorz.Infrastructure.Services
@@ -1319,6 +1320,388 @@ namespace Tutorz.Infrastructure.Services
             });
 
             return document.GeneratePdf();
+        }
+
+        // ============================================================
+        // EARNINGS SUMMARIES & WALLETS
+        // ============================================================
+
+        private const decimal SMS_RATE = 2.00m;
+        private const decimal SERVER_RATE_INDIVIDUAL = 2.00m;
+        private const decimal SERVER_RATE_INSTITUTE_TUTOR = 1.50m;
+        private const decimal SERVER_RATE_INSTITUTE_OWN = 0.50m;
+
+        public async Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateEarningsAsync(int month, int year, Guid tutorId)
+        {
+            var tutor = await _context.Tutors.Include(t => t.User).FirstOrDefaultAsync(t => t.TutorId == tutorId);
+            if (tutor == null) return ServiceResponse<IEnumerable<EarningsSummaryDto>>.ErrorResponse("Tutor not found.");
+
+            var results = new List<EarningsSummaryDto>();
+
+            // Row 1: Tutor Individual (InstituteId=null, TutorId=X)
+            var indivRow = await UpsertTutorIndividualEarnings(tutor, month, year);
+            results.Add(MapToEarningsDto(indivRow, tutor.FirstName + " " + tutor.LastName, null, null));
+
+            // Rows 2+: Tutor per Institute
+            var institutes = await _context.Classes
+                .Where(c => c.TutorId == tutorId && c.InstituteId != null)
+                .Select(c => c.InstituteId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var instId in institutes)
+            {
+                var institute = await _context.Institutes.FindAsync(instId);
+                if (institute == null) continue;
+                var instRow = await UpsertTutorInstituteEarnings(tutor, institute, month, year);
+                results.Add(MapToEarningsDto(instRow, tutor.FirstName + " " + tutor.LastName, instId, institute.InstituteName));
+            }
+
+            await _context.SaveChangesAsync();
+            return ServiceResponse<IEnumerable<EarningsSummaryDto>>.SuccessResponse(results);
+        }
+
+        public async Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateInstituteEarningsAsync(int month, int year, Guid instituteId)
+        {
+            var institute = await _context.Institutes.FindAsync(instituteId);
+            if (institute == null) return ServiceResponse<IEnumerable<EarningsSummaryDto>>.ErrorResponse("Institute not found.");
+
+            var results = new List<EarningsSummaryDto>();
+
+            // Institute-only row
+            var instOwnRow = await UpsertInstituteOwnEarnings(institute, month, year);
+            results.Add(MapToEarningsDto(instOwnRow, null, instituteId, institute.InstituteName));
+
+            // Per-tutor rows for this institute
+            var tutorIds = await _context.Classes
+                .Where(c => c.InstituteId == instituteId && c.TutorId != null)
+                .Select(c => c.TutorId)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var tId in tutorIds)
+            {
+                var tutor = await _context.Tutors.FindAsync(tId);
+                if (tutor == null) continue;
+                var tRow = await UpsertTutorInstituteEarnings(tutor, institute, month, year);
+                results.Add(MapToEarningsDto(tRow, tutor.FirstName + " " + tutor.LastName, instituteId, institute.InstituteName));
+            }
+
+            await _context.SaveChangesAsync();
+            return ServiceResponse<IEnumerable<EarningsSummaryDto>>.SuccessResponse(results);
+        }
+
+        public async Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> GetEarningsSummariesAsync(Guid? tutorId, Guid? instituteId)
+        {
+            var query = _context.EarningsSummaries
+                .Include(e => e.Tutor)
+                .Include(e => e.Institute)
+                .AsQueryable();
+
+            if (tutorId.HasValue) query = query.Where(e => e.TutorId == tutorId.Value);
+            if (instituteId.HasValue) query = query.Where(e => e.InstituteId == instituteId.Value);
+
+            var list = await query.OrderByDescending(e => e.Year).ThenByDescending(e => e.Month).ToListAsync();
+
+            var dtos = list.Select(e => MapToEarningsDto(
+                e,
+                e.Tutor != null ? e.Tutor.FirstName + " " + e.Tutor.LastName : null,
+                e.InstituteId,
+                e.Institute?.InstituteName
+            ));
+
+            return ServiceResponse<IEnumerable<EarningsSummaryDto>>.SuccessResponse(dtos);
+        }
+
+        public async Task<ServiceResponse<IEnumerable<WalletBalanceDto>>> GetWalletBalancesAsync(Guid userId)
+        {
+            var wallets = await _context.Wallets
+                .Include(w => w.Institute)
+                .Where(w => w.UserId == userId)
+                .ToListAsync();
+
+            var dtos = wallets.Select(w => new WalletBalanceDto
+            {
+                WalletId = w.Id,
+                Balance = w.Balance,
+                IsIndividual = w.IsIndividual,
+                InstituteId = w.InstituteId,
+                InstituteName = w.Institute?.InstituteName,
+                LastUpdated = w.LastUpdated
+            });
+
+            return ServiceResponse<IEnumerable<WalletBalanceDto>>.SuccessResponse(dtos);
+        }
+
+        public async Task<ServiceResponse<bool>> WithdrawFromWalletAsync(Guid walletId, decimal amount, string type, string description)
+        {
+            var wallet = await _context.Wallets.Include(w => w.Institute).FirstOrDefaultAsync(w => w.Id == walletId);
+            if (wallet == null) return ServiceResponse<bool>.ErrorResponse("Wallet not found.");
+            if (amount <= 0) return ServiceResponse<bool>.ErrorResponse("Amount must be greater than zero.");
+            if (wallet.Balance < amount) return ServiceResponse<bool>.ErrorResponse($"Insufficient balance. Available: {wallet.Balance:N2} LKR.");
+
+            wallet.Balance -= amount;
+            wallet.LastUpdated = DateTime.UtcNow;
+
+            var txn = new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = walletId,
+                Amount = amount,
+                Type = TransactionType.Withdrawal,
+                ReferenceId = await _idGenerator.GenerateWithdrawalReferenceAsync(),
+                Description = string.IsNullOrWhiteSpace(description) ? $"{type} withdrawal" : description,
+                InstituteId = wallet.InstituteId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.WalletTransactions.Add(txn);
+            await _context.SaveChangesAsync();
+            return ServiceResponse<bool>.SuccessResponse(true);
+        }
+
+        // ---- Private helpers ----
+
+        private async Task<EarningsSummary> UpsertTutorIndividualEarnings(Tutor tutor, int month, int year)
+        {
+            var existing = await _context.EarningsSummaries
+                .FirstOrDefaultAsync(e => e.TutorId == tutor.TutorId && e.InstituteId == null && e.Month == month && e.Year == year);
+
+            // Gross: sum of TuitionAmount for individual class payments this month
+            var gross = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == null
+                         && p.Month == month && p.Year == year)
+                .SumAsync(p => p.TuitionAmount ?? 0m);
+
+            // Platform commission
+            var platComm = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == null
+                         && p.Month == month && p.Year == year)
+                .SumAsync(p => p.TotalPlatformAmount ?? 0m);
+
+            // SMS: sender=tutor, billTo=tutor, within month
+            var smsCount = await _context.SmsLogs
+                .Where(l => l.SenderUserId == tutor.UserId && l.BillTo == tutor.UserId
+                         && l.SentAt.Month == month && l.SentAt.Year == year)
+                .CountAsync();
+            var smsDeduct = smsCount * SMS_RATE;
+
+            // Server: attendance for individual classes
+            var attCount = await _context.Attendances
+                .Include(a => a.Class)
+                .Where(a => a.Class.TutorId == tutor.TutorId && a.Class.InstituteId == null
+                         && a.Date.Month == month && a.Date.Year == year)
+                .CountAsync();
+            var serverDeduct = attCount * SERVER_RATE_INDIVIDUAL;
+
+            var net = gross - platComm - smsDeduct - serverDeduct;
+
+            decimal oldNet = existing?.NetAmount ?? 0m;
+
+            if (existing == null)
+            {
+                existing = new EarningsSummary { TutorId = tutor.TutorId, InstituteId = null, Month = month, Year = year };
+                existing.ReferenceId = await _idGenerator.GenerateWithdrawalReferenceAsync();
+                _context.EarningsSummaries.Add(existing);
+            }
+
+            existing.GrossAmount = gross;
+            existing.PlatformCommission = platComm;
+            existing.InstituteCommission = 0m;
+            existing.SmsDeduction = smsDeduct;
+            existing.ServerDeduction = serverDeduct;
+            existing.NetAmount = net;
+            existing.CalculatedAt = DateTime.UtcNow;
+
+            await AdjustWallet(tutor.UserId, null, true, net - oldNet);
+            return existing;
+        }
+
+        private async Task<EarningsSummary> UpsertTutorInstituteEarnings(Tutor tutor, Institute institute, int month, int year)
+        {
+            var existing = await _context.EarningsSummaries
+                .FirstOrDefaultAsync(e => e.TutorId == tutor.TutorId && e.InstituteId == institute.InstituteId && e.Month == month && e.Year == year);
+
+            // Gross: TuitionAmount (after institute commission) for institute class payments
+            var gross = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
+                         && p.Month == month && p.Year == year)
+                .SumAsync(p => p.TuitionAmount ?? 0m);
+
+            // Institute commission already deducted from TuitionAmount - but we record what was taken
+            var instComm = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
+                         && p.Month == month && p.Year == year)
+                .SumAsync(p => p.InstituteCommission ?? 0m);
+
+            // Platform commission (tutor's 1%)
+            var platComm = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
+                         && p.Month == month && p.Year == year)
+                .SumAsync(p => p.TutorCommission ?? 0m);
+
+            // SMS: sender=institute, billTo=tutor
+            var smsCount = await _context.SmsLogs
+                .Where(l => l.SenderUserId == institute.UserId && l.BillTo == tutor.UserId
+                         && l.SentAt.Month == month && l.SentAt.Year == year)
+                .CountAsync();
+            var smsDeduct = smsCount * SMS_RATE;
+
+            // Server: attendance for institute classes (tutor share)
+            var attCount = await _context.Attendances
+                .Include(a => a.Class)
+                .Where(a => a.Class.TutorId == tutor.TutorId && a.Class.InstituteId == institute.InstituteId
+                         && a.Date.Month == month && a.Date.Year == year)
+                .CountAsync();
+            var serverDeduct = attCount * SERVER_RATE_INSTITUTE_TUTOR;
+
+            var net = gross - platComm - smsDeduct - serverDeduct;
+
+            decimal oldNet = existing?.NetAmount ?? 0m;
+
+            if (existing == null)
+            {
+                existing = new EarningsSummary { TutorId = tutor.TutorId, InstituteId = institute.InstituteId, Month = month, Year = year };
+                existing.ReferenceId = await _idGenerator.GenerateWithdrawalReferenceAsync();
+                _context.EarningsSummaries.Add(existing);
+            }
+
+            existing.GrossAmount = gross;
+            existing.PlatformCommission = platComm;
+            existing.InstituteCommission = instComm;
+            existing.SmsDeduction = smsDeduct;
+            existing.ServerDeduction = serverDeduct;
+            existing.NetAmount = net;
+            existing.CalculatedAt = DateTime.UtcNow;
+
+            await AdjustWallet(tutor.UserId, institute.InstituteId, false, net - oldNet);
+            return existing;
+        }
+
+        private async Task<EarningsSummary> UpsertInstituteOwnEarnings(Institute institute, int month, int year)
+        {
+            var existing = await _context.EarningsSummaries
+                .FirstOrDefaultAsync(e => e.TutorId == null && e.InstituteId == institute.InstituteId && e.Month == month && e.Year == year);
+
+            // Gross: InstituteAmount (Institute's share of fees)
+            var gross = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.InstituteId == institute.InstituteId && p.Month == month && p.Year == year)
+                .SumAsync(p => p.InstituteAmount ?? 0m);
+
+            // Platform commission (Institute's 1%)
+            var platComm = await _context.ClassPayments
+                .Include(p => p.Class)
+                .Where(p => p.Class.InstituteId == institute.InstituteId && p.Month == month && p.Year == year)
+                .SumAsync(p => p.InstituteCommission ?? 0m);
+
+            // SMS: sender=institute, billTo=institute
+            var smsCount = await _context.SmsLogs
+                .Where(l => l.SenderUserId == institute.UserId && l.BillTo == institute.UserId
+                         && l.SentAt.Month == month && l.SentAt.Year == year)
+                .CountAsync();
+            var smsDeduct = smsCount * SMS_RATE;
+
+            // Server: 0.5 LKR per attendance in this institute
+            var attCount = await _context.Attendances
+                .Include(a => a.Class)
+                .Where(a => a.Class.InstituteId == institute.InstituteId
+                         && a.Date.Month == month && a.Date.Year == year)
+                .CountAsync();
+            var serverDeduct = attCount * SERVER_RATE_INSTITUTE_OWN;
+
+            var net = gross - platComm - smsDeduct - serverDeduct;
+
+            decimal oldNet = existing?.NetAmount ?? 0m;
+
+            if (existing == null)
+            {
+                existing = new EarningsSummary { TutorId = null, InstituteId = institute.InstituteId, Month = month, Year = year };
+                existing.ReferenceId = await _idGenerator.GenerateWithdrawalReferenceAsync();
+                _context.EarningsSummaries.Add(existing);
+            }
+
+            existing.GrossAmount = gross;
+            existing.PlatformCommission = platComm;
+            existing.InstituteCommission = 0m;
+            existing.SmsDeduction = smsDeduct;
+            existing.ServerDeduction = serverDeduct;
+            existing.NetAmount = net;
+            existing.CalculatedAt = DateTime.UtcNow;
+
+            await AdjustWallet(institute.UserId, institute.InstituteId, false, net - oldNet);
+            return existing;
+        }
+
+        private async Task AdjustWallet(Guid userId, Guid? instituteId, bool isIndividual, decimal delta)
+        {
+            if (delta == 0) return;
+
+            var wallet = await _context.Wallets
+                .FirstOrDefaultAsync(w => w.UserId == userId && w.InstituteId == instituteId && w.IsIndividual == isIndividual);
+
+            if (wallet == null)
+            {
+                wallet = new Wallet
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    InstituteId = instituteId,
+                    IsIndividual = isIndividual,
+                    Balance = 0m,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.Wallets.Add(wallet);
+            }
+
+            wallet.Balance += delta;
+            wallet.LastUpdated = DateTime.UtcNow;
+
+            var txnDesc = delta > 0
+                ? (isIndividual ? "Earnings credit (Individual classes)" : $"Earnings credit (Institute)")
+                : (isIndividual ? "Earnings adjustment (Individual classes)" : $"Earnings adjustment (Institute)");
+
+            var txn = new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = wallet.Id,
+                Amount = Math.Abs(delta),
+                Type = delta > 0 ? TransactionType.Deposit : TransactionType.BillPayment,
+                ReferenceId = null,
+                Description = txnDesc,
+                InstituteId = instituteId,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.WalletTransactions.Add(txn);
+        }
+
+        private static EarningsSummaryDto MapToEarningsDto(EarningsSummary e, string? tutorName, Guid? instId, string? instName)
+        {
+            var periodName = new DateTime(e.Year, e.Month, 1).ToString("MMMM yyyy");
+            return new EarningsSummaryDto
+            {
+                Id = e.Id,
+                ReferenceId = e.ReferenceId,
+                Month = e.Month,
+                Year = e.Year,
+                Period = periodName,
+                TutorId = e.TutorId,
+                TutorName = tutorName,
+                InstituteId = instId,
+                InstituteName = instName,
+                GrossAmount = e.GrossAmount,
+                PlatformCommission = e.PlatformCommission,
+                InstituteCommission = e.InstituteCommission,
+                SmsDeduction = e.SmsDeduction,
+                ServerDeduction = e.ServerDeduction,
+                NetAmount = e.NetAmount,
+                CalculatedAt = e.CalculatedAt
+            };
         }
     }
 }

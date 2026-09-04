@@ -338,5 +338,76 @@ namespace Tutorz.Api.Controllers
 
             return File(pdfBytes, "application/pdf", $"Fees_Report_{year}_{month}.pdf");
         }
+
+        // ============================================================
+        // EARNINGS SUMMARIES & WALLETS
+        // ============================================================
+
+        // POST /api/withdrawal/calculate
+        [HttpPost("calculate")]
+        [Authorize(Roles = "Tutor")]
+        public async Task<IActionResult> CalculateEarnings([FromBody] CalculateEarningsDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var tutorId = await GetTutorIdAsync(userId);
+            if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
+
+            var result = await _withdrawalService.CalculateEarningsAsync(dto.Month, dto.Year, tutorId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { message = "Earnings calculated successfully.", data = result.Data });
+        }
+
+        // POST /api/withdrawal/calculate-institute
+        [HttpPost("calculate-institute")]
+        [Authorize(Roles = "Institute")]
+        public async Task<IActionResult> CalculateInstituteEarnings([FromBody] CalculateInstituteEarningsDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var instituteId = await GetInstituteIdAsync(userId);
+            if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
+
+            var result = await _withdrawalService.CalculateInstituteEarningsAsync(dto.Month, dto.Year, instituteId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { message = "Institute earnings calculated successfully.", data = result.Data });
+        }
+
+        // GET /api/withdrawal/earnings?tutorId=&instituteId=
+        [HttpGet("earnings")]
+        public async Task<IActionResult> GetEarningsSummaries([FromQuery] Guid? tutorId, [FromQuery] Guid? instituteId)
+        {
+            var result = await _withdrawalService.GetEarningsSummariesAsync(tutorId, instituteId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(new { data = result.Data });
+        }
+
+        // GET /api/withdrawal/wallet-balances
+        [HttpGet("wallet-balances")]
+        public async Task<IActionResult> GetWalletBalances()
+        {
+            var userId = GetUserId();
+            if (userId == Guid.Empty) return Unauthorized();
+
+            var result = await _withdrawalService.GetWalletBalancesAsync(userId);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(new { data = result.Data });
+        }
+
+        // POST /api/withdrawal/withdraw
+        [HttpPost("withdraw")]
+        public async Task<IActionResult> WithdrawFromWallet([FromBody] WithdrawDto dto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var result = await _withdrawalService.WithdrawFromWalletAsync(dto.WalletId, dto.Amount, dto.Type, dto.Description);
+            if (!result.Success) return BadRequest(new { message = result.Message });
+
+            return Ok(new { message = "Withdrawal processed successfully." });
+        }
     }
 }
