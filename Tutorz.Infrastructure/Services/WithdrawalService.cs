@@ -1471,14 +1471,14 @@ namespace Tutorz.Infrastructure.Services
             var gross = await _context.ClassPayments
                 .Include(p => p.Class)
                 .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == null
-                         && p.Month == month && p.Year == year)
+                         && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.TuitionAmount ?? 0m);
 
             // Platform commission
             var platComm = await _context.ClassPayments
                 .Include(p => p.Class)
                 .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == null
-                         && p.Month == month && p.Year == year)
+                         && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.TotalPlatformAmount ?? 0m);
 
             // SMS: sender=tutor, billTo=tutor, within month
@@ -1524,25 +1524,25 @@ namespace Tutorz.Infrastructure.Services
             var existing = await _context.EarningsSummaries
                 .FirstOrDefaultAsync(e => e.TutorId == tutor.TutorId && e.InstituteId == institute.InstituteId && e.Month == month && e.Year == year);
 
-            // Gross: TuitionAmount (after institute commission) for institute class payments
+            // Gross for the tutor: TuitionAmount = BaseFee minus institute's cut (already split at payment time)
             var gross = await _context.ClassPayments
                 .Include(p => p.Class)
                 .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
-                         && p.Month == month && p.Year == year)
+                         && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.TuitionAmount ?? 0m);
 
-            // Institute commission already deducted from TuitionAmount - but we record what was taken
-            var instComm = await _context.ClassPayments
+            // Institute's share (BaseFee × commissionRate%) — stored for display/info only; already deducted from gross
+            var instituteCut = await _context.ClassPayments
                 .Include(p => p.Class)
                 .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
-                         && p.Month == month && p.Year == year)
-                .SumAsync(p => p.InstituteCommission ?? 0m);
+                         && p.PaidAt.Month == month && p.PaidAt.Year == year)
+                .SumAsync(p => p.InstituteAmount ?? 0m);
 
-            // Platform commission (tutor's 1%)
+            // Platform commission: 1% of tutor's share (TutorCommission)
             var platComm = await _context.ClassPayments
                 .Include(p => p.Class)
                 .Where(p => p.Class.TutorId == tutor.TutorId && p.Class.InstituteId == institute.InstituteId
-                         && p.Month == month && p.Year == year)
+                         && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.TutorCommission ?? 0m);
 
             // SMS: sender=institute, billTo=tutor
@@ -1552,7 +1552,7 @@ namespace Tutorz.Infrastructure.Services
                 .CountAsync();
             var smsDeduct = smsCount * SMS_RATE;
 
-            // Server: attendance for institute classes (tutor share)
+            // Server: 1.5 LKR per attendance for institute classes (tutor share)
             var attCount = await _context.Attendances
                 .Include(a => a.Class)
                 .Where(a => a.Class.TutorId == tutor.TutorId && a.Class.InstituteId == institute.InstituteId
@@ -1560,6 +1560,7 @@ namespace Tutorz.Infrastructure.Services
                 .CountAsync();
             var serverDeduct = attCount * SERVER_RATE_INSTITUTE_TUTOR;
 
+            // Net = TuitionAmount (tutor's gross after institute cut) minus platform fees only
             var net = gross - platComm - smsDeduct - serverDeduct;
 
             decimal oldNet = existing?.NetAmount ?? 0m;
@@ -1573,7 +1574,9 @@ namespace Tutorz.Infrastructure.Services
 
             existing.GrossAmount = gross;
             existing.PlatformCommission = platComm;
-            existing.InstituteCommission = instComm;
+            // Repurposed: stores the institute's share of fees (BaseFee × rate) for display purposes only.
+            // This is NOT deducted from net — TuitionAmount already reflects the tutor's share after this cut.
+            existing.InstituteCommission = instituteCut;
             existing.SmsDeduction = smsDeduct;
             existing.ServerDeduction = serverDeduct;
             existing.NetAmount = net;
@@ -1591,13 +1594,13 @@ namespace Tutorz.Infrastructure.Services
             // Gross: InstituteAmount (Institute's share of fees)
             var gross = await _context.ClassPayments
                 .Include(p => p.Class)
-                .Where(p => p.Class.InstituteId == institute.InstituteId && p.Month == month && p.Year == year)
+                .Where(p => p.Class.InstituteId == institute.InstituteId && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.InstituteAmount ?? 0m);
 
             // Platform commission (Institute's 1%)
             var platComm = await _context.ClassPayments
                 .Include(p => p.Class)
-                .Where(p => p.Class.InstituteId == institute.InstituteId && p.Month == month && p.Year == year)
+                .Where(p => p.Class.InstituteId == institute.InstituteId && p.PaidAt.Month == month && p.PaidAt.Year == year)
                 .SumAsync(p => p.InstituteCommission ?? 0m);
 
             // SMS: sender=institute, billTo=institute
@@ -1682,7 +1685,9 @@ namespace Tutorz.Infrastructure.Services
 
         private static EarningsSummaryDto MapToEarningsDto(EarningsSummary e, string? tutorName, Guid? instId, string? instName)
         {
-            var periodName = new DateTime(e.Year, e.Month, 1).ToString("MMMM yyyy");
+            var periodName = (e.Year > 0 && e.Month > 0)
+                ? new DateTime(e.Year, e.Month, 1).ToString("MMMM yyyy")
+                : $"{e.Month}/{e.Year}";
             return new EarningsSummaryDto
             {
                 Id = e.Id,
@@ -1703,5 +1708,346 @@ namespace Tutorz.Infrastructure.Services
                 CalculatedAt = e.CalculatedAt
             };
         }
-    }
+    
+        public async Task<byte[]> GenerateEarningsPdfAsync(Guid earningsId)
+        {
+            var summary = await _context.EarningsSummaries
+                .Include(e => e.Tutor).ThenInclude(t => t.User)
+                .Include(e => e.Institute)
+                .FirstOrDefaultAsync(e => e.Id == earningsId);
+
+            if (summary == null) return Array.Empty<byte>();
+
+            var dto = new EarningsPdfDto
+            {
+                ReferenceId = summary.ReferenceId,
+                Period = $"{summary.Month}/{summary.Year}",
+                SmsCount = 0, // We will calculate this if possible, otherwise leave it
+                TotalSmsCost = summary.SmsDeduction,
+                TotalServerCost = summary.ServerDeduction,
+                TotalGross = summary.GrossAmount,
+                TotalInstituteCommission = summary.InstituteCommission,
+                TotalPlatformCommission = summary.PlatformCommission,
+                FinalNetAmount = summary.NetAmount
+            };
+
+            // Calculate SmsCount by dividing the total deduction by 2LKR
+            dto.SmsCount = (int)(summary.SmsDeduction / 2m);
+
+            if (summary.TutorId != null && summary.InstituteId == null)
+            {
+                dto.RecipientName = $"Tutor: {summary.Tutor.FirstName} {summary.Tutor.LastName}";
+
+                var classes = await _context.Classes
+                    .Where(c => c.TutorId == summary.TutorId && c.InstituteId == null)
+                    .ToListAsync();
+                
+                var classIds = classes.Select(c => c.ClassId).ToList();
+
+                var payments = await _context.ClassPayments
+                    .Where(p => classIds.Contains(p.ClassId) && p.PaidAt.Month == summary.Month && p.PaidAt.Year == summary.Year)
+                    .ToListAsync();
+                
+                var attendances = await _context.Attendances
+                    .Where(a => classIds.Contains(a.ClassId) && a.Date.Month == summary.Month && a.Date.Year == summary.Year)
+                    .ToListAsync();
+
+                foreach (var cls in classes)
+                {
+                    var clsPayments = payments.Where(p => p.ClassId == cls.ClassId).ToList();
+                    var clsAtts = attendances.Where(a => a.ClassId == cls.ClassId).ToList();
+
+                    var platComm = clsPayments.Sum(p => p.TotalPlatformAmount ?? 0m);
+                    var serverCost = clsAtts.Count * SERVER_RATE_INDIVIDUAL;
+                    var gross = clsPayments.Sum(p => p.TuitionAmount ?? 0m);
+
+                    if (gross > 0 || platComm > 0 || serverCost > 0)
+                    {
+                        dto.Classes.Add(new EarningsPdfClassRowDto
+                        {
+                            ClassName = $"{cls.Subject} - {cls.Grade}",
+                            PaymentsCount = clsPayments.Count,
+                            GrossFees = gross,
+                            InstituteCut = 0,
+                            PlatformCommission = platComm,
+                            AttendanceCount = clsAtts.Count,
+                            ServerCost = serverCost,
+                            NetForClass = gross - platComm - serverCost
+                        });
+                    }
+                }
+            }
+            else if (summary.TutorId != null && summary.InstituteId != null)
+            {
+                dto.RecipientName = $"Tutor: {summary.Tutor.FirstName} {summary.Tutor.LastName} (Institute: {summary.Institute.InstituteName})";
+
+                var classes = await _context.Classes
+                    .Where(c => c.TutorId == summary.TutorId && c.InstituteId == summary.InstituteId)
+                    .ToListAsync();
+                
+                var classIds = classes.Select(c => c.ClassId).ToList();
+
+                var payments = await _context.ClassPayments
+                    .Where(p => classIds.Contains(p.ClassId) && p.PaidAt.Month == summary.Month && p.PaidAt.Year == summary.Year)
+                    .ToListAsync();
+                
+                var attendances = await _context.Attendances
+                    .Where(a => classIds.Contains(a.ClassId) && a.Date.Month == summary.Month && a.Date.Year == summary.Year)
+                    .ToListAsync();
+
+                foreach (var cls in classes)
+                {
+                    var clsPayments = payments.Where(p => p.ClassId == cls.ClassId).ToList();
+                    var clsAtts = attendances.Where(a => a.ClassId == cls.ClassId).ToList();
+
+                    // Full class fee (BaseFee × number of students paid)
+                    var baseFeeTotal  = clsPayments.Sum(p => p.BaseFee ?? 0m);
+                    // Institute's share (already deducted before tutor receives TuitionAmount)
+                    var instituteCut  = clsPayments.Sum(p => p.InstituteAmount ?? 0m);
+                    // Tutor's gross after institute cut
+                    var tutorGross    = clsPayments.Sum(p => p.TuitionAmount ?? 0m);
+                    // Platform's 1% on tutor's share
+                    var platComm      = clsPayments.Sum(p => p.TutorCommission ?? 0m);
+                    var serverCost    = clsAtts.Count * SERVER_RATE_INSTITUTE_TUTOR;
+                    // Net = tutor's gross − platform commission − server cost (SMS is a separate line at summary level)
+                    var netForClass   = tutorGross - platComm - serverCost;
+
+                    if (baseFeeTotal > 0 || platComm > 0 || serverCost > 0)
+                    {
+                        dto.Classes.Add(new EarningsPdfClassRowDto
+                        {
+                            ClassName = $"{cls.Subject} - {cls.Grade}",
+                            PaymentsCount = clsPayments.Count,
+                            GrossFees = baseFeeTotal,
+                            InstituteCut = instituteCut,
+                            PlatformCommission = platComm,
+                            AttendanceCount = clsAtts.Count,
+                            ServerCost = serverCost,
+                            NetForClass = netForClass
+                        });
+                    }
+                }
+            }
+            else if (summary.TutorId == null && summary.InstituteId != null)
+            {
+                dto.RecipientName = $"Institute: {summary.Institute.InstituteName}";
+
+                var classes = await _context.Classes
+                    .Where(c => c.InstituteId == summary.InstituteId)
+                    .ToListAsync();
+                
+                var classIds = classes.Select(c => c.ClassId).ToList();
+
+                var payments = await _context.ClassPayments
+                    .Where(p => classIds.Contains(p.ClassId) && p.PaidAt.Month == summary.Month && p.PaidAt.Year == summary.Year)
+                    .ToListAsync();
+                
+                var attendances = await _context.Attendances
+                    .Where(a => classIds.Contains(a.ClassId) && a.Date.Month == summary.Month && a.Date.Year == summary.Year)
+                    .ToListAsync();
+
+                foreach (var cls in classes)
+                {
+                    var clsPayments = payments.Where(p => p.ClassId == cls.ClassId).ToList();
+                    var clsAtts = attendances.Where(a => a.ClassId == cls.ClassId).ToList();
+
+                    var instComm = clsPayments.Sum(p => p.InstituteAmount ?? 0m); 
+                    var platComm = clsPayments.Sum(p => p.InstituteCommission ?? 0m); 
+                    var serverCost = clsAtts.Count * SERVER_RATE_INSTITUTE_OWN;
+
+                    if (instComm > 0 || platComm > 0 || serverCost > 0)
+                    {
+                        dto.Classes.Add(new EarningsPdfClassRowDto
+                        {
+                            ClassName = $"{cls.Subject} - {cls.Grade}",
+                            PaymentsCount = clsPayments.Count,
+                            GrossFees = instComm,
+                            InstituteCut = 0,
+                            PlatformCommission = platComm,
+                            AttendanceCount = clsAtts.Count,
+                            ServerCost = serverCost,
+                            NetForClass = instComm - platComm - serverCost
+                        });
+                    }
+                }
+            }
+
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SmallLogo.png");
+            bool hasLogo = File.Exists(logoPath);
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(50);
+                    page.Size(PageSizes.A4);
+                    page.DefaultTextStyle(x => x.FontSize(10));
+
+                    page.Background()
+                        .AlignCenter()
+                        .AlignMiddle()
+                        .Rotate(-45)
+                        .Text(text => 
+                        {
+                            text.AlignCenter();
+                            text.Span("EARNINGS")
+                                .FontSize(120)
+                                .FontColor("#334CAF50")
+                                .Bold();
+                        });
+
+                    page.Header().Row(row =>
+                    {
+                        row.RelativeItem().Column(col =>
+                        {
+                            if (hasLogo)
+                            {
+                                col.Item().Width(80).Image(logoPath);
+                            }
+                            else
+                            {
+                                col.Item().Text("Tutorz").FontSize(20).Bold().FontColor(Colors.Blue.Darken2);
+                            }
+                            col.Item().Text("Kylix Technology");
+                            col.Item().Text("lktutorz@gmail.com");
+                            col.Item().Text("Sri Lanka");
+                        });
+
+                        row.ConstantItem(250).AlignRight().Column(col =>
+                        {
+                            col.Item().Text("EARNINGS SUMMARY").FontSize(20).Bold();
+                            col.Item().Text($"Ref #: {dto.ReferenceId}");
+                            col.Item().Text($"Date: {dto.GeneratedAt:dd MMM yyyy}");
+                        });
+                    });
+
+                    page.Content().PaddingVertical(25).Column(col =>
+                    {
+                        col.Item().Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("Summary For:").Bold();
+                                c.Item().Text(dto.RecipientName);
+                            });
+
+                            row.RelativeItem().AlignRight().Column(c =>
+                            {
+                                c.Item().Text("Earnings Period:").Bold();
+                                c.Item().Text(dto.Period);
+                            });
+                        });
+
+                        col.Item().PaddingTop(20).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(20);   // #
+                                columns.RelativeColumn();     // Description
+                                columns.ConstantColumn(100);   // Amount
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Text("#");
+                                header.Cell().Text("Description");
+                                header.Cell().AlignRight().Text("Amount");
+
+                                header.Cell().ColumnSpan(3).PaddingVertical(5)
+                                    .BorderBottom(1).BorderColor(Colors.Black);
+                            });
+
+                            int rowNum = 1;
+
+                            foreach (var cls in dto.Classes)
+                            {
+                                table.Cell().ColumnSpan(3).PaddingTop(5).PaddingBottom(2).Text(cls.ClassName).Bold();
+
+                                if (cls.GrossFees > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().PaddingLeft(10).Text($"Gross Fees ({cls.PaymentsCount} payments)");
+                                    table.Cell().AlignRight().Text($"{cls.GrossFees:N2}");
+                                }
+
+                                if (cls.InstituteCut > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().PaddingLeft(10).Text("Institute Share (deducted at source)");
+                                    table.Cell().AlignRight().Text($"-{cls.InstituteCut:N2}");
+                                }
+                                
+                                if (cls.PlatformCommission > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().PaddingLeft(10).Text($"Platform Commission");
+                                    table.Cell().AlignRight().Text($"-{cls.PlatformCommission:N2}");
+                                }
+
+                                if (cls.ServerCost > 0)
+                                {
+                                    table.Cell().Text($"{rowNum++}");
+                                    table.Cell().PaddingLeft(10).Text($"Server Usage ({cls.AttendanceCount} attendances)");
+                                    table.Cell().AlignRight().Text($"-{cls.ServerCost:N2}");
+                                }
+
+                                table.Cell().ColumnSpan(2).AlignRight().PaddingTop(2).Text("Class Net Earnings:").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+                                table.Cell().AlignRight().PaddingTop(2).Text($"{cls.NetForClass:N2}").FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+                            }
+
+                            bool hasAdditional = dto.TotalSmsCost > 0 || (dto.Classes.Count == 0 && dto.TotalServerCost > 0);
+                            if (hasAdditional)
+                            {
+                                table.Cell().ColumnSpan(3).PaddingTop(10).PaddingBottom(2).Text("Platform Services").Bold();
+                            }
+
+                            if (dto.TotalSmsCost > 0)
+                            {
+                                table.Cell().Text($"{rowNum++}");
+                                table.Cell().PaddingLeft(10).Text($"SMS Dispatch Service ({dto.SmsCount} messages)");
+                                table.Cell().AlignRight().Text($"-{dto.TotalSmsCost:N2}");
+                            }
+
+                            if (dto.Classes.Count == 0 && dto.TotalServerCost > 0)
+                            {
+                                table.Cell().Text($"{rowNum++}");
+                                table.Cell().PaddingLeft(10).Text("Server Usage (Platform)");
+                                table.Cell().AlignRight().Text($"-{dto.TotalServerCost:N2}");
+                            }
+
+                            table.Footer(footer =>
+                            {
+                                footer.Cell().ColumnSpan(3).PaddingVertical(5)
+                                    .BorderTop(1).BorderColor(Colors.Black);
+
+                                footer.Cell().ColumnSpan(2).AlignRight().Text("Sub Total").Bold();
+                                footer.Cell().AlignRight().Text($"{dto.FinalNetAmount:N2}");
+
+                                footer.Cell().ColumnSpan(2).AlignRight().PaddingTop(5)
+                                    .Text("TOTAL EARNINGS (LKR)").FontSize(14).Bold();
+                                footer.Cell().AlignRight().PaddingTop(5)
+                                    .Text($"{dto.FinalNetAmount:N2}").FontSize(14).Bold();
+                            });
+                        });
+
+                        col.Item().PaddingTop(40).Column(c =>
+                        {
+                            c.Item().Text("Note: This is a system-generated earnings summary for your records.")
+                                .Italic().FontSize(8);
+                        });
+                    });
+
+                    page.Footer().AlignCenter().Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                    });
+                });
+            });
+
+            using var ms = new MemoryStream();
+            document.GeneratePdf(ms);
+            return ms.ToArray();
+        }
+}
 }

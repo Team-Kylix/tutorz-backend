@@ -40,6 +40,7 @@ namespace Tutorz.Application.Interfaces
         Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateEarningsAsync(int month, int year, Guid tutorId);
         Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> CalculateInstituteEarningsAsync(int month, int year, Guid instituteId);
         Task<ServiceResponse<IEnumerable<EarningsSummaryDto>>> GetEarningsSummariesAsync(Guid? tutorId, Guid? instituteId);
+        Task<byte[]> GenerateEarningsPdfAsync(Guid earningsId);
         Task<ServiceResponse<IEnumerable<WalletBalanceDto>>> GetWalletBalancesAsync(Guid userId);
         Task<ServiceResponse<bool>> WithdrawFromWalletAsync(Guid walletId, decimal amount, string type, string description);
     }

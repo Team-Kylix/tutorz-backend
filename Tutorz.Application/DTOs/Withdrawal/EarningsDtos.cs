@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 
 namespace Tutorz.Application.DTOs.Withdrawal
 {
@@ -39,7 +40,6 @@ namespace Tutorz.Application.DTOs.Withdrawal
     {
         public Guid WalletId { get; set; }
         public decimal Amount { get; set; }
-        /// <summary>OnHand or Online</summary>
         public string Type { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
     }
@@ -54,5 +54,40 @@ namespace Tutorz.Application.DTOs.Withdrawal
     {
         public int Month { get; set; }
         public int Year { get; set; }
+    }
+
+    public class EarningsPdfDto
+    {
+        public string ReferenceId { get; set; } = string.Empty;
+        public string Period { get; set; } = string.Empty;
+        public string HeaderTitle { get; set; } = string.Empty;
+        public string RecipientName { get; set; } = string.Empty;
+        public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+
+        public List<EarningsPdfClassRowDto> Classes { get; set; } = new();
+
+        public int SmsCount { get; set; }
+        public decimal TotalSmsCost { get; set; }
+        public decimal TotalServerCost { get; set; }
+
+        public decimal TotalGross { get; set; }
+        public decimal TotalInstituteCommission { get; set; }
+        public decimal TotalPlatformCommission { get; set; }
+        public decimal FinalNetAmount { get; set; }
+    }
+
+    public class EarningsPdfClassRowDto
+    {
+        public string ClassName { get; set; } = string.Empty;
+        public int PaymentsCount { get; set; }
+        /// <summary>Full class fee (BaseFee total). For institute classes this is the full student fee before any split.</summary>
+        public decimal GrossFees { get; set; }
+        /// <summary>Institute's share cut from GrossFees (InstituteAmount). Only populated for tutor+institute rows.</summary>
+        public decimal InstituteCut { get; set; }
+        /// <summary>Platform's 1% commission on tutor's share (TutorCommission) or on institute share (InstituteCommission).</summary>
+        public decimal PlatformCommission { get; set; }
+        public int AttendanceCount { get; set; }
+        public decimal ServerCost { get; set; }
+        public decimal NetForClass { get; set; }
     }
 }

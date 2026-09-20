@@ -243,6 +243,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

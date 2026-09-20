@@ -354,7 +354,11 @@ namespace Tutorz.Api.Controllers
             var tutorId = await GetTutorIdAsync(userId);
             if (tutorId == Guid.Empty) return NotFound(new { message = "Tutor profile not found." });
 
-            var result = await _withdrawalService.CalculateEarningsAsync(dto.Month, dto.Year, tutorId);
+            var now = DateTime.UtcNow;
+            var month = dto.Month > 0 ? dto.Month : now.Month;
+            var year  = dto.Year  > 0 ? dto.Year  : now.Year;
+
+            var result = await _withdrawalService.CalculateEarningsAsync(month, year, tutorId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { message = "Earnings calculated successfully.", data = result.Data });
@@ -371,16 +375,45 @@ namespace Tutorz.Api.Controllers
             var instituteId = await GetInstituteIdAsync(userId);
             if (instituteId == Guid.Empty) return NotFound(new { message = "Institute profile not found." });
 
-            var result = await _withdrawalService.CalculateInstituteEarningsAsync(dto.Month, dto.Year, instituteId);
+            var now = DateTime.UtcNow;
+            var month = dto.Month > 0 ? dto.Month : now.Month;
+            var year  = dto.Year  > 0 ? dto.Year  : now.Year;
+
+            var result = await _withdrawalService.CalculateInstituteEarningsAsync(month, year, instituteId);
             if (!result.Success) return BadRequest(new { message = result.Message });
 
             return Ok(new { message = "Institute earnings calculated successfully.", data = result.Data });
+        }
+
+        // GET /api/withdrawal/earnings/{id}/pdf
+        [HttpGet("earnings/{id}/pdf")]
+        public async Task<IActionResult> DownloadEarningsPdf(Guid id)
+        {
+            var pdfBytes = await _withdrawalService.GenerateEarningsPdfAsync(id);
+            if (pdfBytes == null || pdfBytes.Length == 0)
+                return NotFound(new { message = "Earnings summary not found or could not generate PDF." });
+
+            return File(pdfBytes, "application/pdf", $"Earnings_Summary.pdf");
         }
 
         // GET /api/withdrawal/earnings?tutorId=&instituteId=
         [HttpGet("earnings")]
         public async Task<IActionResult> GetEarningsSummaries([FromQuery] Guid? tutorId, [FromQuery] Guid? instituteId)
         {
+            var userId = GetUserId();
+            var role = GetRole();
+            
+            if (role == "Institute")
+            {
+                var myInstId = await GetInstituteIdAsync(userId);
+                instituteId = myInstId;
+            }
+            else if (role == "Tutor")
+            {
+                var myTutId = await GetTutorIdAsync(userId);
+                tutorId = myTutId;
+            }
+
             var result = await _withdrawalService.GetEarningsSummariesAsync(tutorId, instituteId);
             if (!result.Success) return BadRequest(new { message = result.Message });
             return Ok(new { data = result.Data });
